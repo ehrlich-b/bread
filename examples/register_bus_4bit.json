@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "register_bus_4bit",
+  "description": "Two 74LS173 4-bit registers sharing a 4-bit bus. Each register has independent load (/G1, /G2) and output (/M, /N) enables driven externally. Demonstrates tristate bus arbitration end-to-end through the composite loader.",
+  "components": [
+    { "id": "REG_A", "type": "ttl.74LS173" },
+    { "id": "REG_B", "type": "ttl.74LS173" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["REG_A.Q1", "REG_B.Q1"] },
+    { "id": "bus1", "endpoints": ["REG_A.Q2", "REG_B.Q2"] },
+    { "id": "bus2", "endpoints": ["REG_A.Q3", "REG_B.Q3"] },
+    { "id": "bus3", "endpoints": ["REG_A.Q4", "REG_B.Q4"] },
+
+    { "id": "a_d1", "endpoints": ["REG_A.D1"] },
+    { "id": "a_d2", "endpoints": ["REG_A.D2"] },
+    { "id": "a_d3", "endpoints": ["REG_A.D3"] },
+    { "id": "a_d4", "endpoints": ["REG_A.D4"] },
+
+    { "id": "b_d1", "endpoints": ["REG_B.D1"] },
+    { "id": "b_d2", "endpoints": ["REG_B.D2"] },
+    { "id": "b_d3", "endpoints": ["REG_B.D3"] },
+    { "id": "b_d4", "endpoints": ["REG_B.D4"] },
+
+    { "id": "clk", "endpoints": ["REG_A.CLK", "REG_B.CLK"] },
+    { "id": "clr", "endpoints": ["REG_A.CLR", "REG_B.CLR"] },
+
+    { "id": "a_g1", "endpoints": ["REG_A./G1"] },
+    { "id": "a_g2", "endpoints": ["REG_A./G2"] },
+    { "id": "a_m",  "endpoints": ["REG_A./M"] },
+    { "id": "a_n",  "endpoints": ["REG_A./N"] },
+
+    { "id": "b_g1", "endpoints": ["REG_B./G1"] },
+    { "id": "b_g2", "endpoints": ["REG_B./G2"] },
+    { "id": "b_m",  "endpoints": ["REG_B./M"] },
+    { "id": "b_n",  "endpoints": ["REG_B./N"] }
+  ]
+}

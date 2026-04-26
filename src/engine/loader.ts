@@ -1,5 +1,8 @@
+import { getComposite } from './composites/registry';
 import type {
   CircuitJSON,
+  ComponentInstanceJSON,
+  NetJSON,
   RuntimeComponent,
   RuntimeGraph,
   RuntimeNet,
@@ -10,24 +13,24 @@ const SUPPORTED_VERSION = 1;
 
 // Parse + validate a CircuitJSON and produce a RuntimeGraph the simulator can run.
 //
-// M0 scope:
-//   - kind: 'circuit' only (composites land in M2)
-//   - all components must resolve to a registered primitive
-//   - every endpoint must reference an existing component + pin
-//   - every pin can sit on at most one net
-//   - dangling nets (1 endpoint) are allowed; zero-endpoint nets fail load
+// Composites are expanded inline before the runtime graph is built: every
+// component instance whose type resolves to a composite is replaced by a
+// prefixed copy of its inner graph, with port-internal nets stitched into
+// the parent's nets at the call site. The simulator never sees a composite.
 export function loadCircuit(json: CircuitJSON): RuntimeGraph {
   if (json.version !== SUPPORTED_VERSION) {
     throw new Error(`unsupported circuit version: ${json.version} (expected ${SUPPORTED_VERSION})`);
   }
   if (json.kind !== 'circuit') {
-    throw new Error(`M0 only supports kind="circuit"; got "${json.kind}"`);
+    throw new Error(`loadCircuit requires kind="circuit"; got "${json.kind}" (composites register via registerComposite)`);
   }
+
+  const flat = flattenCircuit(json);
 
   const components: RuntimeComponent[] = [];
   const componentById = new Map<string, number>();
 
-  for (const inst of json.components) {
+  for (const inst of flat.components) {
     if (componentById.has(inst.id)) {
       throw new Error(`duplicate component id: ${inst.id}`);
     }
@@ -66,7 +69,7 @@ export function loadCircuit(json: CircuitJSON): RuntimeGraph {
   const nets: RuntimeNet[] = [];
   const netById = new Map<string, number>();
 
-  for (const netDef of json.nets) {
+  for (const netDef of flat.nets) {
     if (netById.has(netDef.id)) {
       throw new Error(`duplicate net id: ${netDef.id}`);
     }
@@ -141,4 +144,134 @@ export function loadCircuit(json: CircuitJSON): RuntimeGraph {
   }
 
   return { components, nets, componentById, netById };
+}
+
+// Recursively expand composite instances into a flat CircuitJSON whose
+// components are all primitives. Detects cyclic composite imports.
+//
+// Algorithm: deep-copy nets so we can mutate endpoints. For each component,
+// pass primitives through; for each composite, recursively flatten the
+// composite's body, prefix child IDs with `<instId>__`, splice port
+// references in the parent's nets with the prefixed inner-net endpoints, and
+// add unmerged inner nets as composite-internal (prefixed) nets.
+export function flattenCircuit(json: CircuitJSON): CircuitJSON {
+  return flatten(json, []);
+}
+
+function flatten(input: CircuitJSON, importChain: string[]): CircuitJSON {
+  const outComponents: ComponentInstanceJSON[] = [];
+  const outNets: NetJSON[] = input.nets.map((n) => ({
+    id: n.id,
+    name: n.name,
+    endpoints: [...n.endpoints],
+    waypoints: n.waypoints,
+  }));
+
+  for (const inst of input.components) {
+    const prim = getPrimitive(inst.type);
+    if (prim) {
+      outComponents.push(inst);
+      continue;
+    }
+    const composite = getComposite(inst.type);
+    if (!composite) {
+      throw new Error(`unknown component type: ${inst.type} (component ${inst.id})`);
+    }
+    if (importChain.includes(inst.type)) {
+      throw new Error(
+        `cyclic composite import: ${[...importChain, inst.type].join(' -> ')}`,
+      );
+    }
+
+    expandComposite(inst, composite, [...importChain, inst.type], outComponents, outNets);
+  }
+
+  return {
+    version: input.version,
+    kind: input.kind,
+    name: input.name,
+    description: input.description,
+    components: outComponents,
+    nets: outNets,
+    ports: input.ports,
+    metadata: input.metadata,
+  };
+}
+
+function expandComposite(
+  inst: ComponentInstanceJSON,
+  composite: CircuitJSON,
+  newImportChain: string[],
+  outComponents: ComponentInstanceJSON[],
+  outNets: NetJSON[],
+): void {
+  const inner = flatten(composite, newImportChain);
+  const prefix = `${inst.id}__`;
+
+  // Inner-component IDs prefixed with the parent instance id.
+  for (const c of inner.components) {
+    outComponents.push({ ...c, id: prefix + c.id });
+  }
+
+  // portName -> inner net (object), and reverse map for skip-list in pass 2.
+  const portToInner = new Map<string, NetJSON>();
+  const innerNetIdToPort = new Map<string, string>();
+  for (const port of composite.ports ?? []) {
+    const innerNet = inner.nets.find((n) => n.id === port.internalNet);
+    if (!innerNet) {
+      throw new Error(
+        `composite ${composite.name}: port "${port.name}" references missing internal net "${port.internalNet}"`,
+      );
+    }
+    portToInner.set(port.name, innerNet);
+    innerNetIdToPort.set(port.internalNet, port.name);
+  }
+
+  // Pass 1: in every parent net, replace `inst.id.<portName>` endpoints with
+  // the prefixed endpoints of the corresponding inner net. After this pass,
+  // the parent nets no longer reference `inst.id` at all.
+  const portsMerged = new Set<string>();
+  for (const parentNet of outNets) {
+    let i = 0;
+    while (i < parentNet.endpoints.length) {
+      const ep = parentNet.endpoints[i]!;
+      const dot = ep.indexOf('.');
+      if (dot < 0) {
+        i++;
+        continue;
+      }
+      const compId = ep.slice(0, dot);
+      if (compId !== inst.id) {
+        i++;
+        continue;
+      }
+      const pinName = ep.slice(dot + 1);
+      const innerNet = portToInner.get(pinName);
+      if (!innerNet) {
+        throw new Error(
+          `composite ${inst.id} (${composite.name}): unknown port "${pinName}" referenced on net "${parentNet.id}"`,
+        );
+      }
+      const expanded = innerNet.endpoints.map((innerEp) => prefix + innerEp);
+      parentNet.endpoints.splice(i, 1, ...expanded);
+      portsMerged.add(pinName);
+      i += expanded.length;
+    }
+  }
+
+  // Pass 2: add inner nets to outNets as composite-internal nets, prefixing
+  // both the id and the endpoints. Skip nets that backed a port that was
+  // merged in pass 1 — those endpoints already live in the parent net.
+  // A port whose net was never referenced externally still gets added: its
+  // inner pins still need a net to live on.
+  for (const innerNet of inner.nets) {
+    const portName = innerNetIdToPort.get(innerNet.id);
+    if (portName !== undefined && portsMerged.has(portName)) continue;
+    outNets.push({
+      id: prefix + innerNet.id,
+      name: innerNet.name,
+      endpoints: innerNet.endpoints.map((ep) => prefix + ep),
+      waypoints: innerNet.waypoints,
+    });
+  }
 }

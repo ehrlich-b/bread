@@ -1,0 +1,41 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS32",
+  "description": "Quad 2-input OR gate.",
+  "components": [
+    { "id": "g1", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "g2", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "g3", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "g4", "type": "prim.OR", "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "n1A", "endpoints": ["g1.A"] },
+    { "id": "n1B", "endpoints": ["g1.B"] },
+    { "id": "n1Y", "endpoints": ["g1.Y"] },
+    { "id": "n2A", "endpoints": ["g2.A"] },
+    { "id": "n2B", "endpoints": ["g2.B"] },
+    { "id": "n2Y", "endpoints": ["g2.Y"] },
+    { "id": "n3A", "endpoints": ["g3.A"] },
+    { "id": "n3B", "endpoints": ["g3.B"] },
+    { "id": "n3Y", "endpoints": ["g3.Y"] },
+    { "id": "n4A", "endpoints": ["g4.A"] },
+    { "id": "n4B", "endpoints": ["g4.B"] },
+    { "id": "n4Y", "endpoints": ["g4.Y"] }
+  ],
+  "ports": [
+    { "name": "1A", "dir": "in",  "internalNet": "n1A" },
+    { "name": "1B", "dir": "in",  "internalNet": "n1B" },
+    { "name": "1Y", "dir": "out", "internalNet": "n1Y" },
+    { "name": "2A", "dir": "in",  "internalNet": "n2A" },
+    { "name": "2B", "dir": "in",  "internalNet": "n2B" },
+    { "name": "2Y", "dir": "out", "internalNet": "n2Y" },
+    { "name": "3A", "dir": "in",  "internalNet": "n3A" },
+    { "name": "3B", "dir": "in",  "internalNet": "n3B" },
+    { "name": "3Y", "dir": "out", "internalNet": "n3Y" },
+    { "name": "4A", "dir": "in",  "internalNet": "n4A" },
+    { "name": "4B", "dir": "in",  "internalNet": "n4B" },
+    { "name": "4Y", "dir": "out", "internalNet": "n4Y" }
+  ]
+}

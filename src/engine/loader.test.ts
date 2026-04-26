@@ -70,8 +70,8 @@ describe('loadCircuit (errors)', () => {
     expect(() => loadCircuit({ ...minimal(), version: 99 })).toThrow(/unsupported circuit version/);
   });
 
-  it('rejects kind=composite (M0)', () => {
-    expect(() => loadCircuit({ ...minimal(), kind: 'composite' })).toThrow(/M0 only supports/);
+  it('rejects kind=composite at the top level', () => {
+    expect(() => loadCircuit({ ...minimal(), kind: 'composite' })).toThrow(/loadCircuit requires kind="circuit"/);
   });
 
   it('rejects unknown component types', () => {

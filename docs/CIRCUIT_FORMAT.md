@@ -119,13 +119,17 @@ When a circuit instantiates a composite (via `"type": "ttl.74LS00"`), the loader
 
 ## Validation
 
-Validated at load time:
+The editor-facing contract is `schema/circuit.schema.json` (JSON Schema 2020-12). Configure your editor to validate circuit JSON files against it for autocomplete and inline error messages.
 
-- JSON Schema check against `schema/circuit.schema.json`.
-- Every `type` resolves against the registry.
+The runtime loader in `src/engine/loader.ts` performs an equivalent structural check in TypeScript, plus extra rules that the schema can't express:
+
+- Every `type` resolves against the primitive or composite registry.
 - Every pin reference (`componentId.pinName`) matches the resolved type's pinout.
+- Each pin is on at most one net.
 - Cyclic composite imports rejected (engine refuses to load).
 - Multiple drivers on the same net are *allowed* at the IR level — they resolve at runtime via tristate logic. The validator does not flag them; runtime contention warnings handle reporting.
+
+If the schema and the loader's runtime checks ever diverge, the loader is authoritative — but the schema is a bug and should be updated.
 
 ## Versioning
 

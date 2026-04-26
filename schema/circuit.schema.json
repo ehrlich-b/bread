@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bread.local/schema/circuit.schema.json",
+  "title": "Bread circuit",
+  "description": "Canonical IR for a saved circuit or a composite chip definition. The runtime loader (src/engine/loader.ts) performs an equivalent structural check in TypeScript; this schema is the editor/IDE-facing contract. Keep them in sync — if a doc lies, it is a bug.",
+  "type": "object",
+  "required": ["version", "kind", "name", "components", "nets"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic schema version. Migrations live in loader.ts."
+    },
+    "kind": {
+      "enum": ["circuit", "composite"],
+      "description": "circuit = top-level user circuit. composite = reusable chip definition with ports[]."
+    },
+    "name": { "type": "string", "minLength": 1 },
+    "description": { "type": "string" },
+    "components": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ComponentInstance" }
+    },
+    "nets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Net" }
+    },
+    "ports": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Port" },
+      "description": "Required for composites; ignored for top-level circuits."
+    },
+    "metadata": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "composite" } } },
+      "then": { "required": ["ports"] }
+    }
+  ],
+  "$defs": {
+    "ComponentInstance": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Type id from the registry: prim.*, ttl.*, mem.*, io.*, gen.*, or a user composite."
+        },
+        "position": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Schematic-view metadata. Engine ignores this."
+        },
+        "rotation": {
+          "type": "number",
+          "description": "Schematic-view metadata. Engine ignores this."
+        },
+        "params": {
+          "type": "object",
+          "description": "Type-specific parameters validated by the type's pin spec."
+        },
+        "label": { "type": "string" }
+      }
+    },
+    "Net": {
+      "type": "object",
+      "required": ["id", "endpoints"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "name": {
+          "type": "string",
+          "description": "User-friendly name (e.g., bus or signal label). Optional."
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^.]+\\..+$",
+            "description": "componentId.pinName reference."
+          }
+        },
+        "waypoints": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "Schematic-view routing hints. Engine ignores this."
+        }
+      }
+    },
+    "Port": {
+      "type": "object",
+      "required": ["name", "dir", "internalNet"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "dir": { "enum": ["in", "out", "inout"] },
+        "internalNet": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

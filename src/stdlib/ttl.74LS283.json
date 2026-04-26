@@ -1,0 +1,42 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS283",
+  "description": "4-bit binary full adder with fast carry. A1..A4 + B1..B4 + C0 → S1..S4 + C4.",
+  "components": [
+    { "id": "add", "type": "prim.ADDER", "params": { "width": 4 } }
+  ],
+  "nets": [
+    { "id": "nA1", "endpoints": ["add.A0"] },
+    { "id": "nA2", "endpoints": ["add.A1"] },
+    { "id": "nA3", "endpoints": ["add.A2"] },
+    { "id": "nA4", "endpoints": ["add.A3"] },
+    { "id": "nB1", "endpoints": ["add.B0"] },
+    { "id": "nB2", "endpoints": ["add.B1"] },
+    { "id": "nB3", "endpoints": ["add.B2"] },
+    { "id": "nB4", "endpoints": ["add.B3"] },
+    { "id": "nC0", "endpoints": ["add.Cin"] },
+    { "id": "nS1", "endpoints": ["add.S0"] },
+    { "id": "nS2", "endpoints": ["add.S1"] },
+    { "id": "nS3", "endpoints": ["add.S2"] },
+    { "id": "nS4", "endpoints": ["add.S3"] },
+    { "id": "nC4", "endpoints": ["add.Cout"] }
+  ],
+  "ports": [
+    { "name": "A1", "dir": "in",  "internalNet": "nA1" },
+    { "name": "A2", "dir": "in",  "internalNet": "nA2" },
+    { "name": "A3", "dir": "in",  "internalNet": "nA3" },
+    { "name": "A4", "dir": "in",  "internalNet": "nA4" },
+    { "name": "B1", "dir": "in",  "internalNet": "nB1" },
+    { "name": "B2", "dir": "in",  "internalNet": "nB2" },
+    { "name": "B3", "dir": "in",  "internalNet": "nB3" },
+    { "name": "B4", "dir": "in",  "internalNet": "nB4" },
+    { "name": "C0", "dir": "in",  "internalNet": "nC0" },
+    { "name": "S1", "dir": "out", "internalNet": "nS1" },
+    { "name": "S2", "dir": "out", "internalNet": "nS2" },
+    { "name": "S3", "dir": "out", "internalNet": "nS3" },
+    { "name": "S4", "dir": "out", "internalNet": "nS4" },
+    { "name": "C4", "dir": "out", "internalNet": "nC4" }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS04",
+  "description": "Hex inverter.",
+  "components": [
+    { "id": "g1", "type": "prim.NOT" },
+    { "id": "g2", "type": "prim.NOT" },
+    { "id": "g3", "type": "prim.NOT" },
+    { "id": "g4", "type": "prim.NOT" },
+    { "id": "g5", "type": "prim.NOT" },
+    { "id": "g6", "type": "prim.NOT" }
+  ],
+  "nets": [
+    { "id": "n1A", "endpoints": ["g1.A"] },
+    { "id": "n1Y", "endpoints": ["g1.Y"] },
+    { "id": "n2A", "endpoints": ["g2.A"] },
+    { "id": "n2Y", "endpoints": ["g2.Y"] },
+    { "id": "n3A", "endpoints": ["g3.A"] },
+    { "id": "n3Y", "endpoints": ["g3.Y"] },
+    { "id": "n4A", "endpoints": ["g4.A"] },
+    { "id": "n4Y", "endpoints": ["g4.Y"] },
+    { "id": "n5A", "endpoints": ["g5.A"] },
+    { "id": "n5Y", "endpoints": ["g5.Y"] },
+    { "id": "n6A", "endpoints": ["g6.A"] },
+    { "id": "n6Y", "endpoints": ["g6.Y"] }
+  ],
+  "ports": [
+    { "name": "1A", "dir": "in",  "internalNet": "n1A" },
+    { "name": "1Y", "dir": "out", "internalNet": "n1Y" },
+    { "name": "2A", "dir": "in",  "internalNet": "n2A" },
+    { "name": "2Y", "dir": "out", "internalNet": "n2Y" },
+    { "name": "3A", "dir": "in",  "internalNet": "n3A" },
+    { "name": "3Y", "dir": "out", "internalNet": "n3Y" },
+    { "name": "4A", "dir": "in",  "internalNet": "n4A" },
+    { "name": "4Y", "dir": "out", "internalNet": "n4Y" },
+    { "name": "5A", "dir": "in",  "internalNet": "n5A" },
+    { "name": "5Y", "dir": "out", "internalNet": "n5Y" },
+    { "name": "6A", "dir": "in",  "internalNet": "n6A" },
+    { "name": "6Y", "dir": "out", "internalNet": "n6Y" }
+  ]
+}

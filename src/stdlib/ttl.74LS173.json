@@ -1,0 +1,80 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS173",
+  "description": "4-bit D register with three-state outputs. CLR is active high; /G1, /G2 are active-low data enables (load on rising CLK only when both low); /M, /N are active-low output enables (Q1-Q4 in Hi-Z unless both low).",
+  "components": [
+    { "id": "inv_clr", "type": "prim.NOT" },
+    { "id": "nor_load", "type": "prim.NOR", "params": { "inputs": 2 } },
+    { "id": "nor_oe",   "type": "prim.NOR", "params": { "inputs": 2 } },
+
+    { "id": "mux1", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux2", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux3", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux4", "type": "prim.MUX2", "params": { "width": 1 } },
+
+    { "id": "dff1", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff2", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff3", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff4", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+
+    { "id": "tri1", "type": "prim.TRISTATE" },
+    { "id": "tri2", "type": "prim.TRISTATE" },
+    { "id": "tri3", "type": "prim.TRISTATE" },
+    { "id": "tri4", "type": "prim.TRISTATE" }
+  ],
+  "nets": [
+    { "id": "nD1", "endpoints": ["mux1.B0"] },
+    { "id": "nD2", "endpoints": ["mux2.B0"] },
+    { "id": "nD3", "endpoints": ["mux3.B0"] },
+    { "id": "nD4", "endpoints": ["mux4.B0"] },
+
+    { "id": "nCLK", "endpoints": ["dff1.CLK", "dff2.CLK", "dff3.CLK", "dff4.CLK"] },
+    { "id": "nCLR", "endpoints": ["inv_clr.A"] },
+    { "id": "nG1",  "endpoints": ["nor_load.A"] },
+    { "id": "nG2",  "endpoints": ["nor_load.B"] },
+    { "id": "nM",   "endpoints": ["nor_oe.A"] },
+    { "id": "nN",   "endpoints": ["nor_oe.B"] },
+
+    { "id": "nQ1", "endpoints": ["tri1.Y"] },
+    { "id": "nQ2", "endpoints": ["tri2.Y"] },
+    { "id": "nQ3", "endpoints": ["tri3.Y"] },
+    { "id": "nQ4", "endpoints": ["tri4.Y"] },
+
+    { "id": "nClrLow",    "endpoints": ["inv_clr.Y", "dff1./CLR", "dff2./CLR", "dff3./CLR", "dff4./CLR"] },
+    { "id": "nLoadActive","endpoints": ["nor_load.Y", "mux1.S", "mux2.S", "mux3.S", "mux4.S"] },
+    { "id": "nOutEn",     "endpoints": ["nor_oe.Y", "tri1.OE", "tri2.OE", "tri3.OE", "tri4.OE"] },
+
+    { "id": "nQint1", "endpoints": ["dff1.Q", "mux1.A0", "tri1.A"] },
+    { "id": "nQint2", "endpoints": ["dff2.Q", "mux2.A0", "tri2.A"] },
+    { "id": "nQint3", "endpoints": ["dff3.Q", "mux3.A0", "tri3.A"] },
+    { "id": "nQint4", "endpoints": ["dff4.Q", "mux4.A0", "tri4.A"] },
+
+    { "id": "nMux1Y", "endpoints": ["mux1.Y0", "dff1.D"] },
+    { "id": "nMux2Y", "endpoints": ["mux2.Y0", "dff2.D"] },
+    { "id": "nMux3Y", "endpoints": ["mux3.Y0", "dff3.D"] },
+    { "id": "nMux4Y", "endpoints": ["mux4.Y0", "dff4.D"] },
+
+    { "id": "nQn1", "endpoints": ["dff1.Qn"] },
+    { "id": "nQn2", "endpoints": ["dff2.Qn"] },
+    { "id": "nQn3", "endpoints": ["dff3.Qn"] },
+    { "id": "nQn4", "endpoints": ["dff4.Qn"] }
+  ],
+  "ports": [
+    { "name": "D1",  "dir": "in",  "internalNet": "nD1" },
+    { "name": "D2",  "dir": "in",  "internalNet": "nD2" },
+    { "name": "D3",  "dir": "in",  "internalNet": "nD3" },
+    { "name": "D4",  "dir": "in",  "internalNet": "nD4" },
+    { "name": "CLK", "dir": "in",  "internalNet": "nCLK" },
+    { "name": "CLR", "dir": "in",  "internalNet": "nCLR" },
+    { "name": "/G1", "dir": "in",  "internalNet": "nG1" },
+    { "name": "/G2", "dir": "in",  "internalNet": "nG2" },
+    { "name": "/M",  "dir": "in",  "internalNet": "nM" },
+    { "name": "/N",  "dir": "in",  "internalNet": "nN" },
+    { "name": "Q1",  "dir": "out", "internalNet": "nQ1" },
+    { "name": "Q2",  "dir": "out", "internalNet": "nQ2" },
+    { "name": "Q3",  "dir": "out", "internalNet": "nQ3" },
+    { "name": "Q4",  "dir": "out", "internalNet": "nQ4" }
+  ]
+}
