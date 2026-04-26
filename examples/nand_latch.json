@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "nand_latch",
+  "description": "SR latch built from two cross-coupled 2-input NANDs. Active-low /S and /R inputs; Q and Qn outputs.",
+  "components": [
+    { "id": "g1", "type": "prim.NAND", "params": { "inputs": 2 } },
+    { "id": "g2", "type": "prim.NAND", "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "n_S",  "name": "/S", "endpoints": ["g1.A"] },
+    { "id": "n_R",  "name": "/R", "endpoints": ["g2.A"] },
+    { "id": "n_Q",  "name": "Q",  "endpoints": ["g1.Y", "g2.B"] },
+    { "id": "n_Qn", "name": "Qn", "endpoints": ["g2.Y", "g1.B"] }
+  ]
+}

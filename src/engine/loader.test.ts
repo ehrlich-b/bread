@@ -1,0 +1,149 @@
+import { describe, expect, it } from 'vitest';
+import type { CircuitJSON } from './ir';
+import { loadCircuit } from './loader';
+import './primitives/index';
+
+const minimal = (overrides: Partial<CircuitJSON> = {}): CircuitJSON => ({
+  version: 1,
+  kind: 'circuit',
+  name: 't',
+  components: [],
+  nets: [],
+  ...overrides,
+});
+
+const nandLatch: CircuitJSON = {
+  version: 1,
+  kind: 'circuit',
+  name: 'nand_latch',
+  components: [
+    { id: 'g1', type: 'prim.NAND', params: { inputs: 2 } },
+    { id: 'g2', type: 'prim.NAND', params: { inputs: 2 } },
+  ],
+  nets: [
+    { id: 'n_S',  endpoints: ['g1.A'] },
+    { id: 'n_R',  endpoints: ['g2.A'] },
+    { id: 'n_Q',  endpoints: ['g1.Y', 'g2.B'] },
+    { id: 'n_Qn', endpoints: ['g2.Y', 'g1.B'] },
+  ],
+};
+
+describe('loadCircuit (happy path)', () => {
+  it('produces a runtime graph with components, nets, and indexes', () => {
+    const g = loadCircuit(nandLatch);
+    expect(g.components).toHaveLength(2);
+    expect(g.nets).toHaveLength(4);
+    expect(g.componentById.get('g1')).toBe(0);
+    expect(g.componentById.get('g2')).toBe(1);
+    expect(g.netById.get('n_Q')).toBeDefined();
+  });
+
+  it('classifies pins into inputPinIdx and outputPinIdx by direction', () => {
+    const g = loadCircuit(nandLatch);
+    const g1 = g.components[0]!;
+    expect(g1.pins.map((p) => p.name)).toEqual(['A', 'B', 'Y']);
+    expect(g1.inputPinIdx).toEqual([0, 1]);
+    expect(g1.outputPinIdx).toEqual([2]);
+  });
+
+  it('records each net driver and listener exactly once', () => {
+    const g = loadCircuit(nandLatch);
+    const nQ = g.nets[g.netById.get('n_Q')!]!;
+    expect(nQ.drivers).toEqual([{ comp: 0, outIdx: 0 }]);
+    expect(nQ.listenerComps).toEqual([1]);
+
+    const nS = g.nets[g.netById.get('n_S')!]!;
+    expect(nS.drivers).toEqual([]);
+    expect(nS.listenerComps).toEqual([0]);
+  });
+
+  it('sets initial outputBuf to Z and net.value to X', () => {
+    const g = loadCircuit(nandLatch);
+    expect(g.components[0]!.outputBuf).toEqual(['Z']);
+    expect(g.nets.every((n) => n.value === 'X')).toBe(true);
+    expect(g.nets.every((n) => n.forced === 'Z')).toBe(true);
+  });
+});
+
+describe('loadCircuit (errors)', () => {
+  it('rejects unsupported version', () => {
+    expect(() => loadCircuit({ ...minimal(), version: 99 })).toThrow(/unsupported circuit version/);
+  });
+
+  it('rejects kind=composite (M0)', () => {
+    expect(() => loadCircuit({ ...minimal(), kind: 'composite' })).toThrow(/M0 only supports/);
+  });
+
+  it('rejects unknown component types', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [{ id: 'u1', type: 'prim.NOPE' }],
+          nets: [],
+        }),
+      ),
+    ).toThrow(/unknown component type/);
+  });
+
+  it('rejects duplicate component ids', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [
+            { id: 'u1', type: 'prim.NOT' },
+            { id: 'u1', type: 'prim.NOT' },
+          ],
+          nets: [],
+        }),
+      ),
+    ).toThrow(/duplicate component id/);
+  });
+
+  it('rejects net endpoints referencing missing pins', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [{ id: 'u1', type: 'prim.NOT' }],
+          nets: [{ id: 'n1', endpoints: ['u1.NOPE'] }],
+        }),
+      ),
+    ).toThrow(/has no pin "NOPE"/);
+  });
+
+  it('rejects pins on multiple nets', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [{ id: 'u1', type: 'prim.NOT' }],
+          nets: [
+            { id: 'n1', endpoints: ['u1.A'] },
+            { id: 'n2', endpoints: ['u1.A'] },
+            { id: 'n3', endpoints: ['u1.Y'] },
+          ],
+        }),
+      ),
+    ).toThrow(/multiple nets/);
+  });
+
+  it('rejects unconnected pins', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [{ id: 'u1', type: 'prim.NOT' }],
+          nets: [{ id: 'n1', endpoints: ['u1.A'] }],
+        }),
+      ),
+    ).toThrow(/not connected/);
+  });
+
+  it('rejects zero-endpoint nets', () => {
+    expect(() =>
+      loadCircuit(
+        minimal({
+          components: [],
+          nets: [{ id: 'n1', endpoints: [] }],
+        }),
+      ),
+    ).toThrow(/zero endpoints/);
+  });
+});
