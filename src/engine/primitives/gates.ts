@@ -90,7 +90,9 @@ const buf: PrimitiveDef<undefined, undefined> = {
 registerPrimitive('prim.AND', naryGate(and2, false));
 registerPrimitive('prim.OR', naryGate(or2, false));
 registerPrimitive('prim.NAND', naryGate(and2, true));
+registerPrimitive('prim.NOR', naryGate(or2, true));
 registerPrimitive('prim.XOR', naryGate(xor2, false));
+registerPrimitive('prim.XNOR', naryGate(xor2, true));
 registerPrimitive('prim.NOT', not);
 registerPrimitive('prim.BUF', buf);
 

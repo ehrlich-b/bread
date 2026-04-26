@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import type { NetState } from '../ir';
+import type { DriverValue, NetState } from '../ir';
 import { getPrimitive } from './index';
 
-const eval2 = (id: string, a: NetState, b: NetState): NetState => {
+const eval2 = (id: string, a: NetState, b: NetState): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
   return prim.evaluate([a, b], undefined, { inputs: 2 }).outputs[0]!;
 };
 
-const eval1 = (id: string, a: NetState): NetState => {
+const eval1 = (id: string, a: NetState): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
   return prim.evaluate([a], undefined, undefined).outputs[0]!;
 };
 
-const evalN = (id: string, ins: NetState[]): NetState => {
+const evalN = (id: string, ins: NetState[]): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
   return prim.evaluate(ins, undefined, { inputs: ins.length }).outputs[0]!;
@@ -89,6 +89,44 @@ describe('prim.XOR', () => {
   it('parity-reduces n inputs', () => {
     expect(evalN('prim.XOR', [1, 1, 1])).toBe(1);
     expect(evalN('prim.XOR', [1, 1, 1, 1])).toBe(0);
+  });
+});
+
+describe('prim.NOR', () => {
+  it('matches the 2-input truth table', () => {
+    expect(eval2('prim.NOR', 0, 0)).toBe(1);
+    expect(eval2('prim.NOR', 0, 1)).toBe(0);
+    expect(eval2('prim.NOR', 1, 0)).toBe(0);
+    expect(eval2('prim.NOR', 1, 1)).toBe(0);
+  });
+  it('inverts 1-dominance to 0', () => {
+    expect(eval2('prim.NOR', 1, 'X')).toBe(0);
+    expect(eval2('prim.NOR', 'X', 1)).toBe(0);
+  });
+  it('returns X when 0 meets X', () => {
+    expect(eval2('prim.NOR', 0, 'X')).toBe('X');
+  });
+  it('reduces n inputs', () => {
+    expect(evalN('prim.NOR', [0, 0, 0])).toBe(1);
+    expect(evalN('prim.NOR', [0, 1, 0])).toBe(0);
+    expect(evalN('prim.NOR', [1, 'X', 0])).toBe(0);
+  });
+});
+
+describe('prim.XNOR', () => {
+  it('matches the 2-input truth table', () => {
+    expect(eval2('prim.XNOR', 0, 0)).toBe(1);
+    expect(eval2('prim.XNOR', 0, 1)).toBe(0);
+    expect(eval2('prim.XNOR', 1, 0)).toBe(0);
+    expect(eval2('prim.XNOR', 1, 1)).toBe(1);
+  });
+  it('returns X for any X input', () => {
+    expect(eval2('prim.XNOR', 0, 'X')).toBe('X');
+    expect(eval2('prim.XNOR', 1, 'X')).toBe('X');
+  });
+  it('parity-reduces n inputs', () => {
+    expect(evalN('prim.XNOR', [1, 1, 1])).toBe(0);
+    expect(evalN('prim.XNOR', [1, 1, 1, 1])).toBe(1);
   });
 });
 

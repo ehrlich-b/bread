@@ -3,5 +3,11 @@
 
 import './gates';
 import './dff';
+import './sources';
+import './tristate';
+import './latch';
+import './mux';
+import './decoder';
+import './adder';
 
 export { getPrimitive, listPrimitives, registerPrimitive } from './registry';

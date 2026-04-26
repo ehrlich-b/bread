@@ -8,6 +8,7 @@
     "test:watch": "vitest",
     "demo": "tsx scripts/demo.ts",
     "demo:check": "tsx scripts/demo.ts | diff -u examples/nand_latch.trace.txt -",
+    "demo:adder": "tsx scripts/adder_demo.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

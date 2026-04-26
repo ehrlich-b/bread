@@ -1,4 +1,4 @@
-import type { NetState, RuntimeGraph, RuntimeNet } from './ir';
+import type { DriverValue, NetState, RuntimeGraph, RuntimeNet } from './ir';
 import { readAsLogic, resolveNet } from './nets';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
@@ -27,7 +27,10 @@ export class Simulator {
   // Bitmap: 1 if component is currently in either dirty queue.
   private readonly inDirty: Uint8Array;
   // Reusable scratch buffer for resolving each net's drivers without allocation.
-  private readonly resolveScratch: NetState[] = [];
+  private readonly resolveScratch: DriverValue[] = [];
+  // Nets that already emitted a contention event during the current settle().
+  // Cleared at the start of each settle so repeats during one step don't spam.
+  private readonly contendedThisSettle: Set<number> = new Set();
 
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
@@ -46,13 +49,13 @@ export class Simulator {
 
   // Force a net's value. Models an external driver (test harness, switch, etc.)
   // and schedules listeners for re-evaluation. Pass 'Z' to release the force.
-  setInput(netId: string, value: NetState): void {
+  setInput(netId: string, value: DriverValue): void {
     const idx = this.graph.netById.get(netId);
     if (idx === undefined) throw new Error(`unknown net: ${netId}`);
     const net = this.graph.nets[idx]!;
     if (net.forced === value) return;
     net.forced = value;
-    const newValue = this.computeNetValue(net);
+    const newValue = this.computeNetValue(net, idx);
     if (newValue === net.value) return;
     net.value = newValue;
     for (const comp of net.listenerComps) this.markDirty(comp);
@@ -70,6 +73,7 @@ export class Simulator {
     let iter = 0;
     let now = this.dirtyA;
     let next = this.dirtyB;
+    this.contendedThisSettle.clear();
 
     while (now.length > 0) {
       if (iter++ >= this.maxIterations) {
@@ -82,7 +86,7 @@ export class Simulator {
       // Evaluate every dirty component using the current net state. We stash
       // proposed outputs in each component's outputBuf only during COMMIT, so
       // no component sees a peer's freshly-written value within this iteration.
-      const proposedOutputs: NetState[][] = new Array<NetState[]>(now.length);
+      const proposedOutputs: DriverValue[][] = new Array<DriverValue[]>(now.length);
       const proposedNextStates: unknown[] = new Array<unknown>(now.length);
       for (let i = 0; i < now.length; i++) {
         const compIdx = now[i]!;
@@ -128,7 +132,7 @@ export class Simulator {
       // listeners for the next iteration.
       for (const netIdx of changedNets) {
         const net = this.graph.nets[netIdx]!;
-        const newValue = this.computeNetValue(net);
+        const newValue = this.computeNetValue(net, netIdx);
         if (newValue === net.value) continue;
         net.value = newValue;
         for (const comp of net.listenerComps) {
@@ -157,7 +161,7 @@ export class Simulator {
     this.inDirty[compIdx] = 1;
   }
 
-  private computeNetValue(net: RuntimeNet): NetState {
+  private computeNetValue(net: RuntimeNet, netIdx: number): NetState {
     const scratch = this.resolveScratch;
     scratch.length = 0;
     for (const d of net.drivers) {
@@ -165,7 +169,16 @@ export class Simulator {
       scratch.push(comp.outputBuf[d.outIdx]!);
     }
     if (net.forced !== 'Z') scratch.push(net.forced);
-    return resolveNet(scratch);
+    const result = resolveNet(scratch);
+    if (result.contention && !this.contendedThisSettle.has(netIdx)) {
+      this.contendedThisSettle.add(netIdx);
+      this.events.push({
+        kind: 'contention',
+        detail: `net "${net.id}" driven by conflicting strong values`,
+        step: this.step,
+      });
+    }
+    return result.value;
   }
 
   private recordOscillation(now: number[], next: number[]): void {

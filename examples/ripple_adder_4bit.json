@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "ripple_adder_4bit",
+  "description": "4-bit ripple-carry adder built from XOR/AND/OR primitives. Each bit is a textbook full adder: sum = A XOR B XOR Cin; carry = (A AND B) OR ((A XOR B) AND Cin).",
+  "components": [
+    { "id": "fa0_xab", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa0_aab", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa0_sum", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa0_axc", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa0_co",  "type": "prim.OR",  "params": { "inputs": 2 } },
+
+    { "id": "fa1_xab", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa1_aab", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa1_sum", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa1_axc", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa1_co",  "type": "prim.OR",  "params": { "inputs": 2 } },
+
+    { "id": "fa2_xab", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa2_aab", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa2_sum", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa2_axc", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa2_co",  "type": "prim.OR",  "params": { "inputs": 2 } },
+
+    { "id": "fa3_xab", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa3_aab", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa3_sum", "type": "prim.XOR", "params": { "inputs": 2 } },
+    { "id": "fa3_axc", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "fa3_co",  "type": "prim.OR",  "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "a0", "endpoints": ["fa0_xab.A", "fa0_aab.A"] },
+    { "id": "b0", "endpoints": ["fa0_xab.B", "fa0_aab.B"] },
+    { "id": "a1", "endpoints": ["fa1_xab.A", "fa1_aab.A"] },
+    { "id": "b1", "endpoints": ["fa1_xab.B", "fa1_aab.B"] },
+    { "id": "a2", "endpoints": ["fa2_xab.A", "fa2_aab.A"] },
+    { "id": "b2", "endpoints": ["fa2_xab.B", "fa2_aab.B"] },
+    { "id": "a3", "endpoints": ["fa3_xab.A", "fa3_aab.A"] },
+    { "id": "b3", "endpoints": ["fa3_xab.B", "fa3_aab.B"] },
+
+    { "id": "cin", "endpoints": ["fa0_sum.B", "fa0_axc.B"] },
+    { "id": "c1",  "endpoints": ["fa0_co.Y", "fa1_sum.B", "fa1_axc.B"] },
+    { "id": "c2",  "endpoints": ["fa1_co.Y", "fa2_sum.B", "fa2_axc.B"] },
+    { "id": "c3",  "endpoints": ["fa2_co.Y", "fa3_sum.B", "fa3_axc.B"] },
+    { "id": "cout","endpoints": ["fa3_co.Y"] },
+
+    { "id": "xab0", "endpoints": ["fa0_xab.Y", "fa0_sum.A", "fa0_axc.A"] },
+    { "id": "aab0", "endpoints": ["fa0_aab.Y", "fa0_co.A"] },
+    { "id": "axc0", "endpoints": ["fa0_axc.Y", "fa0_co.B"] },
+
+    { "id": "xab1", "endpoints": ["fa1_xab.Y", "fa1_sum.A", "fa1_axc.A"] },
+    { "id": "aab1", "endpoints": ["fa1_aab.Y", "fa1_co.A"] },
+    { "id": "axc1", "endpoints": ["fa1_axc.Y", "fa1_co.B"] },
+
+    { "id": "xab2", "endpoints": ["fa2_xab.Y", "fa2_sum.A", "fa2_axc.A"] },
+    { "id": "aab2", "endpoints": ["fa2_aab.Y", "fa2_co.A"] },
+    { "id": "axc2", "endpoints": ["fa2_axc.Y", "fa2_co.B"] },
+
+    { "id": "xab3", "endpoints": ["fa3_xab.Y", "fa3_sum.A", "fa3_axc.A"] },
+    { "id": "aab3", "endpoints": ["fa3_aab.Y", "fa3_co.A"] },
+    { "id": "axc3", "endpoints": ["fa3_axc.Y", "fa3_co.B"] },
+
+    { "id": "s0", "endpoints": ["fa0_sum.Y"] },
+    { "id": "s1", "endpoints": ["fa1_sum.Y"] },
+    { "id": "s2", "endpoints": ["fa2_sum.Y"] },
+    { "id": "s3", "endpoints": ["fa3_sum.Y"] }
+  ]
+}

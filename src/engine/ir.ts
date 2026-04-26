@@ -4,7 +4,15 @@
 //   - Runtime shape (RuntimeGraph, RuntimeComponent, ...) — what the simulator works on.
 // The loader produces the second from the first.
 
+// What a net resolves to. Always one of these four — weak driver values
+// (L/H) collapse to strong 0/1 once resolution finishes.
 export type NetState = 0 | 1 | 'Z' | 'X';
+
+// What a single driver may put on a net. Adds the weak values:
+//   'L' — weak 0 (pull-down)
+//   'H' — weak 1 (pull-up)
+// Strong drivers (0/1) override weak drivers per SIMULATION.md.
+export type DriverValue = NetState | 'L' | 'H';
 
 export type PinDir = 'in' | 'out' | 'inout';
 
@@ -25,7 +33,7 @@ export interface PrimitiveDef<S = unknown, P = unknown> {
     inputs: NetState[],
     state: S,
     params: P,
-  ): { outputs: NetState[]; nextState?: S };
+  ): { outputs: DriverValue[]; nextState?: S };
 }
 
 // ---- JSON shape ---------------------------------------------------------
@@ -79,7 +87,7 @@ export interface RuntimeComponent {
   // For each pin (full pins[] index), the net it's wired to. -1 if unconnected.
   pinNetIdx: number[];
   // Current driving value per output/inout pin (length = outputPinIdx.length).
-  outputBuf: NetState[];
+  outputBuf: DriverValue[];
 }
 
 export interface RuntimeNet {
@@ -89,8 +97,8 @@ export interface RuntimeNet {
   drivers: Array<{ comp: number; outIdx: number }>;
   // Components whose evaluation depends on this net (input/inout pins). Deduped.
   listenerComps: number[];
-  // Externally-forced value (from setInput). 'Z' means not forced.
-  forced: NetState;
+  // Externally-forced driver value (from setInput). 'Z' means not forced.
+  forced: DriverValue;
   // Resolved value. Initial 'X' per SIMULATION.md.
   value: NetState;
 }
