@@ -14,9 +14,11 @@
     "demo:adder": "tsx scripts/adder_demo.ts",
     "demo:bus": "tsx scripts/register_bus_demo.ts",
     "demo:blink": "tsx scripts/blink_demo.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
