@@ -1,0 +1,149 @@
+:root {
+  color-scheme: dark light;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --led-on: #f87171;
+  --led-off: #3f3f46;
+  --led-z: #71717a;
+  --led-x: #facc15;
+  --bg: #18181b;
+  --fg: #f4f4f5;
+  --accent: #38bdf8;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #fafafa;
+    --fg: #18181b;
+    --led-off: #d4d4d8;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100vh;
+}
+
+header {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--fg) 10%, transparent);
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+#iso-status {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+main {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+#schematic {
+  border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--bg) 90%, var(--fg) 4%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#schematic svg {
+  width: 100%;
+  height: 100%;
+  max-height: 70vh;
+}
+
+aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+#controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+button {
+  background: color-mix(in oklab, var(--accent) 15%, var(--bg));
+  color: var(--fg);
+  border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.85rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: color-mix(in oklab, var(--accent) 25%, var(--bg));
+}
+
+button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+#event-log {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.8rem;
+  height: 200px;
+  overflow: auto;
+}
+
+#event-log li {
+  padding: 2px 0;
+}
+
+.led {
+  transition: fill 80ms linear;
+}
+
+.wire {
+  stroke-width: 2;
+  fill: none;
+  transition: stroke 80ms linear;
+}
+
+.wire-0 { stroke: #52525b; }
+.wire-1 { stroke: var(--accent); }
+.wire-Z { stroke: #6b7280; stroke-dasharray: 4 3; }
+.wire-X { stroke: #facc15; }
+
+.gate-body {
+  fill: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  stroke: color-mix(in oklab, var(--fg) 30%, transparent);
+  stroke-width: 1.5;
+}
+
+.label {
+  fill: var(--fg);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+
+.switch-handle {
+  cursor: pointer;
+}

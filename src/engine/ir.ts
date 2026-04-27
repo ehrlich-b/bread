@@ -23,16 +23,31 @@ export interface PinSpec {
   activeLow?: boolean;
 }
 
+// Deterministic context handed to every evaluate(). Behavioral components that
+// model real-world time (clock generators, 555 timers, EEPROM access delays)
+// derive their cadence from `step` and `rateHz`. Primitives ignore it.
+export interface EvalCtx {
+  step: number;
+  rateHz: number;
+}
+
 export interface PrimitiveDef<S = unknown, P = unknown> {
   // Pin spec is computed from params (n-input gates etc.).
   pins(params: P): PinSpec[];
   init?(params: P): S;
+  // If true, the simulator re-marks every instance of this type dirty at the
+  // start of each tick(). Use for free-running components (clocks, oscillators)
+  // whose output is a function of time, not of any input net.
+  tickActive?: boolean;
   // inputs[i] is the value at the i-th input/inout pin (in pin-spec order, restricted to in|inout).
   // outputs[i] is the value to drive at the i-th output/inout pin (in pin-spec order, restricted to out|inout).
+  // ctx is optional for ergonomics in tests/primitives; the simulator always
+  // passes it. Behavioral components that depend on it may treat it as defined.
   evaluate(
     inputs: NetState[],
     state: S,
     params: P,
+    ctx?: EvalCtx,
   ): { outputs: DriverValue[]; nextState?: S };
 }
 

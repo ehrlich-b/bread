@@ -1,4 +1,4 @@
-import type { DriverValue, NetState, RuntimeGraph, RuntimeNet } from './ir';
+import type { DriverValue, EvalCtx, NetState, RuntimeGraph, RuntimeNet } from './ir';
 import { readAsLogic, resolveNet } from './nets';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
@@ -13,12 +13,16 @@ export interface SimEvent {
 
 export interface SimulatorOptions {
   maxIterations?: number;
+  rateHz?: number;
 }
 
 export class Simulator {
   readonly graph: RuntimeGraph;
   readonly events: SimEvent[] = [];
   step = 0;
+  // Worker-controlled tick rate handed to evaluate() via EvalCtx. Defaults to
+  // 1 Hz so unit tests that never set it get sensible numbers.
+  rateHz: number;
 
   private readonly maxIterations: number;
   // Two dirty queues, swapped per iteration. Insertion order is iteration order.
@@ -31,10 +35,13 @@ export class Simulator {
   // Nets that already emitted a contention event during the current settle().
   // Cleared at the start of each settle so repeats during one step don't spam.
   private readonly contendedThisSettle: Set<number> = new Set();
+  // Components flagged tickActive in their def — re-dirtied at every tick().
+  private readonly tickActive: number[] = [];
 
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.rateHz = opts.rateHz ?? 1;
     this.inDirty = new Uint8Array(graph.components.length);
     // Initial state per SIMULATION.md: every component dirty, every net X.
     // We deliberately skip pre-resolving nets — the loader already set every
@@ -44,6 +51,7 @@ export class Simulator {
     for (let i = 0; i < graph.components.length; i++) {
       this.dirtyA.push(i);
       this.inDirty[i] = 1;
+      if (graph.components[i]!.primitive.tickActive) this.tickActive.push(i);
     }
   }
 
@@ -67,6 +75,27 @@ export class Simulator {
     return this.graph.nets[idx]!.value;
   }
 
+  // Update a behavioral component's pin-keyed state slot. Used for io.switch
+  // (UI toggles its output) and analogous user-driven inputs. The component's
+  // evaluate() reads its state via the same key. Marks the component dirty.
+  setComponentInput(compId: string, pin: string, value: NetState): void {
+    const idx = this.graph.componentById.get(compId);
+    if (idx === undefined) throw new Error(`unknown component: ${compId}`);
+    const comp = this.graph.components[idx]!;
+    const state = (comp.state ?? {}) as Record<string, NetState>;
+    if (state[pin] === value) return;
+    comp.state = { ...state, [pin]: value };
+    this.markDirty(idx);
+  }
+
+  // One simulator tick: re-mark every tickActive component dirty (clocks, etc.)
+  // and settle. Workers call this at their target rate; pure combinational
+  // tests can use settle() directly without advancing tickActive components.
+  tick(): void {
+    for (const compIdx of this.tickActive) this.markDirty(compIdx);
+    this.settle();
+  }
+
   // Run iterations until the dirty queue empties or MAX_ITERATIONS trips.
   // One settle = one user-visible step.
   settle(): void {
@@ -74,6 +103,10 @@ export class Simulator {
     let now = this.dirtyA;
     let next = this.dirtyB;
     this.contendedThisSettle.clear();
+    // Stable for the duration of this settle; reused as the ctx arg to every
+    // evaluate(). step reflects the value being settled (post-increment is at
+    // the bottom of this method).
+    const ctx: EvalCtx = { step: this.step, rateHz: this.rateHz };
 
     while (now.length > 0) {
       if (iter++ >= this.maxIterations) {
@@ -99,7 +132,7 @@ export class Simulator {
           // Pure 'in' pins translate Z → X. 'inout' pins see Z directly.
           inputs[j] = comp.pins[pinIdx]!.dir === 'in' ? readAsLogic(netVal) : netVal;
         }
-        const result = comp.primitive.evaluate(inputs, comp.state, comp.params);
+        const result = comp.primitive.evaluate(inputs, comp.state, comp.params, ctx);
         proposedOutputs[i] = result.outputs;
         proposedNextStates[i] = result.nextState;
       }

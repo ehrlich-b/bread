@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "blink_demo",
+  "description": "Manual switch ANDed with a 1 Hz clock drives a single LED. The hardcoded M3 schematic in src/ui/schematic.ts knows the positions; the engine just runs the netlist.",
+  "components": [
+    { "id": "sw",  "type": "io.switch",  "position": [40,  60] },
+    { "id": "clk", "type": "gen.clock",  "position": [40, 200], "params": { "freqHz": 1 } },
+    { "id": "and", "type": "prim.AND",   "position": [240, 130], "params": { "inputs": 2 } },
+    { "id": "led", "type": "io.led",     "position": [440, 130] }
+  ],
+  "nets": [
+    { "id": "sw_out",  "endpoints": ["sw.Y",  "and.A"] },
+    { "id": "clk_out", "endpoints": ["clk.Y", "and.B"] },
+    { "id": "lit",     "endpoints": ["and.Y", "led.A"] }
+  ]
+}

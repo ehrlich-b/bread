@@ -1,13 +1,20 @@
+import { getBehavioral } from './behavioral/registry';
 import { getComposite } from './composites/registry';
 import type {
   CircuitJSON,
   ComponentInstanceJSON,
   NetJSON,
+  PrimitiveDef,
   RuntimeComponent,
   RuntimeGraph,
   RuntimeNet,
 } from './ir';
 import { getPrimitive } from './primitives/index';
+
+// Resolve a component type to its leaf evaluator (primitive or behavioral).
+// Composites are flattened away before this is called.
+const getLeaf = (typeId: string): PrimitiveDef<unknown, unknown> | undefined =>
+  getPrimitive(typeId) ?? getBehavioral(typeId);
 
 const SUPPORTED_VERSION = 1;
 
@@ -34,7 +41,7 @@ export function loadCircuit(json: CircuitJSON): RuntimeGraph {
     if (componentById.has(inst.id)) {
       throw new Error(`duplicate component id: ${inst.id}`);
     }
-    const prim = getPrimitive(inst.type);
+    const prim = getLeaf(inst.type);
     if (!prim) throw new Error(`unknown component type: ${inst.type} (component ${inst.id})`);
 
     const params = inst.params ?? {};
@@ -168,8 +175,7 @@ function flatten(input: CircuitJSON, importChain: string[]): CircuitJSON {
   }));
 
   for (const inst of input.components) {
-    const prim = getPrimitive(inst.type);
-    if (prim) {
+    if (getLeaf(inst.type)) {
       outComponents.push(inst);
       continue;
     }
