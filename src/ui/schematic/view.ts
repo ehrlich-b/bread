@@ -81,13 +81,48 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
 };
 
 const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
-  const { circuit, snapshot } = editor.state;
+  const { circuit, snapshot, placement } = editor.state;
   host.innerHTML = '';
+  host.classList.toggle('placing', placement !== null);
 
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 600 320');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.dataset.role = 'canvas';
   host.appendChild(svg);
+
+  // Capture-phase listener so it fires before any component-level click.
+  // During placement we drop a new instance and consume the event; otherwise
+  // we let the click fall through to switches and (later) selection.
+  svg.addEventListener(
+    'click',
+    (e) => {
+      const p = editor.state.placement;
+      if (!p) return;
+      e.stopPropagation();
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      const local = pt.matrixTransform(ctm.inverse());
+      const renderer = renderers[p.type];
+      const sz = renderer?.size ?? { w: 60, h: 40 };
+      const id = editor.generateId(p.type);
+      const position: [number, number] = [
+        Math.round(local.x - sz.w / 2),
+        Math.round(local.y - sz.h / 2),
+      ];
+      editor.clearPlacement();
+      void editor.addComponent({
+        id,
+        type: p.type,
+        position,
+        ...(p.params ? { params: p.params } : {}),
+      });
+    },
+    { capture: true },
+  );
 
   const wireLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(wireLayer);

@@ -18,13 +18,22 @@ const getLeaf = (typeId: string): PrimitiveDef<unknown, unknown> | undefined =>
 
 const SUPPORTED_VERSION = 1;
 
+export interface LoadOptions {
+  // When true, throw on any pin that isn't wired to a net. When false (the
+  // default), synthesize a floating per-pin net so the partial circuit can
+  // still simulate. M4 made this lenient so the editor can hold half-built
+  // circuits in memory; tests/headless callers pass `strict: true` if they
+  // want the old behavior.
+  strict?: boolean;
+}
+
 // Parse + validate a CircuitJSON and produce a RuntimeGraph the simulator can run.
 //
 // Composites are expanded inline before the runtime graph is built: every
 // component instance whose type resolves to a composite is replaced by a
 // prefixed copy of its inner graph, with port-internal nets stitched into
 // the parent's nets at the call site. The simulator never sees a composite.
-export function loadCircuit(json: CircuitJSON): RuntimeGraph {
+export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeGraph {
   if (json.version !== SUPPORTED_VERSION) {
     throw new Error(`unsupported circuit version: ${json.version} (expected ${SUPPORTED_VERSION})`);
   }
@@ -137,16 +146,40 @@ export function loadCircuit(json: CircuitJSON): RuntimeGraph {
     netById.set(netDef.id, netIdx);
   }
 
-  // Sanity: warn (throw for now) if any pin remains unconnected. Per docs we
-  // could allow this and treat as X; M0 prefers explicit errors so user
-  // mistakes surface early.
-  for (const comp of components) {
+  // Unconnected pins: in strict mode (tests/headless), throw. Otherwise
+  // synthesize a floating per-pin net so the editor can simulate half-built
+  // circuits without state churn. Floating-input pins read 'X', floating-
+  // output pins drive into the void.
+  for (let compIdx = 0; compIdx < components.length; compIdx++) {
+    const comp = components[compIdx]!;
     for (let i = 0; i < comp.pins.length; i++) {
-      if (comp.pinNetIdx[i] === -1) {
+      if (comp.pinNetIdx[i] !== -1) continue;
+      const pin = comp.pins[i]!;
+      if (opts.strict) {
         throw new Error(
-          `component ${comp.id} pin ${comp.pins[i]!.name} is not connected to any net`,
+          `component ${comp.id} pin ${pin.name} is not connected to any net`,
         );
       }
+      const synthId = `__floating__${comp.id}__${pin.name}`;
+      const drivers: Array<{ comp: number; outIdx: number }> = [];
+      const listenerComps: number[] = [];
+      if (pin.dir === 'out' || pin.dir === 'inout') {
+        drivers.push({ comp: compIdx, outIdx: comp.outputPinIdx.indexOf(i) });
+      }
+      if (pin.dir === 'in' || pin.dir === 'inout') {
+        listenerComps.push(compIdx);
+      }
+      const netIdx = nets.length;
+      nets.push({
+        id: synthId,
+        name: synthId,
+        drivers,
+        listenerComps,
+        forced: 'Z',
+        value: 'X',
+      });
+      netById.set(synthId, netIdx);
+      comp.pinNetIdx[i] = netIdx;
     }
   }
 

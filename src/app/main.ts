@@ -9,6 +9,7 @@ import { createWorkerBus } from '../ui/bus';
 import { mountControls } from '../ui/controls';
 import { EditorModel } from '../ui/editor';
 import { mountInspector } from '../ui/inspector';
+import { mountPalette } from '../ui/palette';
 import { mountSchematic } from '../ui/schematic';
 
 const isoStatus = document.getElementById('iso-status')!;
@@ -33,6 +34,7 @@ const main = async (): Promise<void> => {
 
   const editor = new EditorModel(bus, circuit, snapshot);
 
+  mountPalette(document.getElementById('palette')!, editor);
   mountSchematic(document.getElementById('schematic')!, editor);
   mountControls(document.getElementById('controls')!, editor);
   mountInspector(document.getElementById('inspector')!, editor);

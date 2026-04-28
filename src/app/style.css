@@ -49,9 +49,47 @@ header h1 {
 
 main {
   display: grid;
-  grid-template-columns: 1fr 280px;
+  grid-template-columns: 180px 1fr 280px;
   gap: 1rem;
   padding: 1rem;
+}
+
+#palette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
+  border-radius: 4px;
+  padding: 0.5rem;
+  height: fit-content;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.palette-group {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  padding: 0.5rem 0.25rem 0.15rem;
+}
+
+.palette-group:first-child {
+  padding-top: 0.15rem;
+}
+
+.palette-entry {
+  text-align: left;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+}
+
+#schematic.placing {
+  cursor: crosshair;
+}
+
+#schematic.placing svg {
+  cursor: crosshair;
 }
 
 #schematic {
@@ -147,6 +185,12 @@ button[aria-pressed='true'] {
 
 .gate-body {
   fill: color-mix(in oklab, var(--fg) 8%, var(--bg));
+  stroke: color-mix(in oklab, var(--fg) 30%, transparent);
+  stroke-width: 1.5;
+}
+
+.gate-stroke {
+  fill: none;
   stroke: color-mix(in oklab, var(--fg) 30%, transparent);
   stroke-width: 1.5;
 }

@@ -13,16 +13,23 @@
 import type { CircuitJSON, ComponentInstanceJSON, NetJSON } from '../engine/ir';
 import type { LoadSnapshot, WorkerBus } from './bus';
 
+export interface Placement {
+  type: string;
+  params?: Record<string, unknown>;
+}
+
 export interface EditorState {
   circuit: CircuitJSON;
   snapshot: LoadSnapshot;
   selection: ReadonlySet<string>;
+  placement: Placement | null;
 }
 
 export class EditorModel {
   private circuit: CircuitJSON;
   private snapshot: LoadSnapshot;
   private selection: Set<string> = new Set();
+  private placement: Placement | null = null;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
 
@@ -36,7 +43,35 @@ export class EditorModel {
   }
 
   get state(): EditorState {
-    return { circuit: this.circuit, snapshot: this.snapshot, selection: this.selection };
+    return {
+      circuit: this.circuit,
+      snapshot: this.snapshot,
+      selection: this.selection,
+      placement: this.placement,
+    };
+  }
+
+  // Generate a non-colliding ID for a new instance of `type`. Convention:
+  // lowercase short name + 1-based counter. e.g. "and1", "and2", "switch1".
+  generateId(type: string): string {
+    const base = type.split('.').pop()?.toLowerCase() ?? 'comp';
+    const existing = new Set(this.circuit.components.map((c) => c.id));
+    let i = 1;
+    while (existing.has(`${base}${i}`)) i++;
+    return `${base}${i}`;
+  }
+
+  // ---- Placement ---------------------------------------------------------
+
+  setPlacement(type: string, params?: Record<string, unknown>): void {
+    this.placement = { type, params };
+    this.notify();
+  }
+
+  clearPlacement(): void {
+    if (this.placement === null) return;
+    this.placement = null;
+    this.notify();
   }
 
   subscribe(fn: (s: EditorState) => void): () => void {

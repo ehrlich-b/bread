@@ -125,15 +125,31 @@ describe('loadCircuit (errors)', () => {
     ).toThrow(/multiple nets/);
   });
 
-  it('rejects unconnected pins', () => {
+  it('rejects unconnected pins in strict mode', () => {
     expect(() =>
       loadCircuit(
         minimal({
           components: [{ id: 'u1', type: 'prim.NOT' }],
           nets: [{ id: 'n1', endpoints: ['u1.A'] }],
         }),
+        { strict: true },
       ),
     ).toThrow(/not connected/);
+  });
+
+  it('synthesizes floating nets for unconnected pins by default', () => {
+    const graph = loadCircuit(
+      minimal({
+        components: [{ id: 'u1', type: 'prim.NOT' }],
+        nets: [{ id: 'n1', endpoints: ['u1.A'] }],
+      }),
+    );
+    // Expect a floating net for the unwired Y pin.
+    expect(graph.netById.has('__floating__u1__Y')).toBe(true);
+    // Every pin should now resolve to a real net index.
+    for (const comp of graph.components) {
+      for (const idx of comp.pinNetIdx) expect(idx).not.toBe(-1);
+    }
   });
 
   it('rejects zero-endpoint nets', () => {
