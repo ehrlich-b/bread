@@ -185,6 +185,40 @@ test('inspector delete button removes the component', async ({ page }) => {
   await expect(page.locator('[data-comp-id="nand1"]')).toHaveCount(0);
 });
 
+test('Undo reverts the last placement; Redo replays it', async ({ page }) => {
+  const undoBtn = page.locator('#controls button[data-action="undo"]');
+  const redoBtn = page.locator('#controls button[data-action="redo"]');
+  await expect(undoBtn).toBeDisabled();
+  await expect(redoBtn).toBeDisabled();
+
+  await page.locator('.palette-entry[data-palette-type="prim.OR"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 250, y: 100 } });
+  await expect(page.locator('[data-comp-id="or1"]')).toBeVisible();
+  await expect(undoBtn).toBeEnabled();
+
+  await undoBtn.click();
+  await expect(page.locator('[data-comp-id="or1"]')).toHaveCount(0);
+  await expect(redoBtn).toBeEnabled();
+
+  await redoBtn.click();
+  await expect(page.locator('[data-comp-id="or1"]')).toBeVisible();
+});
+
+test('Cmd-Z / Cmd-Shift-Z drive undo and redo', async ({ page, browserName }) => {
+  // Use platform-appropriate modifier; Playwright maps "Meta" to Cmd, "Control" to Ctrl.
+  const mod = browserName === 'webkit' ? 'Meta' : 'Control';
+
+  await page.locator('.palette-entry[data-palette-type="prim.NAND"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 300, y: 100 } });
+  await expect(page.locator('[data-comp-id="nand1"]')).toBeVisible();
+
+  await page.keyboard.press(`${mod}+KeyZ`);
+  await expect(page.locator('[data-comp-id="nand1"]')).toHaveCount(0);
+
+  await page.keyboard.press(`${mod}+Shift+KeyZ`);
+  await expect(page.locator('[data-comp-id="nand1"]')).toBeVisible();
+});
+
 test('drag moves a component to a new grid-snapped position', async ({ page }) => {
   const and = page.locator('[data-comp-id="and"]');
   await expect(and).toHaveAttribute('transform', 'translate(240 130)');

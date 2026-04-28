@@ -1,5 +1,6 @@
-// Run / Pause / Step buttons. The label, behavior, and ordering match the M3
-// demo because the Playwright e2e suite asserts on them.
+// Run / Pause / Step / Undo / Redo buttons. Run/Pause/Step preserve their M3
+// labels and order because the existing Playwright e2e asserts on them.
+// Undo / Redo update their `disabled` state from editor stack depth.
 
 import type { EditorModel } from '../editor';
 
@@ -22,8 +23,26 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
   const stepBtn = button('Step', () => {
     void editor.bus.step();
   });
-  host.append(runBtn, pauseBtn, stepBtn);
+  const undoBtn = button('Undo', () => {
+    void editor.undo();
+  });
+  undoBtn.dataset.action = 'undo';
+  const redoBtn = button('Redo', () => {
+    void editor.redo();
+  });
+  redoBtn.dataset.action = 'redo';
+
+  const refresh = (): void => {
+    undoBtn.disabled = !editor.canUndo();
+    redoBtn.disabled = !editor.canRedo();
+  };
+  refresh();
+
+  host.append(runBtn, pauseBtn, stepBtn, undoBtn, redoBtn);
+
+  const unsub = editor.subscribe(refresh);
   return () => {
     host.innerHTML = '';
+    unsub();
   };
 };

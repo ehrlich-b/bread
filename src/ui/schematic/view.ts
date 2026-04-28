@@ -259,6 +259,20 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement || ae instanceof HTMLSelectElement) {
       return;
     }
+    // Undo / redo. Cmd-Z / Ctrl-Z, Cmd-Shift-Z / Ctrl-Shift-Z. Also Ctrl-Y
+    // for the Windows-style redo. These don't depend on selection.
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && (e.key === 'z' || e.key === 'Z')) {
+      e.preventDefault();
+      if (e.shiftKey) void editor.redo();
+      else void editor.undo();
+      return;
+    }
+    if (mod && (e.key === 'y' || e.key === 'Y')) {
+      e.preventDefault();
+      void editor.redo();
+      return;
+    }
     const sel = editor.state.selection;
     if (sel.size === 0) return;
     if (e.key === 'Delete' || e.key === 'Backspace') {

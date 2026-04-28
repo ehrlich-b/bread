@@ -14,7 +14,10 @@ test.beforeEach(async ({ page }) => {
 test('schematic renders four components and three wires', async ({ page }) => {
   await expect(page.locator('[data-comp-id]')).toHaveCount(4);
   await expect(page.locator('polyline.wire')).toHaveCount(3);
-  await expect(page.locator('#controls button')).toHaveCount(3);
+  // Controls panel has Run, Pause, Step plus Undo/Redo.
+  await expect(page.locator('#controls button', { hasText: 'Run' })).toHaveCount(1);
+  await expect(page.locator('#controls button', { hasText: 'Pause' })).toHaveCount(1);
+  await expect(page.locator('#controls button', { hasText: 'Step' })).toHaveCount(1);
 });
 
 test('switch click toggles label and handle color', async ({ page }) => {

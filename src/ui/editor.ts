@@ -25,6 +25,8 @@ export interface EditorState {
   placement: Placement | null;
 }
 
+const MAX_UNDO_DEPTH = 200;
+
 export class EditorModel {
   private circuit: CircuitJSON;
   private snapshot: LoadSnapshot;
@@ -32,6 +34,11 @@ export class EditorModel {
   private placement: Placement | null = null;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
+  // Each entry is the circuit *before* a user-initiated mutation; pop one to
+  // undo. redoStack mirrors it for forward replays. Bounded so very long
+  // sessions don't grow without bound.
+  private undoStack: CircuitJSON[] = [];
+  private redoStack: CircuitJSON[] = [];
 
   constructor(
     public readonly bus: WorkerBus,
@@ -204,9 +211,53 @@ export class EditorModel {
     this.notify();
   }
 
+  // ---- Undo / redo -----------------------------------------------------
+
+  canUndo(): boolean {
+    return this.undoStack.length > 0;
+  }
+
+  canRedo(): boolean {
+    return this.redoStack.length > 0;
+  }
+
+  async undo(): Promise<void> {
+    if (this.undoStack.length === 0) return;
+    const target = this.undoStack[this.undoStack.length - 1]!;
+    await this.applyTransition(target, (old) => {
+      // Pop only after the transition commits, so a race-then-failure
+      // doesn't drain the stack.
+      this.undoStack.pop();
+      this.redoStack.push(old);
+    });
+  }
+
+  async redo(): Promise<void> {
+    if (this.redoStack.length === 0) return;
+    const target = this.redoStack[this.redoStack.length - 1]!;
+    await this.applyTransition(target, (old) => {
+      this.redoStack.pop();
+      this.undoStack.push(old);
+    });
+  }
+
   // ---- Internal ---------------------------------------------------------
 
-  private async applyMutate(newCircuit: CircuitJSON): Promise<void> {
+  private applyMutate(newCircuit: CircuitJSON): Promise<void> {
+    return this.applyTransition(newCircuit, (old) => {
+      this.undoStack.push(old);
+      if (this.undoStack.length > MAX_UNDO_DEPTH) this.undoStack.shift();
+      this.redoStack = [];
+    });
+  }
+
+  // Serialized circuit transition. The history callback runs after the worker
+  // confirms the new graph but before we update local state — `old` is the
+  // current circuit at that moment.
+  private async applyTransition(
+    newCircuit: CircuitJSON,
+    onCommit: (old: CircuitJSON) => void,
+  ): Promise<void> {
     const prev = this.inflight;
     let release!: () => void;
     this.inflight = new Promise<void>((res) => {
@@ -223,6 +274,7 @@ export class EditorModel {
         else pruned = true;
       }
       if (pruned) this.selection = nextSel;
+      onCommit(this.circuit);
       this.circuit = newCircuit;
       this.snapshot = snapshot;
       this.notify();
