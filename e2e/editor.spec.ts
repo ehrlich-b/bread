@@ -121,3 +121,102 @@ test('extending a net to a third endpoint adds a junction dot', async ({ page })
   // Polylines for the lit net: one per endpoint = 3 segments.
   await expect(page.locator('polyline.wire[data-net-id="lit"]')).toHaveCount(3);
 });
+
+test('clicking a non-switch component selects it and populates the inspector', async ({ page }) => {
+  await page.locator('[data-comp-id="and"]').click();
+  await expect(page.locator('[data-comp-id="and"]')).toHaveAttribute('data-selected', 'true');
+  // Inspector now shows id + type for the selection.
+  await expect(page.locator('.inspector-form[data-inspector="and"]')).toBeVisible();
+  await expect(page.locator('.inspector-readonly').first()).toHaveText('and');
+});
+
+test('clicking the canvas background clears selection', async ({ page }) => {
+  await page.locator('[data-comp-id="and"]').click();
+  await expect(page.locator('[data-comp-id="and"]')).toHaveAttribute('data-selected', 'true');
+  // Click empty canvas area.
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 30, y: 300 } });
+  await expect(page.locator('[data-comp-id="and"]')).not.toHaveAttribute('data-selected', 'true');
+});
+
+test('Del removes a selected component', async ({ page }) => {
+  // Place a fresh OR so we don't break the M3 demo.
+  await page.locator('.palette-entry[data-palette-type="prim.OR"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 250, y: 50 } });
+  await expect(page.locator('[data-comp-id="or1"]')).toBeVisible();
+
+  await page.locator('[data-comp-id="or1"]').click();
+  await expect(page.locator('[data-comp-id="or1"]')).toHaveAttribute('data-selected', 'true');
+  await page.keyboard.press('Delete');
+
+  await expect(page.locator('[data-comp-id="or1"]')).toHaveCount(0);
+});
+
+test('R rotates the selected component 90 degrees', async ({ page }) => {
+  await page.locator('[data-comp-id="and"]').click();
+  await page.keyboard.press('r');
+
+  await expect
+    .poll(() => page.locator('[data-comp-id="and"]').getAttribute('transform'))
+    .toMatch(/rotate\(90/);
+
+  await page.keyboard.press('r');
+  await expect
+    .poll(() => page.locator('[data-comp-id="and"]').getAttribute('transform'))
+    .toMatch(/rotate\(180/);
+});
+
+test('inspector apply updates position and rotation', async ({ page }) => {
+  await page.locator('[data-comp-id="and"]').click();
+  await page.locator('.inspector-form input[data-field="x"]').fill('300');
+  await page.locator('.inspector-form input[data-field="y"]').fill('80');
+  await page.locator('.inspector-form select[data-field="rotation"]').selectOption('90');
+  await page.locator('.inspector-form button[data-action="apply"]').click();
+
+  await expect
+    .poll(() => page.locator('[data-comp-id="and"]').getAttribute('transform'))
+    .toMatch(/translate\(300 80\) rotate\(90/);
+});
+
+test('inspector delete button removes the component', async ({ page }) => {
+  await page.locator('.palette-entry[data-palette-type="prim.NAND"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 350, y: 200 } });
+  await page.locator('[data-comp-id="nand1"]').click();
+  await page.locator('.inspector-form button[data-action="delete"]').click();
+  await expect(page.locator('[data-comp-id="nand1"]')).toHaveCount(0);
+});
+
+test('drag moves a component to a new grid-snapped position', async ({ page }) => {
+  const and = page.locator('[data-comp-id="and"]');
+  await expect(and).toHaveAttribute('transform', 'translate(240 130)');
+
+  const box = await and.boundingBox();
+  if (!box) throw new Error('component bbox unavailable');
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + 60, cy + 40, { steps: 12 });
+  await page.mouse.up();
+
+  // The drag commits via editor.updateComponent (async). Poll until we see
+  // a snapped integer transform that differs from the original.
+  await expect
+    .poll(
+      async () => {
+        const t = await and.getAttribute('transform');
+        if (!t || t === 'translate(240 130)') return false;
+        return /^translate\(\d+ \d+\)$/.test(t);
+      },
+      { timeout: 5_000, intervals: [50, 100, 200] },
+    )
+    .toBe(true);
+
+  const after = await and.getAttribute('transform');
+  const m = /^translate\((\d+) (\d+)\)$/.exec(after!)!;
+  const x = Number(m[1]);
+  const y = Number(m[2]);
+  expect(x % 10).toBe(0);
+  expect(y % 10).toBe(0);
+  expect(x).toBeGreaterThan(240);
+  expect(y).toBeGreaterThan(130);
+});

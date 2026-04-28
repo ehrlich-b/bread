@@ -152,6 +152,68 @@ button[aria-pressed='true'] {
   font-style: italic;
 }
 
+.inspector-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.inspector-form label {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.inspector-form input,
+.inspector-form select,
+.inspector-form textarea {
+  background: color-mix(in oklab, var(--bg) 92%, var(--fg) 6%);
+  color: var(--fg);
+  border: 1px solid color-mix(in oklab, var(--fg) 18%, transparent);
+  border-radius: 3px;
+  padding: 0.2rem 0.4rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.inspector-form textarea {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  resize: vertical;
+}
+
+.inspector-readonly {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  opacity: 0.85;
+}
+
+.inspector-status {
+  color: #f87171;
+  font-size: 0.75rem;
+  min-height: 1em;
+}
+
+.inspector-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.inspector-delete {
+  background: color-mix(in oklab, #f87171 20%, var(--bg));
+  border-color: color-mix(in oklab, #f87171 50%, transparent);
+}
+
+[data-comp-id][data-selected='true'] .gate-body {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+[data-comp-id][data-selected='true'] .led {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
 #event-log {
   list-style: none;
   margin: 0;
