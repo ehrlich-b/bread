@@ -176,12 +176,32 @@ button[aria-pressed='true'] {
   stroke-width: 2;
   fill: none;
   transition: stroke 80ms linear;
+  pointer-events: none;
 }
 
 .wire-0 { stroke: #52525b; }
 .wire-1 { stroke: var(--accent); }
 .wire-Z { stroke: #6b7280; stroke-dasharray: 4 3; }
 .wire-X { stroke: #facc15; }
+.wire-pending { stroke: var(--accent); stroke-dasharray: 4 4; opacity: 0.7; }
+
+.junction {
+  fill: var(--fg);
+  pointer-events: none;
+}
+
+.pin {
+  fill: color-mix(in oklab, var(--fg) 30%, var(--bg));
+  stroke: color-mix(in oklab, var(--fg) 50%, transparent);
+  stroke-width: 1;
+  cursor: crosshair;
+}
+
+.pin:hover,
+.pin.pin-active {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
 
 .gate-body {
   fill: color-mix(in oklab, var(--fg) 8%, var(--bg));

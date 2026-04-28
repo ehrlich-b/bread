@@ -61,6 +61,45 @@ export class EditorModel {
     return `${base}${i}`;
   }
 
+  generateNetId(): string {
+    const existing = new Set(this.circuit.nets.map((n) => n.id));
+    let i = 1;
+    while (existing.has(`n${i}`)) i++;
+    return `n${i}`;
+  }
+
+  // Connect two pin endpoints. Resolves to one of:
+  //   - both pins free: create a new 2-endpoint net
+  //   - one pin already on a net: extend that net with the other endpoint
+  //   - pins on different nets: merge the second into the first
+  //   - same net or same pin: no-op
+  connect(fromEp: string, toEp: string): Promise<void> {
+    if (fromEp === toEp) return Promise.resolve();
+    const fromNet = this.circuit.nets.find((n) => n.endpoints.includes(fromEp));
+    const toNet = this.circuit.nets.find((n) => n.endpoints.includes(toEp));
+    if (fromNet && toNet && fromNet.id === toNet.id) return Promise.resolve();
+
+    let nets = this.circuit.nets;
+    if (!fromNet && !toNet) {
+      const id = this.generateNetId();
+      nets = [...nets, { id, endpoints: [fromEp, toEp] }];
+    } else if (fromNet && !toNet) {
+      nets = nets.map((n) =>
+        n.id === fromNet.id ? { ...n, endpoints: [...n.endpoints, toEp] } : n,
+      );
+    } else if (!fromNet && toNet) {
+      nets = nets.map((n) =>
+        n.id === toNet.id ? { ...n, endpoints: [...n.endpoints, fromEp] } : n,
+      );
+    } else if (fromNet && toNet) {
+      const merged = [...fromNet.endpoints, ...toNet.endpoints];
+      nets = nets
+        .filter((n) => n.id !== toNet.id)
+        .map((n) => (n.id === fromNet.id ? { ...n, endpoints: merged } : n));
+    }
+    return this.applyMutate({ ...this.circuit, nets });
+  }
+
   // ---- Placement ---------------------------------------------------------
 
   setPlacement(type: string, params?: Record<string, unknown>): void {

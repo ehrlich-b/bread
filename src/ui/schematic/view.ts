@@ -1,17 +1,22 @@
 // SVG schematic view. Subscribes to an EditorModel and re-renders the entire
 // host on every state change. Each render owns its own requestAnimationFrame
 // loop that samples the worker's SharedArrayBuffer and updates wire / LED
-// colors. M4 slice 1 keeps the routing naive (M-shape between pin endpoints);
-// real orthogonal routing arrives in slice 3.
+// colors, plus a wire-drawing UI: click a pin to start a wire, click another
+// pin to land it. ESC cancels.
 //
 // IMPORTANT: the data-* selectors emitted here are the contract the Playwright
-// e2e suite reads. Don't rename them without updating e2e/blink_demo.spec.ts.
-//   data-comp-id          — instance id on the component <g>
-//   data-comp-type        — component type id on the component <g>
-//   data-role="led"       — LED circle inside an io.led group
+// e2e suite reads. Don't rename them without updating the specs:
+//   data-comp-id            — instance id on the component <g>
+//   data-comp-type          — component type id on the component <g>
+//   data-role="canvas"      — root <svg>
+//   data-role="led"         — LED circle inside an io.led group
 //   data-role="switch-handle"
 //   data-role="switch-label"
-//   polyline.wire         — every wire segment
+//   data-role="pin"         — pin handle (clickable circle)
+//   data-pin="<id>.<pin>"   — the endpoint id, used by wire-drawing tests
+//   data-net-id="<id>"      — net id on every wire / junction belonging to it
+//   polyline.wire           — every wire segment
+//   circle.junction         — junction dot at multi-endpoint centroids
 
 import type { CircuitJSON, NetState } from '../../engine/ir';
 import type { LoadSnapshot } from '../bus';
@@ -68,6 +73,16 @@ const buildPinLookup = (circuit: CircuitJSON): Map<string, PinLookup> => {
   return out;
 };
 
+// Manhattan path between two points: horizontal stub from `a`, vertical jog,
+// horizontal stub to `b`. Mirrors the M3 routing — slice 7/M7 may upgrade.
+const manhattanPath = (a: PinOffset, b: PinOffset): PinOffset[] => {
+  const midX = Math.round((a.x + b.x) / 2);
+  return [a, { x: midX, y: a.y }, { x: midX, y: b.y }, b];
+};
+
+const pointsAttr = (pts: PinOffset[]): string =>
+  pts.map((p) => `${String(p.x)},${String(p.y)}`).join(' ');
+
 export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => void) => {
   let dispose = renderOnce(host, editor);
   const unsub = editor.subscribe(() => {
@@ -91,9 +106,50 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   svg.dataset.role = 'canvas';
   host.appendChild(svg);
 
+  const wireLayer = document.createElementNS(SVG_NS, 'g');
+  svg.appendChild(wireLayer);
+  const compLayer = document.createElementNS(SVG_NS, 'g');
+  svg.appendChild(compLayer);
+  // Layer for the in-progress wire rubber band — drawn above components so
+  // it doesn't hide behind them as the cursor crosses gates.
+  const overlayLayer = document.createElementNS(SVG_NS, 'g');
+  svg.appendChild(overlayLayer);
+
+  const pinAbs = buildPinLookup(circuit);
+
+  // ---- Wire-drawing state (local to this render) ------------------------
+  let wireFrom: { ep: string; abs: PinOffset } | null = null;
+  let pendingLine: SVGPolylineElement | null = null;
+
+  const cancelWire = (): void => {
+    if (wireFrom) {
+      const prev = svg.querySelector(`[data-pin="${wireFrom.ep}"]`);
+      prev?.classList.remove('pin-active');
+    }
+    wireFrom = null;
+    if (pendingLine) {
+      pendingLine.remove();
+      pendingLine = null;
+    }
+  };
+
+  const startOrFinishWire = (ep: string, handle: SVGCircleElement): void => {
+    if (wireFrom === null) {
+      const lookup = pinAbs.get(ep);
+      if (!lookup) return;
+      wireFrom = { ep, abs: lookup.abs };
+      handle.classList.add('pin-active');
+      return;
+    }
+    const from = wireFrom.ep;
+    cancelWire();
+    if (from === ep) return;
+    void editor.connect(from, ep);
+  };
+
   // Capture-phase listener so it fires before any component-level click.
   // During placement we drop a new instance and consume the event; otherwise
-  // we let the click fall through to switches and (later) selection.
+  // we let the click fall through to pins, switches, and selection.
   svg.addEventListener(
     'click',
     (e) => {
@@ -124,13 +180,42 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     { capture: true },
   );
 
-  const wireLayer = document.createElementNS(SVG_NS, 'g');
-  svg.appendChild(wireLayer);
-  const compLayer = document.createElementNS(SVG_NS, 'g');
-  svg.appendChild(compLayer);
+  // Mouse-move on the canvas updates the rubber-band wire while a wireFrom is
+  // pending. Bypass when no wire in progress to avoid pointless work.
+  svg.addEventListener('mousemove', (e) => {
+    if (!wireFrom) return;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const local = pt.matrixTransform(ctm.inverse());
+    const path = manhattanPath(wireFrom.abs, { x: local.x, y: local.y });
+    if (!pendingLine) {
+      pendingLine = document.createElementNS(SVG_NS, 'polyline');
+      pendingLine.setAttribute('class', 'wire wire-pending');
+      overlayLayer.appendChild(pendingLine);
+    }
+    pendingLine.setAttribute('points', pointsAttr(path));
+  });
 
-  const pinAbs = buildPinLookup(circuit);
-  const switchState = new Map<string, NetState>();
+  // Empty-canvas click cancels an in-progress wire.
+  svg.addEventListener('click', (e) => {
+    if (!wireFrom) return;
+    if (editor.state.placement) return;
+    const target = e.target as Element | null;
+    if (target?.closest('[data-pin]')) return;
+    cancelWire();
+  });
+
+  // ESC cancels placement and/or in-progress wire. Document-scoped because the
+  // SVG can lose focus once the user starts moving toward a target.
+  const onKey = (e: KeyboardEvent): void => {
+    if (e.key !== 'Escape') return;
+    cancelWire();
+    if (editor.state.placement) editor.clearPlacement();
+  };
+  document.addEventListener('keydown', onKey);
 
   for (const inst of circuit.components) {
     const renderer = renderers[inst.type];
@@ -140,7 +225,6 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     g.dataset.compId = inst.id;
     g.dataset.compType = inst.type;
     if (!renderer) {
-      // Unknown type: placeholder rect so the user can still see and remove it.
       const r = document.createElementNS(SVG_NS, 'rect');
       r.setAttribute('width', '60');
       r.setAttribute('height', '40');
@@ -158,10 +242,9 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
       continue;
     }
     renderer.draw(g, inst.id, inst.params);
-    compLayer.appendChild(g);
 
     if (inst.type === 'io.switch') {
-      switchState.set(inst.id, 0);
+      let switchVal: NetState = 0;
       const handle = g.querySelector('[data-role="switch-handle"]') as SVGRectElement;
       const label = g.querySelector('[data-role="switch-label"]') as SVGTextElement;
       const refreshSwitch = (v: NetState): void => {
@@ -169,13 +252,33 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
         label.textContent = String(v);
       };
       g.addEventListener('click', () => {
-        const cur = switchState.get(inst.id) ?? 0;
-        const next: NetState = cur === 1 ? 0 : 1;
-        switchState.set(inst.id, next);
-        refreshSwitch(next);
-        void editor.bus.setInput(inst.id, 'Y', next);
+        // Wire mode and placement mode both pre-empt switch toggles via
+        // capture/stopPropagation, so by the time we get here we know we
+        // want a real toggle.
+        switchVal = switchVal === 1 ? 0 : 1;
+        refreshSwitch(switchVal);
+        void editor.bus.setInput(inst.id, 'Y', switchVal);
       });
     }
+
+    // Pin handles: clickable circles at each pin endpoint.
+    for (const [pinName, off] of Object.entries(renderer.pins)) {
+      const pin = document.createElementNS(SVG_NS, 'circle');
+      pin.setAttribute('cx', String(off.x));
+      pin.setAttribute('cy', String(off.y));
+      pin.setAttribute('r', '5');
+      pin.setAttribute('class', 'pin');
+      pin.setAttribute('data-role', 'pin');
+      pin.setAttribute('data-pin', `${inst.id}.${pinName}`);
+      g.appendChild(pin);
+      pin.addEventListener('click', (e) => {
+        if (editor.state.placement) return;
+        e.stopPropagation();
+        startOrFinishWire(`${inst.id}.${pinName}`, pin);
+      });
+    }
+
+    compLayer.appendChild(g);
   }
 
   const wires = buildWires(circuit, pinAbs, snapshot, wireLayer);
@@ -201,6 +304,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   return () => {
     disposed = true;
     cancelAnimationFrame(rafHandle);
+    document.removeEventListener('keydown', onKey);
   };
 };
 
@@ -209,6 +313,10 @@ interface WireRef {
   netIdx: number;
 }
 
+// Build wires for every net. 2-endpoint nets get a single Manhattan path;
+// 3+ endpoint nets render as a star from each endpoint to the centroid plus
+// a junction dot. Every segment gets the same data-net-id so the rAF loop
+// can update them as one.
 const buildWires = (
   circuit: CircuitJSON,
   pinAbs: Map<string, PinLookup>,
@@ -216,6 +324,16 @@ const buildWires = (
   wireLayer: SVGGElement,
 ): WireRef[] => {
   const wires: WireRef[] = [];
+
+  const addSegment = (net: { id: string }, netIdx: number, pts: PinOffset[]): void => {
+    const line = document.createElementNS(SVG_NS, 'polyline');
+    line.setAttribute('points', pointsAttr(pts));
+    line.setAttribute('class', 'wire wire-Z');
+    line.setAttribute('data-net-id', net.id);
+    wireLayer.appendChild(line);
+    wires.push({ line, netIdx });
+  };
+
   for (const net of circuit.nets) {
     const pts: PinOffset[] = [];
     for (const ep of net.endpoints) {
@@ -223,21 +341,28 @@ const buildWires = (
       if (lookup) pts.push(lookup.abs);
     }
     if (pts.length < 2) continue;
-    const [a, b] = [pts[0]!, pts[1]!];
-    const midX = (a.x + b.x) / 2;
-    const polyPoints = [
-      `${String(a.x)},${String(a.y)}`,
-      `${String(midX)},${String(a.y)}`,
-      `${String(midX)},${String(b.y)}`,
-      `${String(b.x)},${String(b.y)}`,
-    ];
-    const line = document.createElementNS(SVG_NS, 'polyline');
-    line.setAttribute('points', polyPoints.join(' '));
-    line.setAttribute('class', 'wire wire-Z');
-    wireLayer.appendChild(line);
     const netIdx = snapshot.netIndex.get(net.id);
-    if (netIdx !== undefined) wires.push({ line, netIdx });
+    if (netIdx === undefined) continue;
+
+    if (pts.length === 2) {
+      addSegment(net, netIdx, manhattanPath(pts[0]!, pts[1]!));
+      continue;
+    }
+
+    const cx = Math.round(pts.reduce((s, p) => s + p.x, 0) / pts.length);
+    const cy = Math.round(pts.reduce((s, p) => s + p.y, 0) / pts.length);
+    const center: PinOffset = { x: cx, y: cy };
+    for (const p of pts) addSegment(net, netIdx, manhattanPath(p, center));
+
+    const junction = document.createElementNS(SVG_NS, 'circle');
+    junction.setAttribute('cx', String(cx));
+    junction.setAttribute('cy', String(cy));
+    junction.setAttribute('r', '3');
+    junction.setAttribute('class', 'junction');
+    junction.setAttribute('data-net-id', net.id);
+    wireLayer.appendChild(junction);
   }
+
   return wires;
 };
 

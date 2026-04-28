@@ -76,3 +76,48 @@ test('placement does not toggle a switch when clicking on it', async ({ page }) 
   await expect(page.locator('[data-comp-id="led1"]')).toBeVisible();
   await expect(page.locator('[data-comp-id="sw"] [data-role="switch-label"]')).toHaveText('0');
 });
+
+test('clicking two free pins creates a wire', async ({ page }) => {
+  await page.locator('.palette-entry[data-palette-type="prim.OR"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 250, y: 50 } });
+  await expect(page.locator('[data-comp-id="or1"]')).toBeVisible();
+
+  const before = await page.locator('polyline.wire').count();
+  await page.locator('[data-pin="or1.A"]').click();
+  await expect(page.locator('[data-pin="or1.A"]')).toHaveClass(/pin-active/);
+  await page.locator('[data-pin="or1.B"]').click();
+
+  // A new 2-endpoint net adds exactly one polyline.
+  await expect(page.locator('polyline.wire')).toHaveCount(before + 1);
+  await expect(page.locator('[data-pin="or1.A"]')).not.toHaveClass(/pin-active/);
+});
+
+test('Esc cancels an in-progress wire', async ({ page }) => {
+  await page.locator('.palette-entry[data-palette-type="prim.AND"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 250, y: 50 } });
+  const before = await page.locator('polyline.wire').count();
+
+  await page.locator('[data-pin="and1.A"]').click();
+  await expect(page.locator('[data-pin="and1.A"]')).toHaveClass(/pin-active/);
+  await page.keyboard.press('Escape');
+
+  await expect(page.locator('[data-pin="and1.A"]')).not.toHaveClass(/pin-active/);
+  await expect(page.locator('polyline.wire')).toHaveCount(before);
+});
+
+test('extending a net to a third endpoint adds a junction dot', async ({ page }) => {
+  // Drop a second LED and tie it onto the existing `lit` net by clicking the
+  // current `led.A` pin, then the fresh `led1.A` pin.
+  await page.locator('.palette-entry[data-palette-type="io.led"]').click();
+  await page.locator('svg[data-role="canvas"]').click({ position: { x: 480, y: 50 } });
+  await expect(page.locator('[data-comp-id="led1"]')).toBeVisible();
+
+  await expect(page.locator('circle.junction[data-net-id="lit"]')).toHaveCount(0);
+  await page.locator('[data-pin="led.A"]').click();
+  await page.locator('[data-pin="led1.A"]').click();
+
+  // Three endpoints (and.Y, led.A, led1.A) → centroid junction dot.
+  await expect(page.locator('circle.junction[data-net-id="lit"]')).toHaveCount(1);
+  // Polylines for the lit net: one per endpoint = 3 segments.
+  await expect(page.locator('polyline.wire[data-net-id="lit"]')).toHaveCount(3);
+});
