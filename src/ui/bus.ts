@@ -21,6 +21,7 @@ export interface LoadSnapshot {
 
 export interface WorkerBus {
   load(circuit: CircuitJSON, rateHz?: number): Promise<LoadSnapshot>;
+  mutate(circuit: CircuitJSON): Promise<LoadSnapshot>;
   run(rateHz: number): Promise<void>;
   pause(): Promise<void>;
   step(): Promise<void>;
@@ -46,6 +47,24 @@ export const createWorkerBus = (): WorkerBus => {
   const eventHandlers = new Set<(e: EventNotif) => void>();
 
   let snapshot: LoadSnapshot | null = null;
+
+  // Hoisted so both load() and mutate() can update the same closure state.
+  // `bus` is captured below; we redefine it after construction so this
+  // function can flip its publicly-exposed netIds/componentIds.
+  let bus: WorkerBus;
+  const adoptSnapshot = (res: LoadRes): LoadSnapshot => {
+    const netIndex = new Map<string, number>();
+    res.netIds.forEach((n, i) => netIndex.set(n, i));
+    snapshot = {
+      netIds: res.netIds,
+      componentIds: res.componentIds,
+      netIndex,
+      netsView: new Uint8Array(res.netsBuffer),
+    };
+    bus.netIds = res.netIds;
+    bus.componentIds = res.componentIds;
+    return snapshot;
+  };
 
   worker.addEventListener('message', (e: MessageEvent<WorkerRes>) => {
     const msg = e.data;
@@ -73,24 +92,20 @@ export const createWorkerBus = (): WorkerBus => {
     });
   };
 
-  return {
+  bus = {
     netIds: [],
     componentIds: [],
 
     async load(circuit, rateHz) {
       const id = nextId++;
       const res = await send<LoadRes>({ type: 'load', id, circuit, rateHz });
-      const netIndex = new Map<string, number>();
-      res.netIds.forEach((n, i) => netIndex.set(n, i));
-      snapshot = {
-        netIds: res.netIds,
-        componentIds: res.componentIds,
-        netIndex,
-        netsView: new Uint8Array(res.netsBuffer),
-      };
-      this.netIds = res.netIds;
-      this.componentIds = res.componentIds;
-      return snapshot;
+      return adoptSnapshot(res);
+    },
+
+    async mutate(circuit) {
+      const id = nextId++;
+      const res = await send<LoadRes>({ type: 'mutate', id, circuit });
+      return adoptSnapshot(res);
     },
 
     async run(rateHz) {
@@ -125,4 +140,5 @@ export const createWorkerBus = (): WorkerBus => {
       return NET_STATE_FROM_BYTE[snapshot.netsView[idx]!]!;
     },
   };
+  return bus;
 };

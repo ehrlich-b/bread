@@ -48,7 +48,18 @@ export interface SetInputReq {
   value: NetState;
 }
 
-export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq;
+// Replace the engine's circuit with a new IR. Distinct from `load` so the UI
+// can signal intent: mutate preserves the worker's targetRateHz and auto-
+// resumes if the simulator was running. The response shape matches LoadRes
+// (new SAB + ids) because every structural edit invalidates the previous
+// snapshot handle.
+export interface MutateReq {
+  type: 'mutate';
+  id: number;
+  circuit: CircuitJSON;
+}
+
+export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | MutateReq;
 
 export interface LoadRes {
   type: 'load_res';

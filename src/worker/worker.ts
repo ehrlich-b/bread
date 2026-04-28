@@ -3,8 +3,8 @@
 // sample at vsync. Pacing is best-effort: we accumulate a budget of pending
 // ticks based on wall time and drain it in batches between yields.
 //
-// One Simulator instance per worker; load() replaces it. M3 doesn't support
-// mutate (no live editing yet) — the protocol leaves the slot open for M4.
+// One Simulator instance per worker; load() replaces it. mutate() does the
+// same, but preserves targetRateHz and auto-resumes if a free run was active.
 
 import '../engine/behavioral/index';
 import type { NetState, RuntimeGraph } from '../engine/ir';
@@ -115,6 +115,34 @@ const handleSetInput = (req: Extract<WorkerReq, { type: 'set_input' }>): void =>
   post({ type: 'ack', id: req.id });
 };
 
+const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
+  const wasRunning = running;
+  running = false;
+  graph = loadCircuit(req.circuit);
+  sim = new Simulator(graph, { rateHz: targetRateHz });
+  sim.settle();
+  // The previous SAB is now stale: the new graph might have a different number
+  // of nets, and existing references in the UI need to be reissued anyway.
+  netsBuffer = new SharedArrayBuffer(graph.nets.length);
+  netsView = new Uint8Array(netsBuffer);
+  writeNets();
+  eventsCursor = 0;
+  drainEvents();
+  post({
+    type: 'load_res',
+    id: req.id,
+    netIds: graph.nets.map((n) => n.id),
+    componentIds: graph.components.map((c) => c.id),
+    netsBuffer,
+  });
+  if (wasRunning) {
+    running = true;
+    stepBudget = 0;
+    lastLoopTimeMs = performance.now();
+    queueMicrotask(loop);
+  }
+};
+
 const loop = (): void => {
   if (!running || !sim) return;
   const now = performance.now();
@@ -140,6 +168,7 @@ const onMessage = (req: WorkerReq): void => {
       case 'pause': handlePause(req); break;
       case 'step': handleStep(req); break;
       case 'set_input': handleSetInput(req); break;
+      case 'mutate': handleMutate(req); break;
       default: {
         const x: never = req;
         throw new Error(`unknown request: ${JSON.stringify(x)}`);

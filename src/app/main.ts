@@ -1,12 +1,15 @@
-// Main-thread entry. Spins up the worker, hands it the demo circuit, and
-// wires the SVG schematic + control buttons. Net values are sampled from the
-// SharedArrayBuffer at requestAnimationFrame; clicks and run/pause go back
-// over postMessage.
+// Main-thread entry. Spins up the worker, loads the demo circuit, builds an
+// EditorModel, and mounts the schematic / controls / inspector views against
+// it. Net values are sampled from the SharedArrayBuffer at rAF inside the
+// schematic; clicks and run/pause/step go back over postMessage via the bus.
 
 import blinkDemo from '../../examples/blink_demo.json';
 import type { CircuitJSON } from '../engine/ir';
-import { mountSchematic } from '../ui/schematic';
 import { createWorkerBus } from '../ui/bus';
+import { mountControls } from '../ui/controls';
+import { EditorModel } from '../ui/editor';
+import { mountInspector } from '../ui/inspector';
+import { mountSchematic } from '../ui/schematic';
 
 const isoStatus = document.getElementById('iso-status')!;
 isoStatus.textContent = self.crossOriginIsolated
@@ -28,24 +31,14 @@ const main = async (): Promise<void> => {
   const snapshot = await bus.load(circuit);
   log(`loaded ${circuit.name}: ${snapshot.netIds.length} nets, ${snapshot.componentIds.length} components`);
 
-  mountSchematic(document.getElementById('schematic')!, circuit, snapshot, bus);
+  const editor = new EditorModel(bus, circuit, snapshot);
 
-  const controls = document.getElementById('controls')!;
-  const runBtn = button('Run', () => bus.run(1000));
-  const pauseBtn = button('Pause', () => bus.pause());
-  const stepBtn = button('Step', () => bus.step());
-  controls.append(runBtn, pauseBtn, stepBtn);
+  mountSchematic(document.getElementById('schematic')!, editor);
+  mountControls(document.getElementById('controls')!, editor);
+  mountInspector(document.getElementById('inspector')!, editor);
 
   // Default to running so the LED actually blinks on first load.
   await bus.run(1000);
-};
-
-const button = (label: string, onClick: () => void): HTMLButtonElement => {
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.textContent = label;
-  b.addEventListener('click', onClick);
-  return b;
 };
 
 main().catch((err: unknown) => {
