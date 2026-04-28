@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "full_adder",
+  "description": "1-bit full adder. Sum = A XOR B XOR Cin. Cout = (A AND B) OR ((A XOR B) AND Cin). Three switches (a, b, cin) drive Sum and Cout LEDs across all 8 input combinations.",
+  "components": [
+    { "id": "a",        "type": "io.switch", "position": [ 30,  30] },
+    { "id": "b",        "type": "io.switch", "position": [ 30, 100] },
+    { "id": "cin",      "type": "io.switch", "position": [ 30, 200] },
+    { "id": "xor1",     "type": "prim.XOR",  "position": [180,  50], "params": { "inputs": 2 } },
+    { "id": "and1",     "type": "prim.AND",  "position": [180, 130], "params": { "inputs": 2 } },
+    { "id": "xor2",     "type": "prim.XOR",  "position": [320,  60], "params": { "inputs": 2 } },
+    { "id": "and2",     "type": "prim.AND",  "position": [320, 180], "params": { "inputs": 2 } },
+    { "id": "or1",      "type": "prim.OR",   "position": [430, 220], "params": { "inputs": 2 } },
+    { "id": "led_sum",  "type": "io.led",    "position": [530,  60] },
+    { "id": "led_cout", "type": "io.led",    "position": [530, 220] }
+  ],
+  "nets": [
+    { "id": "a_out",      "endpoints": ["a.Y", "xor1.A", "and1.A"] },
+    { "id": "b_out",      "endpoints": ["b.Y", "xor1.B", "and1.B"] },
+    { "id": "cin_out",    "endpoints": ["cin.Y", "xor2.B", "and2.B"] },
+    { "id": "ab_xor",     "endpoints": ["xor1.Y", "xor2.A", "and2.A"] },
+    { "id": "ab_and",     "endpoints": ["and1.Y", "or1.A"] },
+    { "id": "xor_cin_and","endpoints": ["and2.Y", "or1.B"] },
+    { "id": "sum_out",    "endpoints": ["xor2.Y", "led_sum.A"] },
+    { "id": "cout_out",   "endpoints": ["or1.Y", "led_cout.A"] }
+  ]
+}
