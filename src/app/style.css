@@ -119,6 +119,12 @@ aside {
   gap: 0.4rem;
 }
 
+#file {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
 button {
   background: color-mix(in oklab, var(--accent) 15%, var(--bg));
   color: var(--fg);

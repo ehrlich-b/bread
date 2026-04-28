@@ -8,6 +8,7 @@ import type { CircuitJSON } from '../engine/ir';
 import { createWorkerBus } from '../ui/bus';
 import { mountControls } from '../ui/controls';
 import { EditorModel } from '../ui/editor';
+import { mountFileControls } from '../ui/file';
 import { mountInspector } from '../ui/inspector';
 import { mountPalette } from '../ui/palette';
 import { mountSchematic } from '../ui/schematic';
@@ -37,6 +38,7 @@ const main = async (): Promise<void> => {
   mountPalette(document.getElementById('palette')!, editor);
   mountSchematic(document.getElementById('schematic')!, editor);
   mountControls(document.getElementById('controls')!, editor);
+  mountFileControls(document.getElementById('file')!, editor);
   mountInspector(document.getElementById('inspector')!, editor);
 
   // Default to running so the LED actually blinks on first load.
