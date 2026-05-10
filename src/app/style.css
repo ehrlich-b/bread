@@ -5,6 +5,8 @@
   --led-off: #3f3f46;
   --led-z: #71717a;
   --led-x: #facc15;
+  --seg-on: #f87171;
+  --seg-off: #2a2a2e;
   --bg: #18181b;
   --fg: #f4f4f5;
   --accent: #38bdf8;
@@ -238,6 +240,17 @@ button[aria-pressed='true'] {
 
 .led {
   transition: fill 80ms linear;
+}
+
+.seg-off,
+.seg-on {
+  transition: fill 80ms linear;
+}
+
+.seg-panel {
+  fill: color-mix(in oklab, var(--bg) 80%, #000 20%);
+  stroke: color-mix(in oklab, var(--fg) 18%, transparent);
+  stroke-width: 1;
 }
 
 .wire {

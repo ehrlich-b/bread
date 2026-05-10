@@ -9,12 +9,18 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('palette renders all entries grouped by category', async ({ page }) => {
-  await expect(page.locator('.palette-group')).toHaveCount(3);
-  await expect(page.locator('.palette-entry')).toHaveCount(12);
-  // Spot-check a few.
+  // Categories: I/O, Gates, Storage, Sources, Logic blocks, TTL, Memory.
+  await expect(page.locator('.palette-group')).toHaveCount(7);
+  // At least the core stdlib is exposed; tweak this if the palette grows again.
+  const entryCount = await page.locator('.palette-entry').count();
+  expect(entryCount).toBeGreaterThanOrEqual(35);
+  // Spot-check entries from across the groups.
   await expect(page.locator('.palette-entry[data-palette-type="prim.AND"]')).toHaveText('AND');
   await expect(page.locator('.palette-entry[data-palette-type="io.led"]')).toHaveText('LED');
   await expect(page.locator('.palette-entry[data-palette-type="prim.DFF"]')).toHaveText('DFF');
+  await expect(page.locator('.palette-entry[data-palette-type="ttl.74LS00"]')).toHaveText('74LS00');
+  await expect(page.locator('.palette-entry[data-palette-type="mem.28C16"]')).toHaveText('28C16 EEPROM');
+  await expect(page.locator('.palette-entry[data-palette-type="mem.74LS189"]')).toHaveText('74LS189 RAM');
 });
 
 test('clicking a palette entry toggles aria-pressed', async ({ page }) => {

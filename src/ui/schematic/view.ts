@@ -11,6 +11,7 @@
 //   data-selected           — present and "true" on the currently selected <g>
 //   data-role="canvas"      — root <svg>
 //   data-role="led"         — LED circle inside an io.led group
+//   data-role="seg-<a..g|dp>" — segment shape inside an io.7seg group
 //   data-role="switch-handle"
 //   data-role="switch-label"
 //   data-role="pin"         — pin handle (clickable circle)
@@ -22,7 +23,7 @@
 import type { CircuitJSON, ComponentInstanceJSON, NetState } from '../../engine/ir';
 import type { LoadSnapshot } from '../bus';
 import type { EditorModel } from '../editor';
-import { renderers, type PinOffset } from './renderers';
+import { resolveRenderer, type PinOffset } from './renderers';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const GRID = 10;
@@ -41,6 +42,18 @@ const LED_FILL: Record<NetState, string> = {
   Z: 'var(--led-z)',
   X: 'var(--led-x)',
 };
+
+// 7-seg segments only have two visible states: lit when their net resolves
+// to 1, otherwise dark. Z/X collapse to dark since a real LED segment
+// without forward current does not glow.
+const SEG_FILL: Record<NetState, string> = {
+  0: 'var(--seg-off)',
+  1: 'var(--seg-on)',
+  Z: 'var(--seg-off)',
+  X: 'var(--seg-off)',
+};
+
+const SEG_PINS = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
 
 type Position = [number, number];
 
@@ -86,7 +99,7 @@ const rotatePin = (p: PinOffset, sz: { w: number; h: number }, deg: number): Pin
 const buildPinLookup = (circuit: CircuitJSON): Map<string, PinLookup> => {
   const out = new Map<string, PinLookup>();
   for (const inst of circuit.components) {
-    const renderer = renderers[inst.type];
+    const renderer = resolveRenderer(inst.type, inst.params);
     if (!renderer) continue;
     const [px, py] = positionOf(inst);
     const rot = rotationOf(inst);
@@ -205,7 +218,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
         e.stopPropagation();
         const local = clientToLocal(svg, e.clientX, e.clientY);
         if (!local) return;
-        const renderer = renderers[p.type];
+        const renderer = resolveRenderer(p.type, p.params);
         const sz = renderer?.size ?? { w: 60, h: 40 };
         const id = editor.generateId(p.type);
         const x = Math.round((local.x - sz.w / 2) / GRID) * GRID;
@@ -294,7 +307,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   // ---- Components -----------------------------------------------------
   for (const inst of circuit.components) {
-    const renderer = renderers[inst.type];
+    const renderer = resolveRenderer(inst.type, inst.params);
     const g = document.createElementNS(SVG_NS, 'g');
     g.dataset.compId = inst.id;
     g.dataset.compType = inst.type;
@@ -422,6 +435,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   const wires = buildWires(circuit, pinAbs, snapshot, wireLayer);
   const leds = buildLedRefs(circuit, snapshot, compLayer);
+  const segs = buildSegRefs(circuit, snapshot, compLayer);
 
   let disposed = false;
   let rafHandle = 0;
@@ -435,6 +449,11 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
       if (led.netIdx === null) continue;
       const v = decodeNet(snapshot.netsView[led.netIdx]!);
       led.el.setAttribute('fill', LED_FILL[v]);
+    }
+    for (const s of segs) {
+      if (s.netIdx === null) continue;
+      const v = decodeNet(snapshot.netsView[s.netIdx]!);
+      s.el.setAttribute('fill', SEG_FILL[v]);
     }
     rafHandle = requestAnimationFrame(tick);
   };
@@ -524,4 +543,33 @@ const buildLedRefs = (
     leds.push({ el: c, netIdx });
   }
   return leds;
+};
+
+interface SegRef {
+  el: SVGRectElement;
+  netIdx: number | null;
+}
+
+// Each io.7seg instance contributes 8 segment refs (a/b/c/d/e/f/g/dp). A
+// segment without a wired pin gets netIdx=null and is skipped in tick().
+const buildSegRefs = (
+  circuit: CircuitJSON,
+  snapshot: LoadSnapshot,
+  compLayer: SVGGElement,
+): SegRef[] => {
+  const segs: SegRef[] = [];
+  for (const inst of circuit.components) {
+    if (inst.type !== 'io.7seg') continue;
+    const g = compLayer.querySelector(`[data-comp-id="${inst.id}"]`) as SVGGElement | null;
+    if (!g) continue;
+    for (const pin of SEG_PINS) {
+      const el = g.querySelector(`[data-role="seg-${pin}"]`) as SVGRectElement | null;
+      if (!el) continue;
+      const ep = `${inst.id}.${pin}`;
+      const net = circuit.nets.find((n) => n.endpoints.includes(ep));
+      const netIdx = net ? snapshot.netIndex.get(net.id) ?? null : null;
+      segs.push({ el, netIdx });
+    }
+  }
+  return segs;
 };

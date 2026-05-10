@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "hex_display_28c16",
+  "description": "Four address switches drive a 28C16 EEPROM whose first 16 bytes are the 7-segment encodings of hex digits 0..F. The IO outputs feed a 7-seg display directly, so flipping the switches steps the display through 0,1,2,...,F. Demonstrates mem.28C16, the paste-hex inspector affordance (open the rom's inspector to see the ROM image), and live segment updates on io.7seg.",
+  "components": [
+    { "id": "sw0", "type": "io.switch", "position": [30, 30] },
+    { "id": "sw1", "type": "io.switch", "position": [30, 80] },
+    { "id": "sw2", "type": "io.switch", "position": [30, 130] },
+    { "id": "sw3", "type": "io.switch", "position": [30, 180] },
+    { "id": "gnd", "type": "prim.CONST_0", "position": [30, 260] },
+    { "id": "vcc", "type": "prim.CONST_1", "position": [30, 310] },
+    {
+      "id": "rom",
+      "type": "mem.28C16",
+      "position": [200, 30],
+      "params": {
+        "contents": "// 7-segment encoding of hex digits 0..F (bit0=a..bit7=dp)\n3F 06 5B 4F 66 6D 7D 07 7F 6F 77 7C 39 5E 79 71"
+      }
+    },
+    { "id": "disp", "type": "io.7seg", "position": [410, 30] }
+  ],
+  "nets": [
+    { "id": "a0",      "endpoints": ["sw0.Y", "rom.A0"] },
+    { "id": "a1",      "endpoints": ["sw1.Y", "rom.A1"] },
+    { "id": "a2",      "endpoints": ["sw2.Y", "rom.A2"] },
+    { "id": "a3",      "endpoints": ["sw3.Y", "rom.A3"] },
+    { "id": "gnd_bus", "endpoints": [
+      "gnd.Y",
+      "rom.A4", "rom.A5", "rom.A6", "rom.A7", "rom.A8", "rom.A9", "rom.A10",
+      "rom./CE", "rom./OE"
+    ] },
+    { "id": "vcc_bus", "endpoints": ["vcc.Y", "rom./WE"] },
+    { "id": "io0", "endpoints": ["rom.IO0", "disp.a"] },
+    { "id": "io1", "endpoints": ["rom.IO1", "disp.b"] },
+    { "id": "io2", "endpoints": ["rom.IO2", "disp.c"] },
+    { "id": "io3", "endpoints": ["rom.IO3", "disp.d"] },
+    { "id": "io4", "endpoints": ["rom.IO4", "disp.e"] },
+    { "id": "io5", "endpoints": ["rom.IO5", "disp.f"] },
+    { "id": "io6", "endpoints": ["rom.IO6", "disp.g"] },
+    { "id": "io7", "endpoints": ["rom.IO7", "disp.dp"] }
+  ]
+}

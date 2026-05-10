@@ -2,7 +2,9 @@
 
 The chips and atoms we ship. Each entry says which tier it lives in and what's needed to implement it.
 
-## Primitives (TS, ~20 types)
+**Status (2026-05-03):** all primitives shipped. All 15 TTL composites shipped. 7 of 12 behavioral chips shipped (added `mem.74LS189` 16×4 RAM with open-collector inverted outputs). Remaining unshipped entries are flagged "M5" (memory chip: `mem.28C16`) or "M7" (extra IO) in the tables below.
+
+## Primitives (TS, ~20 types) — all shipped
 
 Built into the engine bundle.
 
@@ -32,42 +34,42 @@ Built into the engine bundle.
 
 These cover everything Ben Eater's 8-bit machine uses except memory and the clock.
 
-| ID | Real chip | Function | Built from |
-|---|---|---|---|
-| `ttl.74LS00` | 74LS00 | Quad 2-input NAND | 4 × NAND |
-| `ttl.74LS02` | 74LS02 | Quad 2-input NOR | 4 × NOR |
-| `ttl.74LS04` | 74LS04 | Hex inverter | 6 × NOT |
-| `ttl.74LS08` | 74LS08 | Quad 2-input AND | 4 × AND |
-| `ttl.74LS32` | 74LS32 | Quad 2-input OR | 4 × OR |
-| `ttl.74LS86` | 74LS86 | Quad 2-input XOR | 4 × XOR |
-| `ttl.74LS107` | 74LS107 | Dual JK flip-flop, async clear | 2 × DFF + JK input logic + async /CLR |
-| `ttl.74LS138` | 74LS138 | 3-to-8 decoder, active-low outputs | DECODER + enable gating |
-| `ttl.74LS139` | 74LS139 | Dual 2-to-4 decoder | 2 × DECODER |
-| `ttl.74LS157` | 74LS157 | Quad 2:1 MUX | 4 × MUX2 + select gating + /OE |
-| `ttl.74LS161` | 74LS161 | 4-bit synchronous counter | 4 × DFF + carry chain + sync load + async /CLR |
-| `ttl.74LS173` | 74LS173 | 4-bit D register, tristate outputs | 4 × DFF + 4 × TRISTATE + load gating |
-| `ttl.74LS245` | 74LS245 | Octal bus transceiver | 16 × TRISTATE + DIR logic + /OE |
-| `ttl.74LS273` | 74LS273 | Octal D flip-flop, async clear | 8 × DFF |
-| `ttl.74LS283` | 74LS283 | 4-bit binary adder | ADDER (width=4) |
+| ID | Status | Real chip | Function | Built from |
+|---|---|---|---|---|
+| `ttl.74LS00`  | shipped | 74LS00  | Quad 2-input NAND                 | 4 × NAND |
+| `ttl.74LS02`  | shipped | 74LS02  | Quad 2-input NOR                  | 4 × NOR |
+| `ttl.74LS04`  | shipped | 74LS04  | Hex inverter                      | 6 × NOT |
+| `ttl.74LS08`  | shipped | 74LS08  | Quad 2-input AND                  | 4 × AND |
+| `ttl.74LS32`  | shipped | 74LS32  | Quad 2-input OR                   | 4 × OR |
+| `ttl.74LS86`  | shipped | 74LS86  | Quad 2-input XOR                  | 4 × XOR |
+| `ttl.74LS107` | shipped | 74LS107 | Dual JK flip-flop, neg-edge, async /CLR | 2 × DFF (clock inverted) + JK→D logic per section |
+| `ttl.74LS138` | shipped | 74LS138 | 3-to-8 decoder, active-low        | DECODER + 2-of-3 enable gating + per-output OR |
+| `ttl.74LS139` | shipped | 74LS139 | Dual 2-to-4 decoder               | 2 × DECODER + per-output OR (active-low /G) |
+| `ttl.74LS157` | shipped | 74LS157 | Quad 2:1 MUX with /STB strobe     | 4 × MUX2 + per-output AND gated by NOT(/STB) |
+| `ttl.74LS161` | shipped | 74LS161 | 4-bit sync counter, async /CLR    | 4 × DFF + ADDER (Q+1) + per-bit hold/count/load mux pair, RCO from adder Cout AND ENT |
+| `ttl.74LS173` | shipped | 74LS173 | 4-bit D register, tristate output | 4 × DFF + 4 × TRISTATE + load gating |
+| `ttl.74LS245` | shipped | 74LS245 | Octal bus transceiver             | 16 × TRISTATE (8 per direction) + DIR/OE gating |
+| `ttl.74LS273` | shipped | 74LS273 | Octal D flip-flop, async clear    | 8 × DFF (shared CP, shared /MR) |
+| `ttl.74LS283` | shipped | 74LS283 | 4-bit binary adder                | ADDER (width=4) |
 
 ## Behavioral chips (TS, in `src/engine/behavioral/`)
 
 Things we don't model as primitive graphs.
 
-| ID | Real chip | Why behavioral |
-|---|---|---|
-| `mem.28C16` | 28C16 | 2K × 8 EEPROM. Storage as `Uint8Array(2048)`. Programmable via UI (paste hex, upload `.bin`). |
-| `mem.6116` | 6116 | 2K × 8 SRAM. Storage as `Uint8Array(2048)`. Volatile; resets to 0 on power-on. |
-| `mem.74LS189` | 74LS189 | 16 × 4 RAM with **open-collector inverted outputs**. Storage as `Uint8Array(16)` (4 bits per byte). The inverted-output quirk is part of the behavioral model — Eater wraps these in 74LS04s in his RAM module, which we represent in the schematic, not by hiding the inversion. |
-| `gen.555` | 555 | Astable square-wave clock generator. Param: target frequency in Hz. The behavioral model counts simulator steps relative to the worker's current rate. |
-| `gen.clock` | — | Idealized square-wave clock. Param: frequency in Hz. Used in tests and as the default clock for student circuits. |
-| `io.led` | — | One-pin LED. Renders color by input value (`0`=off, `1`=on, `Z`=dim, `X`=warning). |
-| `io.7seg` | — | 7-segment display, common-anode or common-cathode. 8 input pins (a–g + dp). |
-| `io.switch` | — | SPST switch. User toggles in UI; output is `0` or `1`. |
-| `io.button` | — | Momentary button. Output `1` while held. Optional debouncing. |
-| `io.dipswitch` | — | n-bit DIP switch. n outputs. |
-| `io.pin_input` | — | Numeric value input (binary/hex/decimal). For testbenches and quick prototyping. |
-| `io.pin_output` | — | Watch a net. Logs to a waveform buffer; for testbenches and probes. |
+| ID | Status | Real chip | Why behavioral |
+|---|---|---|---|
+| `mem.28C16`    | M5      | 28C16   | 2K × 8 EEPROM. Storage as `Uint8Array(2048)`. Programmable via UI (paste hex, upload `.bin`). |
+| `mem.6116`     | shipped | 6116    | 2K × 8 SRAM. Storage as `Uint8Array(2048)`. Volatile; resets to 0 on power-on. Bidirectional `DQ0..7` pins; `/CE` `/OE` `/WE` truth table per datasheet. Writes with any X data bit are skipped. |
+| `mem.74LS189`  | shipped | 74LS189 | 16 × 4 RAM with **open-collector inverted outputs**. Storage as `Uint8Array(16)` (low 4 bits per byte). Outputs drive strong-0 when the stored bit is 1 and Z otherwise; the user adds an external pullup network (Eater wraps these in 74LS04s + pullups in his RAM module). Writes with any X data bit are skipped. |
+| `gen.555`      | shipped | 555     | Astable square-wave clock generator. Param: `freqHz`. Step-counted toggle keyed on the worker's current `rateHz`. RESET (datasheet pin 4) is treated as tied high; only the OUT pin is exposed. |
+| `gen.clock`    | shipped | —       | Idealized square-wave clock. Param: frequency in Hz. Used in tests and as the default clock for student circuits. |
+| `io.led`       | shipped | —       | One-pin LED. Renders color by input value (`0`=off, `1`=on, `Z`=dim, `X`=warning). |
+| `io.7seg`      | shipped | —       | 7-segment display sink. 8 input pins (a, b, c, d, e, f, g, dp); state holds the latched per-segment values. Common-anode vs common-cathode interpretation is a UI render concern, not a logic-level one. |
+| `io.switch`    | shipped | —       | SPST switch. User toggles in UI; output is `0` or `1`. |
+| `io.button`    | M7      | —       | Momentary button. Output `1` while held. Optional debouncing. |
+| `io.dipswitch` | M7      | —       | n-bit DIP switch. n outputs. |
+| `io.pin_input` | M7      | —       | Numeric value input (binary/hex/decimal). For testbenches and quick prototyping. |
+| `io.pin_output`| M7      | —       | Watch a net. Logs to a waveform buffer; for testbenches and probes. |
 
 ## What's needed for Ben Eater's 8-bit machine
 

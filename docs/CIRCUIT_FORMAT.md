@@ -141,9 +141,11 @@ If the schema and the loader's runtime checks ever diverge, the loader is author
 - Simulation state (current net values, FF state, RAM contents). That's runtime, not persisted. Snapshot/restore is a separate feature (M7).
 - Test inputs / expected outputs. Those go in a sibling `*.test.json` file (see [ROADMAP.md](ROADMAP.md) M7).
 
-## Patches (incremental edits)
+## Patches (incremental edits) — not yet implemented
 
-For mutate operations across the worker boundary:
+The current worker `mutate` message ships the whole `CircuitJSON` and rebuilds the runtime graph; a 100-component circuit re-loads in well under 50 ms, and the editor sequences mutations through a single in-flight slot, so the round-trip cost has not been a problem in practice.
+
+If profiling later shows full reloads dominating frame budget, the worker boundary will grow a patch grammar of the form:
 
 ```json
 {
@@ -156,4 +158,4 @@ For mutate operations across the worker boundary:
 }
 ```
 
-Patches are validated, applied atomically, and rolled back on any failure. The engine pauses, applies, and resumes if it was running.
+Patches would be validated, applied atomically, and rolled back on any failure. The engine would pause, apply, and resume if it was running. Until then, treat this section as a design sketch, not a built feature.

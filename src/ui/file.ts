@@ -1,11 +1,39 @@
-// Save and Load buttons. Uses File System Access API
-// (showSaveFilePicker / showOpenFilePicker) when available; falls back to
-// `<a download>` for save and a hidden `<input type=file>` for load. The
-// input is mounted into the DOM (not dynamically created) so Playwright can
-// drive it via setInputFiles().
+// Save and Load buttons + bundled examples menu. Save/Load uses the File
+// System Access API (showSaveFilePicker / showOpenFilePicker) when available;
+// falls back to `<a download>` for save and a hidden `<input type=file>` for
+// load. The input is mounted into the DOM (not dynamically created) so
+// Playwright can drive it via setInputFiles().
+//
+// The Examples dropdown ships every checked-in `examples/*.json` so a user can
+// switch between canned circuits without leaving the page. Picking an entry
+// runs `replaceCircuit`, which reuses the same mutate path as drag-edits and
+// records an undo entry — Cmd-Z reverts back to whatever was on screen.
 
+import benEater8bit from '../../examples/ben_eater_8bit.json';
+import blinkDemo from '../../examples/blink_demo.json';
+import fullAdder from '../../examples/full_adder.json';
+import hexDisplay28C16 from '../../examples/hex_display_28c16.json';
+import nandLatch from '../../examples/nand_latch.json';
+import registerBus from '../../examples/register_bus_4bit.json';
+import rippleAdder from '../../examples/ripple_adder_4bit.json';
 import type { CircuitJSON } from '../engine/ir';
 import type { EditorModel } from './editor';
+
+interface BundledExample {
+  key: string;
+  label: string;
+  circuit: CircuitJSON;
+}
+
+const EXAMPLES: BundledExample[] = [
+  { key: 'blink_demo', label: 'Blink demo', circuit: blinkDemo as CircuitJSON },
+  { key: 'full_adder', label: '1-bit full adder', circuit: fullAdder as CircuitJSON },
+  { key: 'nand_latch', label: 'NAND latch', circuit: nandLatch as CircuitJSON },
+  { key: 'register_bus_4bit', label: '4-bit register bus', circuit: registerBus as CircuitJSON },
+  { key: 'ripple_adder_4bit', label: '4-bit ripple adder', circuit: rippleAdder as CircuitJSON },
+  { key: 'hex_display_28c16', label: 'Hex display (28C16)', circuit: hexDisplay28C16 as CircuitJSON },
+  { key: 'ben_eater_8bit',    label: 'Ben Eater 8-bit (Fibonacci)', circuit: benEater8bit as CircuitJSON },
+];
 
 // Minimal subset of the File System Access API types we actually use. The
 // browser-provided types may be richer; redeclaring locally keeps the file
@@ -77,7 +105,33 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     });
   });
 
-  host.append(saveBtn, loadBtn, fileInput);
+  const examplesSelect = document.createElement('select');
+  examplesSelect.dataset.fileAction = 'examples';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Examples…';
+  examplesSelect.appendChild(placeholder);
+  for (const ex of EXAMPLES) {
+    const opt = document.createElement('option');
+    opt.value = ex.key;
+    opt.textContent = ex.label;
+    examplesSelect.appendChild(opt);
+  }
+  examplesSelect.addEventListener('change', () => {
+    const key = examplesSelect.value;
+    examplesSelect.value = '';
+    if (!key) return;
+    const ex = EXAMPLES.find((e) => e.key === key);
+    if (!ex) return;
+    // Deep-clone so user edits don't mutate the bundled JSON across reloads.
+    const fresh = JSON.parse(JSON.stringify(ex.circuit)) as CircuitJSON;
+    void editor.replaceCircuit(fresh).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('load example failed:', msg);
+    });
+  });
+
+  host.append(saveBtn, loadBtn, examplesSelect, fileInput);
 
   return () => {
     host.innerHTML = '';

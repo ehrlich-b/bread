@@ -40,12 +40,16 @@
 src/
   engine/         # Pure simulation. No DOM, no Web APIs.
     sim.ts        # Two-phase event-driven scheduler.
-    nets.ts       # Net state, four-valued logic, tristate resolution.
-    components.ts # Component registry, evaluation dispatch.
-    primitives/   # Built-in primitive eval functions (one per kind).
-    behavioral/   # Built-in behavioral chips (memory, displays, I/O).
-    ir.ts         # Canonical circuit IR types + validation.
+    nets.ts       # Driver list resolution (four-valued logic + tristate).
+    ir.ts         # Canonical circuit IR types (JSON + runtime shapes).
     loader.ts     # Parse JSON, flatten composites, build runtime graph.
+    primitives/   # Built-in primitives + per-tier registry.
+      registry.ts gates.ts dff.ts latch.ts mux.ts decoder.ts
+      adder.ts tristate.ts sources.ts
+    composites/   # Composite registry + flatten helpers.
+      registry.ts
+    behavioral/   # Built-in behavioral chips + per-tier registry.
+      registry.ts gen_clock.ts io_led.ts io_switch.ts
 
   worker/         # Worker entry point.
     worker.ts
@@ -53,34 +57,47 @@ src/
 
   ui/
     schematic/    # SVG schematic view, hit-testing, wire routing.
+    palette/      # Component palette: drag/click-to-place chips.
     inspector/    # Property panel, parameter editing.
-    controls/     # Run/pause/step UI.
+    controls/     # Run/pause/step + Undo/Redo buttons.
     bus.ts        # postMessage wrapper, RPC over the worker boundary.
+    editor.ts     # Editable circuit model + undo/redo stack.
+    file.ts       # Save/Load via File System Access API + fallbacks.
 
-  stdlib/         # Composite chip definitions (JSON).
-    74LS00.json
-    74LS173.json
+  stdlib/         # Composite chip definitions (JSON) + registration.
+    index.ts
+    ttl.74LS00.json
+    ttl.74LS173.json
     ...
 
-  app/            # Top-level Vite entry, routing, layout.
+  app/            # Top-level Vite entry, page bootstrap, layout CSS.
 ```
+
+Three registries — `primitives/registry.ts`, `composites/registry.ts`, `behavioral/registry.ts` — together act as the single component-resolution surface. There is no umbrella `components.ts`; resolution is a fall-through across the three.
 
 ## Worker protocol
 
-Messages are RPC-style with request IDs. Subset of the v1 protocol:
+Messages are RPC-style with numeric request IDs. Notifications (events) flow worker→UI without an id. Source of truth: `src/worker/protocol.ts`.
 
 | Message | Direction | Payload | Notes |
 |---|---|---|---|
-| `load` | UI → engine | `{ circuit: CircuitJSON }` | Replaces current IR. Resets sim state. |
-| `mutate` | UI → engine | `{ patch: IRPatch }` | Incremental edit. Engine pauses, applies, resumes if running. |
-| `run` | UI → engine | `{ rateHz?: number }` | Free-run if `rateHz` omitted; paced otherwise. |
-| `pause` | UI → engine | — | |
-| `step` | UI → engine | `{ kind: 'cycle' \| 'edge', net?: NetId }` | One settled cycle, or run until next edge of `net`. |
-| `set_input` | UI → engine | `{ component: InstId, pin: string, value: NetState }` | For switches, buttons. |
-| `state_snapshot` | engine → UI | `{ nets: SAB, components: SAB }` | Sent once after `load`; UI keeps the SAB handle. |
-| `event` | engine → UI | `{ kind: 'oscillation' \| 'contention' \| 'halted'; ... }` | Out-of-band notifications. |
+| `load` | UI → engine | `{ circuit: CircuitJSON, rateHz?: number }` | Replaces current IR. Resets sim state. Reply: `load_res`. |
+| `mutate` | UI → engine | `{ circuit: CircuitJSON }` | Whole-circuit replacement. Preserves `targetRateHz` and auto-resumes if a free run was active. Reply: `load_res`. |
+| `run` | UI → engine | `{ rateHz: number }` | Paced free run. `rateHz` is required; there is no unpaced mode. Reply: `ack`. |
+| `pause` | UI → engine | — | Reply: `ack`. |
+| `step` | UI → engine | — | One `tick` of the simulator (settle once). Reply: `ack`. |
+| `set_input` | UI → engine | `{ component: InstId, pin: string, value: NetState }` | For switches, buttons. Settles once before replying. Reply: `ack`. |
+| `load_res` | engine → UI | `{ netIds, componentIds, netsBuffer: SharedArrayBuffer }` | Reply to `load` and `mutate`. Carries the new SAB handle and id arrays. |
+| `ack` | engine → UI | `{ id }` | Generic ack for `run`/`pause`/`step`/`set_input`. |
+| `err` | engine → UI | `{ id, message }` | Any handler throw turns into this. |
+| `event` | engine → UI | `{ kind: 'oscillation' \| 'contention', detail, step }` | Out-of-band notification. Drained after every settle. |
 
 `SharedArrayBuffer` carries net state for high-frequency reads. The UI samples at `requestAnimationFrame`; no per-frame messaging needed.
+
+Two protocol simplifications relative to the original v1 sketch are intentional:
+
+- **Whole-circuit `mutate` over an `IRPatch` op-list.** A 100-component circuit serializes in well under 50 ms, the editor sequences mutations through a single `inflight` slot in `ui/editor.ts`, and skipping the patch grammar keeps the worker boundary trivial. Patches remain a future option if profiling shows the round-trip cost matters.
+- **Single-shape `step` (no `cycle`/`edge` modes).** The current `step` calls `sim.tick()` once and returns. Edge-stepping (run until a designated net transitions) belongs to a debugger UI we haven't built yet; it goes on the worker boundary as `{ kind: 'edge', net }` when that lands.
 
 ## State ownership
 
@@ -104,9 +121,11 @@ Messages are RPC-style with request IDs. Subset of the v1 protocol:
 | Verilog export | | ✓ |
 | Headless tests | | ✓ |
 
-## Data layout for performance
+## Data layout
 
-The engine owns flat, typed-array-backed structures:
+Today (M0–M4): `RuntimeGraph` is plain JS objects — `RuntimeComponent[]`, `RuntimeNet[]`, and `Map<string, number>` lookups (see `src/engine/ir.ts`). The simulator's hot path uses two `number[]` dirty queues and a per-iteration `proposedOutputs` array. This is fine for everything we run today; full-adder e2e settles in microseconds.
+
+Planned (M6, perf milestone) — when profiling on the Ben Eater 8-bit machine demands it:
 
 - `nets: Uint8Array(numNets)` — one byte per net (`0`, `1`, `Z`, `X`).
 - `components: Uint32Array(numComponents * STRIDE)` — packed component records: kind, pin offsets, state offset.
@@ -115,7 +134,7 @@ The engine owns flat, typed-array-backed structures:
 - `dirtyA, dirtyB: Uint32Array(numComponents)` — double-buffered dirty queue.
 - `componentState: Uint8Array(...)` — per-instance state (FF Q values, counter values, memory contents).
 
-Object allocation is forbidden in the inner loop. Component evaluators are monomorphic functions indexed by kind. See [SIMULATION.md](SIMULATION.md) for the loop itself.
+Once that lands, object allocation is forbidden in the inner loop and component evaluators are monomorphic functions indexed by kind. See [SIMULATION.md](SIMULATION.md) for the loop itself; the conversion is a drop-in for the existing scheduler.
 
 ## Build & test
 

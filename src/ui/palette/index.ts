@@ -15,7 +15,10 @@ export interface PaletteEntry {
 export const PALETTE: PaletteEntry[] = [
   { group: 'I/O', type: 'io.switch', label: 'Switch' },
   { group: 'I/O', type: 'io.led', label: 'LED' },
+  { group: 'I/O', type: 'io.7seg', label: '7-segment' },
   { group: 'I/O', type: 'gen.clock', label: 'Clock 1Hz', params: { freqHz: 1 } },
+  { group: 'I/O', type: 'gen.555', label: '555 1Hz', params: { freqHz: 1 } },
+
   { group: 'Gates', type: 'prim.AND', label: 'AND', params: { inputs: 2 } },
   { group: 'Gates', type: 'prim.OR', label: 'OR', params: { inputs: 2 } },
   { group: 'Gates', type: 'prim.NAND', label: 'NAND', params: { inputs: 2 } },
@@ -24,7 +27,40 @@ export const PALETTE: PaletteEntry[] = [
   { group: 'Gates', type: 'prim.XNOR', label: 'XNOR', params: { inputs: 2 } },
   { group: 'Gates', type: 'prim.NOT', label: 'NOT' },
   { group: 'Gates', type: 'prim.BUF', label: 'BUF' },
-  { group: 'Memory', type: 'prim.DFF', label: 'DFF' },
+  { group: 'Gates', type: 'prim.TRISTATE', label: 'Tristate', params: { oeActiveLow: false } },
+
+  { group: 'Storage', type: 'prim.DFF', label: 'DFF' },
+  { group: 'Storage', type: 'prim.LATCH', label: 'D Latch' },
+
+  { group: 'Sources', type: 'prim.CONST_0', label: 'GND' },
+  { group: 'Sources', type: 'prim.CONST_1', label: 'Vcc' },
+  { group: 'Sources', type: 'prim.PULLUP', label: 'Pull-up' },
+  { group: 'Sources', type: 'prim.PULLDOWN', label: 'Pull-down' },
+
+  { group: 'Logic blocks', type: 'prim.MUX2', label: 'MUX2 ×4', params: { width: 4 } },
+  { group: 'Logic blocks', type: 'prim.DEMUX2', label: 'DEMUX2 ×4', params: { width: 4 } },
+  { group: 'Logic blocks', type: 'prim.DECODER', label: '3→8 decoder', params: { bits: 3, activeLow: false } },
+  { group: 'Logic blocks', type: 'prim.ADDER', label: 'Adder ×4', params: { width: 4 } },
+
+  { group: 'TTL', type: 'ttl.74LS00', label: '74LS00' },
+  { group: 'TTL', type: 'ttl.74LS02', label: '74LS02' },
+  { group: 'TTL', type: 'ttl.74LS04', label: '74LS04' },
+  { group: 'TTL', type: 'ttl.74LS08', label: '74LS08' },
+  { group: 'TTL', type: 'ttl.74LS32', label: '74LS32' },
+  { group: 'TTL', type: 'ttl.74LS86', label: '74LS86' },
+  { group: 'TTL', type: 'ttl.74LS107', label: '74LS107' },
+  { group: 'TTL', type: 'ttl.74LS138', label: '74LS138' },
+  { group: 'TTL', type: 'ttl.74LS139', label: '74LS139' },
+  { group: 'TTL', type: 'ttl.74LS157', label: '74LS157' },
+  { group: 'TTL', type: 'ttl.74LS161', label: '74LS161' },
+  { group: 'TTL', type: 'ttl.74LS173', label: '74LS173' },
+  { group: 'TTL', type: 'ttl.74LS245', label: '74LS245' },
+  { group: 'TTL', type: 'ttl.74LS273', label: '74LS273' },
+  { group: 'TTL', type: 'ttl.74LS283', label: '74LS283' },
+
+  { group: 'Memory', type: 'mem.6116', label: '6116 SRAM' },
+  { group: 'Memory', type: 'mem.28C16', label: '28C16 EEPROM' },
+  { group: 'Memory', type: 'mem.74LS189', label: '74LS189 RAM' },
 ];
 
 export const mountPalette = (host: HTMLElement, editor: EditorModel): (() => void) => {
