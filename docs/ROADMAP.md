@@ -2,11 +2,13 @@
 
 Milestones, each independently demonstrable. Ship in order.
 
-**Status snapshot (2026-05-03):** M0–M5 shipped. M5 (memory + Ben Eater chip set) — all 15 TTL composites, behavioral memory chips (`mem.6116`, `mem.74LS189`, `mem.28C16`), `gen.555`, `io.7seg` with live segment fills, the 28C16 paste-hex / upload-`.bin` inspector affordance, eight `eater.*` SAP-1 composites with TypeScript-generated microcode injected at registration time, and a bundled `examples/ben_eater_8bit.json` running Fibonacci end-to-end. Up next: M6 performance work.
+**Status snapshot (2026-05-10):** M0–M5 shipped. M5 (memory + Ben Eater chip set) — all 15 TTL composites, behavioral memory chips (`mem.6116`, `mem.74LS189`, `mem.28C16`), `gen.555`, `io.7seg` with live segment fills, the 28C16 paste-hex / upload-`.bin` inspector affordance, eight `eater.*` SAP-1 composites with TypeScript-generated microcode injected at registration time, and a bundled `examples/ben_eater_8bit.json` running Fibonacci end-to-end.
 
 **M5a — UI playability** ✅ shipped. The engine exposes a public surface (`getPinsForType`, `listAllTypes`) so the schematic can introspect any chip without instantiating a Simulator. A generic IC renderer falls back for chips without a hand-crafted SVG, the palette covers every primitive / behavioral / TTL composite (~39 entries across 7 groups), and a bundled-examples dropdown switches between the canned circuits in `examples/`. The `io.7seg` display and `gen.555` timer have hand-crafted renderers; `io.7seg` segments update live from the SAB so a 28C16-driven hex display shows the digit on screen.
 
-M6/M7 unstarted.
+**M6 — Performance** partially done. `scripts/bench_eater.ts` measures sim tick throughput on the bundled SAP-1; baseline 70 kHz, current **88 kHz simulated clock**. Wins came from a buffer-passing `evaluate()` API (no per-call output array / wrapper allocation), per-component pre-allocated `inputBuf` / `proposedBuf`, flattened input/output net-index sidecars (`Uint32Array`), pre-computed input direction bits (`Uint8Array`), and pooling `resolveNet`'s result struct on the simulator. Ben Eater's machine runs ~8800× faster than its real-world 10 Hz clock; that's well past the architecture-doc budget (50 kHz) but still 12% short of this roadmap's 100 kHz target. Closing the gap needs the SoA conversion and/or WASM dispatch loop — deferred.
+
+M7 in progress.
 
 ## M0 — Engine kernel  ✅ done
 
@@ -66,14 +68,14 @@ No UI. No worker. Plain Node module.
 - Pre-built `examples/ben_eater_8bit.json` reference circuit, registered in the Examples dropdown. ✅
 - **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
 
-## M6 — Performance
+## M6 — Performance  (partial — paused at 88 kHz)
 
-- Profile: identify hot paths in the engine on Eater's machine.
-- Convert per-event closures to monomorphic dispatch.
-- Pack net state in `Uint8Array`; component records in `Uint32Array` (SoA).
-- Object-pool the dirty queue.
-- Optional: implement WASM dispatch loop in Rust or AssemblyScript. A/B test against JS.
-- **Goal:** Eater's 8-bit machine sustains 100+ kHz simulated clock in JS, 1+ MHz in WASM.
+- Profile: identify hot paths in the engine on Eater's machine. ✅ baseline bench at `scripts/bench_eater.ts`.
+- Convert per-event closures to monomorphic dispatch. ⏳ deferred — ICs are megamorphic across 19 primitive types; not yet refactored.
+- Pack net state in `Uint8Array`; component records in `Uint32Array` (SoA). 〰️ partial — `inputNetIdx` / `outputNetIdx` are typed-array sidecars and `inputIsLogic` / `netChanged` / `inDirty` are `Uint8Array`. Net values themselves are still `NetState` strings on `RuntimeNet`.
+- Object-pool the dirty queue. ✅ for the changed-nets queue (replaced `Set<number>` with `Uint8Array` mark + commit-order `number[]`); the dirty queues themselves are stable arrays from construction.
+- Optional: implement WASM dispatch loop in Rust or AssemblyScript. A/B test against JS. ⏳ not started.
+- **Goal:** 100+ kHz JS / 1+ MHz WASM. Current: **88 kHz JS** on `examples/ben_eater_8bit.json` via `npm run bench:eater`. The remaining 12% on JS would come from full SoA + monomorphic dispatch; the WASM target needs the dispatch loop.
 
 ## M7 — Polish
 
