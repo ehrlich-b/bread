@@ -1,0 +1,86 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS245",
+  "description": "Octal bus transceiver. DIR selects direction: DIR=1 drives A→B, DIR=0 drives B→A. /OE=1 forces both sides to Hi-Z. Built as 16 prim.TRISTATE buffers (8 per direction), each enabled only when its direction is selected and /OE is asserted low.",
+  "components": [
+    { "id": "inv_oe",  "type": "prim.NOT" },
+    { "id": "inv_dir", "type": "prim.NOT" },
+    { "id": "and_ab",  "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "and_ba",  "type": "prim.AND", "params": { "inputs": 2 } },
+
+    { "id": "tab1", "type": "prim.TRISTATE" },
+    { "id": "tab2", "type": "prim.TRISTATE" },
+    { "id": "tab3", "type": "prim.TRISTATE" },
+    { "id": "tab4", "type": "prim.TRISTATE" },
+    { "id": "tab5", "type": "prim.TRISTATE" },
+    { "id": "tab6", "type": "prim.TRISTATE" },
+    { "id": "tab7", "type": "prim.TRISTATE" },
+    { "id": "tab8", "type": "prim.TRISTATE" },
+
+    { "id": "tba1", "type": "prim.TRISTATE" },
+    { "id": "tba2", "type": "prim.TRISTATE" },
+    { "id": "tba3", "type": "prim.TRISTATE" },
+    { "id": "tba4", "type": "prim.TRISTATE" },
+    { "id": "tba5", "type": "prim.TRISTATE" },
+    { "id": "tba6", "type": "prim.TRISTATE" },
+    { "id": "tba7", "type": "prim.TRISTATE" },
+    { "id": "tba8", "type": "prim.TRISTATE" }
+  ],
+  "nets": [
+    { "id": "nOE",   "endpoints": ["inv_oe.A"] },
+    { "id": "nDIR",  "endpoints": ["inv_dir.A", "and_ab.A"] },
+    { "id": "nDIRn", "endpoints": ["inv_dir.Y", "and_ba.A"] },
+    { "id": "nEn",   "endpoints": ["inv_oe.Y", "and_ab.B", "and_ba.B"] },
+
+    { "id": "nEnAB", "endpoints": [
+      "and_ab.Y",
+      "tab1.OE", "tab2.OE", "tab3.OE", "tab4.OE",
+      "tab5.OE", "tab6.OE", "tab7.OE", "tab8.OE"
+    ] },
+    { "id": "nEnBA", "endpoints": [
+      "and_ba.Y",
+      "tba1.OE", "tba2.OE", "tba3.OE", "tba4.OE",
+      "tba5.OE", "tba6.OE", "tba7.OE", "tba8.OE"
+    ] },
+
+    { "id": "nA1", "endpoints": ["tab1.A", "tba1.Y"] },
+    { "id": "nA2", "endpoints": ["tab2.A", "tba2.Y"] },
+    { "id": "nA3", "endpoints": ["tab3.A", "tba3.Y"] },
+    { "id": "nA4", "endpoints": ["tab4.A", "tba4.Y"] },
+    { "id": "nA5", "endpoints": ["tab5.A", "tba5.Y"] },
+    { "id": "nA6", "endpoints": ["tab6.A", "tba6.Y"] },
+    { "id": "nA7", "endpoints": ["tab7.A", "tba7.Y"] },
+    { "id": "nA8", "endpoints": ["tab8.A", "tba8.Y"] },
+
+    { "id": "nB1", "endpoints": ["tab1.Y", "tba1.A"] },
+    { "id": "nB2", "endpoints": ["tab2.Y", "tba2.A"] },
+    { "id": "nB3", "endpoints": ["tab3.Y", "tba3.A"] },
+    { "id": "nB4", "endpoints": ["tab4.Y", "tba4.A"] },
+    { "id": "nB5", "endpoints": ["tab5.Y", "tba5.A"] },
+    { "id": "nB6", "endpoints": ["tab6.Y", "tba6.A"] },
+    { "id": "nB7", "endpoints": ["tab7.Y", "tba7.A"] },
+    { "id": "nB8", "endpoints": ["tab8.Y", "tba8.A"] }
+  ],
+  "ports": [
+    { "name": "/OE", "dir": "in",    "internalNet": "nOE" },
+    { "name": "DIR", "dir": "in",    "internalNet": "nDIR" },
+    { "name": "A1",  "dir": "inout", "internalNet": "nA1" },
+    { "name": "A2",  "dir": "inout", "internalNet": "nA2" },
+    { "name": "A3",  "dir": "inout", "internalNet": "nA3" },
+    { "name": "A4",  "dir": "inout", "internalNet": "nA4" },
+    { "name": "A5",  "dir": "inout", "internalNet": "nA5" },
+    { "name": "A6",  "dir": "inout", "internalNet": "nA6" },
+    { "name": "A7",  "dir": "inout", "internalNet": "nA7" },
+    { "name": "A8",  "dir": "inout", "internalNet": "nA8" },
+    { "name": "B1",  "dir": "inout", "internalNet": "nB1" },
+    { "name": "B2",  "dir": "inout", "internalNet": "nB2" },
+    { "name": "B3",  "dir": "inout", "internalNet": "nB3" },
+    { "name": "B4",  "dir": "inout", "internalNet": "nB4" },
+    { "name": "B5",  "dir": "inout", "internalNet": "nB5" },
+    { "name": "B6",  "dir": "inout", "internalNet": "nB6" },
+    { "name": "B7",  "dir": "inout", "internalNet": "nB7" },
+    { "name": "B8",  "dir": "inout", "internalNet": "nB8" }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS157",
+  "description": "Quad 2-input data selector/multiplexer with non-inverting outputs and active-low strobe. When /STB is HIGH all outputs are forced LOW; when /STB is LOW, Y=A if S=0 else Y=B. The strobe is gating, not tristate (the 74LS158 is the inverting variant). Built as 4 × MUX2 (width=1) AND-gated by NOT(/STB).",
+  "components": [
+    { "id": "inv_stb", "type": "prim.NOT" },
+
+    { "id": "mux1", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux2", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux3", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux4", "type": "prim.MUX2", "params": { "width": 1 } },
+
+    { "id": "and1", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "and2", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "and3", "type": "prim.AND", "params": { "inputs": 2 } },
+    { "id": "and4", "type": "prim.AND", "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "nSTB", "endpoints": ["inv_stb.A"] },
+    { "id": "nEn",  "endpoints": ["inv_stb.Y", "and1.B", "and2.B", "and3.B", "and4.B"] },
+    { "id": "nS",   "endpoints": ["mux1.S", "mux2.S", "mux3.S", "mux4.S"] },
+
+    { "id": "n1A", "endpoints": ["mux1.A0"] },
+    { "id": "n1B", "endpoints": ["mux1.B0"] },
+    { "id": "n2A", "endpoints": ["mux2.A0"] },
+    { "id": "n2B", "endpoints": ["mux2.B0"] },
+    { "id": "n3A", "endpoints": ["mux3.A0"] },
+    { "id": "n3B", "endpoints": ["mux3.B0"] },
+    { "id": "n4A", "endpoints": ["mux4.A0"] },
+    { "id": "n4B", "endpoints": ["mux4.B0"] },
+
+    { "id": "n1Mux", "endpoints": ["mux1.Y0", "and1.A"] },
+    { "id": "n2Mux", "endpoints": ["mux2.Y0", "and2.A"] },
+    { "id": "n3Mux", "endpoints": ["mux3.Y0", "and3.A"] },
+    { "id": "n4Mux", "endpoints": ["mux4.Y0", "and4.A"] },
+
+    { "id": "n1Y", "endpoints": ["and1.Y"] },
+    { "id": "n2Y", "endpoints": ["and2.Y"] },
+    { "id": "n3Y", "endpoints": ["and3.Y"] },
+    { "id": "n4Y", "endpoints": ["and4.Y"] }
+  ],
+  "ports": [
+    { "name": "/STB", "dir": "in",  "internalNet": "nSTB" },
+    { "name": "S",    "dir": "in",  "internalNet": "nS" },
+    { "name": "1A",   "dir": "in",  "internalNet": "n1A" },
+    { "name": "1B",   "dir": "in",  "internalNet": "n1B" },
+    { "name": "2A",   "dir": "in",  "internalNet": "n2A" },
+    { "name": "2B",   "dir": "in",  "internalNet": "n2B" },
+    { "name": "3A",   "dir": "in",  "internalNet": "n3A" },
+    { "name": "3B",   "dir": "in",  "internalNet": "n3B" },
+    { "name": "4A",   "dir": "in",  "internalNet": "n4A" },
+    { "name": "4B",   "dir": "in",  "internalNet": "n4B" },
+    { "name": "1Y",   "dir": "out", "internalNet": "n1Y" },
+    { "name": "2Y",   "dir": "out", "internalNet": "n2Y" },
+    { "name": "3Y",   "dir": "out", "internalNet": "n3Y" },
+    { "name": "4Y",   "dir": "out", "internalNet": "n4Y" }
+  ]
+}

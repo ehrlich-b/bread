@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS139",
+  "description": "Dual 2-to-4 line decoder/demultiplexer with active-low outputs and active-low enable. With /G low, the addressed output (selected by A,B with B as MSB) goes low and the rest stay high. With /G high all outputs are high. The two sections are independent.",
+  "components": [
+    { "id": "dec1", "type": "prim.DECODER", "params": { "bits": 2, "activeLow": true } },
+    { "id": "or1_0", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or1_1", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or1_2", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or1_3", "type": "prim.OR", "params": { "inputs": 2 } },
+
+    { "id": "dec2", "type": "prim.DECODER", "params": { "bits": 2, "activeLow": true } },
+    { "id": "or2_0", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or2_1", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or2_2", "type": "prim.OR", "params": { "inputs": 2 } },
+    { "id": "or2_3", "type": "prim.OR", "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "n1G", "endpoints": ["or1_0.B", "or1_1.B", "or1_2.B", "or1_3.B"] },
+    { "id": "n1A", "endpoints": ["dec1.A0"] },
+    { "id": "n1B", "endpoints": ["dec1.A1"] },
+
+    { "id": "n1d0", "endpoints": ["dec1.Y0", "or1_0.A"] },
+    { "id": "n1d1", "endpoints": ["dec1.Y1", "or1_1.A"] },
+    { "id": "n1d2", "endpoints": ["dec1.Y2", "or1_2.A"] },
+    { "id": "n1d3", "endpoints": ["dec1.Y3", "or1_3.A"] },
+
+    { "id": "n1Y0", "endpoints": ["or1_0.Y"] },
+    { "id": "n1Y1", "endpoints": ["or1_1.Y"] },
+    { "id": "n1Y2", "endpoints": ["or1_2.Y"] },
+    { "id": "n1Y3", "endpoints": ["or1_3.Y"] },
+
+    { "id": "n2G", "endpoints": ["or2_0.B", "or2_1.B", "or2_2.B", "or2_3.B"] },
+    { "id": "n2A", "endpoints": ["dec2.A0"] },
+    { "id": "n2B", "endpoints": ["dec2.A1"] },
+
+    { "id": "n2d0", "endpoints": ["dec2.Y0", "or2_0.A"] },
+    { "id": "n2d1", "endpoints": ["dec2.Y1", "or2_1.A"] },
+    { "id": "n2d2", "endpoints": ["dec2.Y2", "or2_2.A"] },
+    { "id": "n2d3", "endpoints": ["dec2.Y3", "or2_3.A"] },
+
+    { "id": "n2Y0", "endpoints": ["or2_0.Y"] },
+    { "id": "n2Y1", "endpoints": ["or2_1.Y"] },
+    { "id": "n2Y2", "endpoints": ["or2_2.Y"] },
+    { "id": "n2Y3", "endpoints": ["or2_3.Y"] }
+  ],
+  "ports": [
+    { "name": "/1G",  "dir": "in",  "internalNet": "n1G" },
+    { "name": "1A",   "dir": "in",  "internalNet": "n1A" },
+    { "name": "1B",   "dir": "in",  "internalNet": "n1B" },
+    { "name": "/1Y0", "dir": "out", "internalNet": "n1Y0" },
+    { "name": "/1Y1", "dir": "out", "internalNet": "n1Y1" },
+    { "name": "/1Y2", "dir": "out", "internalNet": "n1Y2" },
+    { "name": "/1Y3", "dir": "out", "internalNet": "n1Y3" },
+
+    { "name": "/2G",  "dir": "in",  "internalNet": "n2G" },
+    { "name": "2A",   "dir": "in",  "internalNet": "n2A" },
+    { "name": "2B",   "dir": "in",  "internalNet": "n2B" },
+    { "name": "/2Y0", "dir": "out", "internalNet": "n2Y0" },
+    { "name": "/2Y1", "dir": "out", "internalNet": "n2Y1" },
+    { "name": "/2Y2", "dir": "out", "internalNet": "n2Y2" },
+    { "name": "/2Y3", "dir": "out", "internalNet": "n2Y3" }
+  ]
+}

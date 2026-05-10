@@ -285,3 +285,523 @@ describe('ttl.74LS173 (4-bit D register, tristate outputs)', () => {
     expect(readQ(s)).toEqual([0, 0, 0, 0]);
   });
 });
+
+describe('ttl.74LS02 (Quad NOR)', () => {
+  const sim = simWith(
+    wrap('ttl.74LS02', [
+      { name: '1A', net: 'a1' }, { name: '1B', net: 'b1' }, { name: '1Y', net: 'y1' },
+      { name: '2A', net: 'a2' }, { name: '2B', net: 'b2' }, { name: '2Y', net: 'y2' },
+      { name: '3A', net: 'a3' }, { name: '3B', net: 'b3' }, { name: '3Y', net: 'y3' },
+      { name: '4A', net: 'a4' }, { name: '4B', net: 'b4' }, { name: '4Y', net: 'y4' },
+    ]),
+  );
+
+  it('full truth table on gate1 with other gates quiesced', () => {
+    for (const [a, b, y] of [[0, 0, 1], [0, 1, 0], [1, 0, 0], [1, 1, 0]] as const) {
+      sim.setInput('a1', a); sim.setInput('b1', b);
+      sim.setInput('a2', 0); sim.setInput('b2', 0);
+      sim.setInput('a3', 0); sim.setInput('b3', 0);
+      sim.setInput('a4', 0); sim.setInput('b4', 0);
+      sim.settle();
+      expect(sim.readNet('y1')).toBe(y);
+    }
+  });
+
+  it('all four gates work in parallel', () => {
+    sim.setInput('a1', 0); sim.setInput('b1', 0); // y1 = 1
+    sim.setInput('a2', 1); sim.setInput('b2', 0); // y2 = 0
+    sim.setInput('a3', 0); sim.setInput('b3', 1); // y3 = 0
+    sim.setInput('a4', 1); sim.setInput('b4', 1); // y4 = 0
+    sim.settle();
+    expect(sim.readNet('y1')).toBe(1);
+    expect(sim.readNet('y2')).toBe(0);
+    expect(sim.readNet('y3')).toBe(0);
+    expect(sim.readNet('y4')).toBe(0);
+  });
+});
+
+describe('ttl.74LS273 (Octal D flip-flop, async /MR)', () => {
+  const ports: Array<{ name: string; net: string }> = [];
+  for (let i = 1; i <= 8; i++) ports.push({ name: `${i}D`, net: `d${i}` });
+  ports.push({ name: 'CP', net: 'cp' });
+  ports.push({ name: '/MR', net: 'mr' });
+  for (let i = 1; i <= 8; i++) ports.push({ name: `${i}Q`, net: `q${i}` });
+
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS273', ports)));
+    s.setInput('cp', 0);
+    s.setInput('mr', 0); // assert reset
+    s.settle();
+    s.setInput('mr', 1); // release
+    s.settle();
+    return s;
+  };
+
+  const tick = (s: Simulator): void => {
+    s.setInput('cp', 1); s.settle();
+    s.setInput('cp', 0); s.settle();
+  };
+
+  const setD = (s: Simulator, byte: number): void => {
+    for (let i = 0; i < 8; i++) s.setInput(`d${i + 1}`, ((byte >> i) & 1) as NetState);
+    s.settle();
+  };
+
+  const readQ = (s: Simulator): number => {
+    let v = 0;
+    for (let i = 0; i < 8; i++) {
+      const q = s.readNet(`q${i + 1}`);
+      if (q !== 0 && q !== 1) throw new Error(`q${i + 1}=${String(q)}`);
+      v |= q << i;
+    }
+    return v;
+  };
+
+  it('async /MR forces every Q to 0', () => {
+    const s = fresh();
+    expect(readQ(s)).toBe(0);
+  });
+
+  it('latches data on rising CP', () => {
+    const s = fresh();
+    setD(s, 0xa5);
+    tick(s);
+    expect(readQ(s)).toBe(0xa5);
+  });
+
+  it('holds value across additional clock edges with no D change', () => {
+    const s = fresh();
+    setD(s, 0x3c);
+    tick(s);
+    expect(readQ(s)).toBe(0x3c);
+    setD(s, 0x00); // change D after the edge — should be held
+    expect(readQ(s)).toBe(0x3c);
+  });
+
+  it('asserting /MR after a load returns Q to 0', () => {
+    const s = fresh();
+    setD(s, 0xff);
+    tick(s);
+    expect(readQ(s)).toBe(0xff);
+    s.setInput('mr', 0); s.settle();
+    expect(readQ(s)).toBe(0);
+  });
+});
+
+describe('ttl.74LS139 (Dual 2-to-4 decoder, active-low)', () => {
+  const sim = simWith(
+    wrap('ttl.74LS139', [
+      { name: '/1G', net: 'g1' }, { name: '1A', net: 'a1' }, { name: '1B', net: 'b1' },
+      { name: '/1Y0', net: 'y10' }, { name: '/1Y1', net: 'y11' },
+      { name: '/1Y2', net: 'y12' }, { name: '/1Y3', net: 'y13' },
+      { name: '/2G', net: 'g2' }, { name: '2A', net: 'a2' }, { name: '2B', net: 'b2' },
+      { name: '/2Y0', net: 'y20' }, { name: '/2Y1', net: 'y21' },
+      { name: '/2Y2', net: 'y22' }, { name: '/2Y3', net: 'y23' },
+    ]),
+  );
+
+  const readSection1 = (): NetState[] =>
+    [sim.readNet('y10'), sim.readNet('y11'), sim.readNet('y12'), sim.readNet('y13')];
+  const readSection2 = (): NetState[] =>
+    [sim.readNet('y20'), sim.readNet('y21'), sim.readNet('y22'), sim.readNet('y23')];
+
+  it('section 1 selects /Y[addr] when /1G low; others stay high', () => {
+    sim.setInput('g2', 1); sim.setInput('a2', 0); sim.setInput('b2', 0); // park section 2
+    sim.setInput('g1', 0);
+    for (let addr = 0; addr < 4; addr++) {
+      sim.setInput('a1', (addr & 1) as NetState);
+      sim.setInput('b1', ((addr >> 1) & 1) as NetState);
+      sim.settle();
+      const out = readSection1();
+      expect(out.map((v, i) => i === addr ? 0 : 1)).toEqual(out.map((v) => v));
+    }
+  });
+
+  it('section 1 outputs all high when /1G high', () => {
+    sim.setInput('g1', 1); sim.setInput('a1', 1); sim.setInput('b1', 0);
+    sim.settle();
+    expect(readSection1()).toEqual([1, 1, 1, 1]);
+  });
+
+  it('section 2 is independent of section 1', () => {
+    sim.setInput('g1', 1); // section 1 disabled
+    sim.setInput('g2', 0); sim.setInput('a2', 1); sim.setInput('b2', 1); // pick /2Y3
+    sim.settle();
+    expect(readSection1()).toEqual([1, 1, 1, 1]);
+    expect(readSection2()).toEqual([1, 1, 1, 0]);
+  });
+});
+
+describe('ttl.74LS138 (3-to-8 decoder, active-low)', () => {
+  const sim = simWith(
+    wrap('ttl.74LS138', [
+      { name: 'A', net: 'a' }, { name: 'B', net: 'b' }, { name: 'C', net: 'c' },
+      { name: 'G1', net: 'g1' }, { name: '/G2A', net: 'g2a' }, { name: '/G2B', net: 'g2b' },
+      { name: '/Y0', net: 'y0' }, { name: '/Y1', net: 'y1' },
+      { name: '/Y2', net: 'y2' }, { name: '/Y3', net: 'y3' },
+      { name: '/Y4', net: 'y4' }, { name: '/Y5', net: 'y5' },
+      { name: '/Y6', net: 'y6' }, { name: '/Y7', net: 'y7' },
+    ]),
+  );
+
+  const readY = (): NetState[] => {
+    const out: NetState[] = [];
+    for (let i = 0; i < 8; i++) out.push(sim.readNet(`y${i}`));
+    return out;
+  };
+
+  const enable = (): void => {
+    sim.setInput('g1', 1); sim.setInput('g2a', 0); sim.setInput('g2b', 0);
+  };
+
+  it('selects /Y[addr] for every address when enabled', () => {
+    enable();
+    for (let addr = 0; addr < 8; addr++) {
+      sim.setInput('a', (addr & 1) as NetState);
+      sim.setInput('b', ((addr >> 1) & 1) as NetState);
+      sim.setInput('c', ((addr >> 2) & 1) as NetState);
+      sim.settle();
+      const expected = [1, 1, 1, 1, 1, 1, 1, 1];
+      expected[addr] = 0;
+      expect(readY()).toEqual(expected);
+    }
+  });
+
+  it('all outputs high when G1 low', () => {
+    sim.setInput('g1', 0); sim.setInput('g2a', 0); sim.setInput('g2b', 0);
+    sim.setInput('a', 1); sim.setInput('b', 0); sim.setInput('c', 1); // would select Y5 if enabled
+    sim.settle();
+    expect(readY()).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it('all outputs high when /G2A high', () => {
+    sim.setInput('g1', 1); sim.setInput('g2a', 1); sim.setInput('g2b', 0);
+    sim.setInput('a', 0); sim.setInput('b', 1); sim.setInput('c', 1);
+    sim.settle();
+    expect(readY()).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+  });
+
+  it('all outputs high when /G2B high', () => {
+    sim.setInput('g1', 1); sim.setInput('g2a', 0); sim.setInput('g2b', 1);
+    sim.setInput('a', 1); sim.setInput('b', 1); sim.setInput('c', 0);
+    sim.settle();
+    expect(readY()).toEqual([1, 1, 1, 1, 1, 1, 1, 1]);
+  });
+});
+
+describe('ttl.74LS107 (Dual JK flip-flop, negative-edge)', () => {
+  const ports: Array<{ name: string; net: string }> = [];
+  for (const sec of [1, 2]) {
+    ports.push({ name: `${sec}J`, net: `j${sec}` });
+    ports.push({ name: `${sec}K`, net: `k${sec}` });
+    ports.push({ name: `${sec}CLK`, net: `clk${sec}` });
+    ports.push({ name: `/${sec}CLR`, net: `clr${sec}` });
+    ports.push({ name: `${sec}Q`, net: `q${sec}` });
+    ports.push({ name: `/${sec}Q`, net: `qn${sec}` });
+  }
+
+  // Power-on into a known state: park J=K=0, CLK=1 (resting high), assert
+  // /CLR=0, settle, then release. Both Qs must read 0.
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS107', ports)));
+    for (const sec of [1, 2]) {
+      s.setInput(`j${sec}`, 0);
+      s.setInput(`k${sec}`, 0);
+      s.setInput(`clk${sec}`, 1);
+      s.setInput(`clr${sec}`, 0);
+    }
+    s.settle();
+    for (const sec of [1, 2]) s.setInput(`clr${sec}`, 1);
+    s.settle();
+    return s;
+  };
+
+  // Negative-edge tick: external CLK 1 → 0 (drives DFF.CLK 0 → 1, i.e. rising).
+  const tick = (s: Simulator, sec: number): void => {
+    s.setInput(`clk${sec}`, 1); s.settle();
+    s.setInput(`clk${sec}`, 0); s.settle();
+  };
+
+  it('async /CLR forces Q=0 on both sections', () => {
+    const s = fresh();
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('q2')).toBe(0);
+  });
+
+  it('hold (J=0, K=0) preserves Q across an edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0); // set
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    s.setInput('j1', 0); s.setInput('k1', 0); // hold
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+  });
+
+  it('reset (J=0, K=1) drives Q to 0 on the edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    s.setInput('j1', 0); s.setInput('k1', 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('set (J=1, K=0) drives Q to 1 on the edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('qn1')).toBe(0);
+  });
+
+  it('toggle (J=1, K=1) flips Q on each falling edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+  });
+
+  it('positive (rising) external edge does NOT trigger', () => {
+    const s = fresh();
+    // Burn the latent falling edge that fresh() leaves pending.
+    s.setInput('clk1', 0); s.settle();
+    // Now clock is resting low; an external rising edge follows.
+    s.setInput('j1', 1); s.setInput('k1', 0); s.settle();
+    s.setInput('clk1', 1); s.settle(); // external 0 → 1: should NOT trigger
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('section 2 unaffected by section 1 clocks', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 1);
+    s.setInput('j2', 0); s.setInput('k2', 0);
+    tick(s, 1);
+    tick(s, 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q2')).toBe(0);
+  });
+
+  it('per-section /CLR is independent', () => {
+    const s = fresh();
+    // Set both Qs to 1 via toggle.
+    s.setInput('j1', 1); s.setInput('k1', 1);
+    s.setInput('j2', 1); s.setInput('k2', 1);
+    tick(s, 1); tick(s, 2);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q2')).toBe(1);
+    // Clear only section 1.
+    s.setInput('clr1', 0); s.settle();
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('q2')).toBe(1);
+  });
+});
+
+describe('ttl.74LS157 (Quad 2:1 MUX with strobe)', () => {
+  const sim = simWith(
+    wrap('ttl.74LS157', [
+      { name: '/STB', net: 'stb' }, { name: 'S', net: 's' },
+      { name: '1A', net: 'a1' }, { name: '1B', net: 'b1' }, { name: '1Y', net: 'y1' },
+      { name: '2A', net: 'a2' }, { name: '2B', net: 'b2' }, { name: '2Y', net: 'y2' },
+      { name: '3A', net: 'a3' }, { name: '3B', net: 'b3' }, { name: '3Y', net: 'y3' },
+      { name: '4A', net: 'a4' }, { name: '4B', net: 'b4' }, { name: '4Y', net: 'y4' },
+    ]),
+  );
+
+  it('/STB high forces every output low', () => {
+    sim.setInput('stb', 1); sim.setInput('s', 0);
+    for (let i = 1; i <= 4; i++) {
+      sim.setInput(`a${i}`, 1); sim.setInput(`b${i}`, 1);
+    }
+    sim.settle();
+    for (let i = 1; i <= 4; i++) expect(sim.readNet(`y${i}`)).toBe(0);
+  });
+
+  it('/STB low + S=0 routes A through to Y', () => {
+    sim.setInput('stb', 0); sim.setInput('s', 0);
+    sim.setInput('a1', 1); sim.setInput('b1', 0);
+    sim.setInput('a2', 0); sim.setInput('b2', 1);
+    sim.setInput('a3', 1); sim.setInput('b3', 0);
+    sim.setInput('a4', 0); sim.setInput('b4', 1);
+    sim.settle();
+    expect(sim.readNet('y1')).toBe(1);
+    expect(sim.readNet('y2')).toBe(0);
+    expect(sim.readNet('y3')).toBe(1);
+    expect(sim.readNet('y4')).toBe(0);
+  });
+
+  it('/STB low + S=1 routes B through to Y', () => {
+    sim.setInput('stb', 0); sim.setInput('s', 1);
+    sim.setInput('a1', 1); sim.setInput('b1', 0);
+    sim.setInput('a2', 0); sim.setInput('b2', 1);
+    sim.setInput('a3', 1); sim.setInput('b3', 0);
+    sim.setInput('a4', 0); sim.setInput('b4', 1);
+    sim.settle();
+    expect(sim.readNet('y1')).toBe(0);
+    expect(sim.readNet('y2')).toBe(1);
+    expect(sim.readNet('y3')).toBe(0);
+    expect(sim.readNet('y4')).toBe(1);
+  });
+});
+
+describe('ttl.74LS245 (Octal bus transceiver)', () => {
+  const ports: Array<{ name: string; net: string }> = [
+    { name: '/OE', net: 'oe' }, { name: 'DIR', net: 'dir' },
+  ];
+  for (let i = 1; i <= 8; i++) ports.push({ name: `A${i}`, net: `a${i}` });
+  for (let i = 1; i <= 8; i++) ports.push({ name: `B${i}`, net: `b${i}` });
+
+  const fresh = (): Simulator => new Simulator(loadCircuit(wrap('ttl.74LS245', ports)));
+
+  it('DIR=1, /OE=0 drives A → B; A side accepts external drive', () => {
+    const s = fresh();
+    s.setInput('oe', 0); s.setInput('dir', 1);
+    for (let i = 1; i <= 8; i++) s.setInput(`a${i}`, ((i - 1) & 1) as NetState);
+    s.settle();
+    for (let i = 1; i <= 8; i++) {
+      expect(s.readNet(`b${i}`)).toBe(((i - 1) & 1) as NetState);
+    }
+  });
+
+  it('DIR=0, /OE=0 drives B → A', () => {
+    const s = fresh();
+    s.setInput('oe', 0); s.setInput('dir', 0);
+    const pattern = [1, 0, 1, 1, 0, 0, 1, 0];
+    for (let i = 0; i < 8; i++) s.setInput(`b${i + 1}`, pattern[i] as NetState);
+    s.settle();
+    for (let i = 0; i < 8; i++) expect(s.readNet(`a${i + 1}`)).toBe(pattern[i]);
+  });
+
+  it('/OE=1 leaves both sides Hi-Z regardless of DIR', () => {
+    const s = fresh();
+    s.setInput('oe', 1); s.setInput('dir', 1);
+    s.settle();
+    for (let i = 1; i <= 8; i++) {
+      expect(s.readNet(`a${i}`)).toBe('Z');
+      expect(s.readNet(`b${i}`)).toBe('Z');
+    }
+  });
+
+  it('DIR flip changes drive direction; release input first to avoid contention', () => {
+    const s = fresh();
+    s.setInput('oe', 0); s.setInput('dir', 1);
+    s.setInput('a1', 1); s.settle();
+    expect(s.readNet('b1')).toBe(1);
+    // Switch direction. Release the A drive first so the BA tristate isn't fighting it.
+    s.setInput('a1', 'Z'); s.settle();
+    s.setInput('dir', 0); s.setInput('b1', 0); s.settle();
+    expect(s.readNet('a1')).toBe(0);
+  });
+});
+
+describe('ttl.74LS161 (4-bit synchronous counter)', () => {
+  const ports: Array<{ name: string; net: string }> = [
+    { name: 'A', net: 'pa' }, { name: 'B', net: 'pb' },
+    { name: 'C', net: 'pc' }, { name: 'D', net: 'pd' },
+    { name: 'CLK', net: 'clk' }, { name: '/CLR', net: 'clr' },
+    { name: '/LD', net: 'ld' }, { name: 'ENT', net: 'ent' }, { name: 'ENP', net: 'enp' },
+    { name: 'QA', net: 'qa' }, { name: 'QB', net: 'qb' },
+    { name: 'QC', net: 'qc' }, { name: 'QD', net: 'qd' },
+    { name: 'RCO', net: 'rco' },
+  ];
+
+  // Park inputs in a sane state: clock low, clear asserted, /LD high (no load),
+  // count enables high (count freely), parallel inputs at 0.
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS161', ports)));
+    s.setInput('clk', 0);
+    s.setInput('clr', 0); // assert async clear
+    s.setInput('ld', 1);  // not loading
+    s.setInput('ent', 1); s.setInput('enp', 1); // count enabled
+    s.setInput('pa', 0); s.setInput('pb', 0); s.setInput('pc', 0); s.setInput('pd', 0);
+    s.settle();
+    s.setInput('clr', 1); // release clear
+    s.settle();
+    return s;
+  };
+
+  // Positive-edge tick.
+  const tick = (s: Simulator): void => {
+    s.setInput('clk', 1); s.settle();
+    s.setInput('clk', 0); s.settle();
+  };
+
+  const readQ = (s: Simulator): number => {
+    let v = 0;
+    for (const [bit, n] of [[0, 'qa'], [1, 'qb'], [2, 'qc'], [3, 'qd']] as const) {
+      const q = s.readNet(n);
+      if (q !== 0 && q !== 1) throw new Error(`${n}=${String(q)}`);
+      v |= q << bit;
+    }
+    return v;
+  };
+
+  it('async /CLR forces all Qs to 0', () => {
+    const s = fresh();
+    expect(readQ(s)).toBe(0);
+  });
+
+  it('counts from 0 through 15 then wraps to 0', () => {
+    const s = fresh();
+    for (let expected = 1; expected <= 16; expected++) {
+      tick(s);
+      expect(readQ(s)).toBe(expected & 0xf);
+    }
+  });
+
+  it('synchronous /LD loads parallel data on the rising edge', () => {
+    const s = fresh();
+    // Set parallel data to 0b1010 (10).
+    s.setInput('pa', 0); s.setInput('pb', 1); s.setInput('pc', 0); s.setInput('pd', 1);
+    s.setInput('ld', 0); // ask for load
+    s.settle();
+    expect(readQ(s)).toBe(0); // sync — needs an edge
+    tick(s);
+    expect(readQ(s)).toBe(10);
+    // Release /LD; further ticks count from 10.
+    s.setInput('ld', 1); s.settle();
+    tick(s);
+    expect(readQ(s)).toBe(11);
+  });
+
+  it('disabling either ENT or ENP holds the count', () => {
+    const s = fresh();
+    tick(s); tick(s); tick(s); // count up to 3
+    expect(readQ(s)).toBe(3);
+    s.setInput('ent', 0); s.settle();
+    tick(s); tick(s);
+    expect(readQ(s)).toBe(3);
+    s.setInput('ent', 1); s.setInput('enp', 0); s.settle();
+    tick(s); tick(s);
+    expect(readQ(s)).toBe(3);
+    s.setInput('enp', 1); s.settle();
+    tick(s);
+    expect(readQ(s)).toBe(4);
+  });
+
+  it('RCO = ENT AND (Q==15)', () => {
+    const s = fresh();
+    // Load 15 via parallel data.
+    s.setInput('pa', 1); s.setInput('pb', 1); s.setInput('pc', 1); s.setInput('pd', 1);
+    s.setInput('ld', 0); s.settle();
+    tick(s);
+    s.setInput('ld', 1); s.settle();
+    expect(readQ(s)).toBe(15);
+    expect(s.readNet('rco')).toBe(1);
+    // Drop ENT — RCO should fall.
+    s.setInput('ent', 0); s.settle();
+    expect(s.readNet('rco')).toBe(0);
+    // Restore ENT, count past 15 → wraps to 0, RCO drops.
+    s.setInput('ent', 1); s.settle();
+    expect(s.readNet('rco')).toBe(1);
+    tick(s);
+    expect(readQ(s)).toBe(0);
+    expect(s.readNet('rco')).toBe(0);
+  });
+});

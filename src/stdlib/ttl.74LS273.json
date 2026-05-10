@@ -1,0 +1,72 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS273",
+  "description": "Octal D flip-flop with shared positive-edge clock (CP) and async active-low master reset (/MR). Each Q latches its D on the rising edge of CP unless /MR is low, in which case Q is forced to 0.",
+  "components": [
+    { "id": "dff1", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff2", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff3", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff4", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff5", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff6", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff7", "type": "prim.DFF", "params": { "clrActiveLow": true } },
+    { "id": "dff8", "type": "prim.DFF", "params": { "clrActiveLow": true } }
+  ],
+  "nets": [
+    { "id": "n1D", "endpoints": ["dff1.D"] },
+    { "id": "n2D", "endpoints": ["dff2.D"] },
+    { "id": "n3D", "endpoints": ["dff3.D"] },
+    { "id": "n4D", "endpoints": ["dff4.D"] },
+    { "id": "n5D", "endpoints": ["dff5.D"] },
+    { "id": "n6D", "endpoints": ["dff6.D"] },
+    { "id": "n7D", "endpoints": ["dff7.D"] },
+    { "id": "n8D", "endpoints": ["dff8.D"] },
+
+    { "id": "nCP",
+      "endpoints": ["dff1.CLK", "dff2.CLK", "dff3.CLK", "dff4.CLK", "dff5.CLK", "dff6.CLK", "dff7.CLK", "dff8.CLK"]
+    },
+    { "id": "nMR",
+      "endpoints": ["dff1./CLR", "dff2./CLR", "dff3./CLR", "dff4./CLR", "dff5./CLR", "dff6./CLR", "dff7./CLR", "dff8./CLR"]
+    },
+
+    { "id": "n1Q", "endpoints": ["dff1.Q"] },
+    { "id": "n2Q", "endpoints": ["dff2.Q"] },
+    { "id": "n3Q", "endpoints": ["dff3.Q"] },
+    { "id": "n4Q", "endpoints": ["dff4.Q"] },
+    { "id": "n5Q", "endpoints": ["dff5.Q"] },
+    { "id": "n6Q", "endpoints": ["dff6.Q"] },
+    { "id": "n7Q", "endpoints": ["dff7.Q"] },
+    { "id": "n8Q", "endpoints": ["dff8.Q"] },
+
+    { "id": "n1Qn", "endpoints": ["dff1.Qn"] },
+    { "id": "n2Qn", "endpoints": ["dff2.Qn"] },
+    { "id": "n3Qn", "endpoints": ["dff3.Qn"] },
+    { "id": "n4Qn", "endpoints": ["dff4.Qn"] },
+    { "id": "n5Qn", "endpoints": ["dff5.Qn"] },
+    { "id": "n6Qn", "endpoints": ["dff6.Qn"] },
+    { "id": "n7Qn", "endpoints": ["dff7.Qn"] },
+    { "id": "n8Qn", "endpoints": ["dff8.Qn"] }
+  ],
+  "ports": [
+    { "name": "1D", "dir": "in",  "internalNet": "n1D" },
+    { "name": "2D", "dir": "in",  "internalNet": "n2D" },
+    { "name": "3D", "dir": "in",  "internalNet": "n3D" },
+    { "name": "4D", "dir": "in",  "internalNet": "n4D" },
+    { "name": "5D", "dir": "in",  "internalNet": "n5D" },
+    { "name": "6D", "dir": "in",  "internalNet": "n6D" },
+    { "name": "7D", "dir": "in",  "internalNet": "n7D" },
+    { "name": "8D", "dir": "in",  "internalNet": "n8D" },
+    { "name": "CP", "dir": "in",  "internalNet": "nCP" },
+    { "name": "/MR", "dir": "in", "internalNet": "nMR" },
+    { "name": "1Q", "dir": "out", "internalNet": "n1Q" },
+    { "name": "2Q", "dir": "out", "internalNet": "n2Q" },
+    { "name": "3Q", "dir": "out", "internalNet": "n3Q" },
+    { "name": "4Q", "dir": "out", "internalNet": "n4Q" },
+    { "name": "5Q", "dir": "out", "internalNet": "n5Q" },
+    { "name": "6Q", "dir": "out", "internalNet": "n6Q" },
+    { "name": "7Q", "dir": "out", "internalNet": "n7Q" },
+    { "name": "8Q", "dir": "out", "internalNet": "n8Q" }
+  ]
+}
