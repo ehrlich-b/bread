@@ -66,6 +66,13 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
 
     const state = prim.init ? prim.init(params) : undefined;
 
+    // Per-input cache: 1 if the pin direction is pure 'in' (Z → X), 0 if
+    // 'inout' (Z passes through). Filled now since direction is in the pin
+    // spec. inputNetIdx is filled in the net-wiring pass below.
+    const inputIsLogic = new Uint8Array(inputPinIdx.length);
+    for (let j = 0; j < inputPinIdx.length; j++) {
+      inputIsLogic[j] = pins[inputPinIdx[j]!]!.dir === 'in' ? 1 : 0;
+    }
     components.push({
       id: inst.id,
       typeId: inst.type,
@@ -79,11 +86,14 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
       // Pre-allocated input scratch — written by the simulator before each
       // evaluate(). Initialized to 'X' so the first read sees a defined value.
       inputBuf: new Array<'X'>(inputPinIdx.length).fill('X'),
+      inputNetIdx: new Uint32Array(inputPinIdx.length),
+      inputIsLogic,
       // Two output buffers: proposed (filled by evaluate during READ) and
       // committed (the values currently being driven onto each net). Both
       // start at 'Z' so the first settle reconciles.
       proposedBuf: new Array<'Z'>(outputPinIdx.length).fill('Z'),
       outputBuf: new Array<'Z'>(outputPinIdx.length).fill('Z'),
+      outputNetIdx: new Uint32Array(outputPinIdx.length),
     });
     componentById.set(inst.id, components.length - 1);
   }
@@ -186,6 +196,18 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
       });
       netById.set(synthId, netIdx);
       comp.pinNetIdx[i] = netIdx;
+    }
+  }
+
+  // Flatten the per-component net-index sidecars now that wiring is complete.
+  // The simulator's hot path reads inputNetIdx[j] / outputNetIdx[j] directly
+  // instead of double-indirecting through pinNetIdx[inputPinIdx[j]].
+  for (const comp of components) {
+    for (let j = 0; j < comp.inputPinIdx.length; j++) {
+      comp.inputNetIdx[j] = comp.pinNetIdx[comp.inputPinIdx[j]!]!;
+    }
+    for (let j = 0; j < comp.outputPinIdx.length; j++) {
+      comp.outputNetIdx[j] = comp.pinNetIdx[comp.outputPinIdx[j]!]!;
     }
   }
 

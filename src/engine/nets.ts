@@ -22,13 +22,23 @@ export interface ResolveResult {
 // at a lower priority — fighting weaks resolve to X (analogous to a pull-up and
 // pull-down on the same net).
 export function resolveNet(driverValues: readonly DriverValue[]): ResolveResult {
+  const out: ResolveResult = { value: 'Z', contention: false };
+  resolveNetInto(driverValues, out);
+  return out;
+}
+
+// Same logic as resolveNet but writes into an output struct supplied by the
+// caller. The simulator's hot path (computeNetValue) calls this with a scratch
+// instance held on the Simulator to avoid per-net allocation.
+export function resolveNetInto(driverValues: readonly DriverValue[], out: ResolveResult): void {
   let strong: 0 | 1 | null = null;
   let strongConflict = false;
   let weak: 0 | 1 | null = null;
   let weakConflict = false;
   let sawX = false;
 
-  for (const v of driverValues) {
+  for (let i = 0; i < driverValues.length; i++) {
+    const v = driverValues[i]!;
     if (v === 'Z') continue;
     if (v === 'X') {
       sawX = true;
@@ -45,12 +55,13 @@ export function resolveNet(driverValues: readonly DriverValue[]): ResolveResult 
     else if (strong !== v) strongConflict = true;
   }
 
-  if (strongConflict) return { value: 'X', contention: true };
-  if (sawX) return { value: 'X', contention: false };
-  if (strong !== null) return { value: strong, contention: false };
-  if (weakConflict) return { value: 'X', contention: false };
-  if (weak !== null) return { value: weak, contention: false };
-  return { value: 'Z', contention: false };
+  if (strongConflict) { out.value = 'X'; out.contention = true; return; }
+  out.contention = false;
+  if (sawX) { out.value = 'X'; return; }
+  if (strong !== null) { out.value = strong; return; }
+  if (weakConflict) { out.value = 'X'; return; }
+  if (weak !== null) { out.value = weak; return; }
+  out.value = 'Z';
 }
 
 // Translate a net value into the form a pure logic input expects.

@@ -1,5 +1,5 @@
 import type { DriverValue, EvalCtx, NetState, RuntimeGraph, RuntimeNet } from './ir';
-import { readAsLogic, resolveNet } from './nets';
+import { resolveNetInto, type ResolveResult } from './nets';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
@@ -40,6 +40,8 @@ export class Simulator {
   // Net-changed mark + commit-order queue, replacing a per-iteration Set.
   private readonly netChanged: Uint8Array;
   private readonly changedNetsQueue: number[] = [];
+  // Reusable result struct for resolveNetInto — avoids per-call allocation.
+  private readonly resolveResult: ResolveResult = { value: 'Z', contention: false };
 
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
@@ -130,16 +132,13 @@ export class Simulator {
         const compIdx = now[i]!;
         const comp = components[compIdx]!;
         const inputBuf = comp.inputBuf;
-        const inputPinIdx = comp.inputPinIdx;
-        const pinNetIdx = comp.pinNetIdx;
-        const pins = comp.pins;
+        const inputNetIdx = comp.inputNetIdx;
+        const inputIsLogic = comp.inputIsLogic;
         const inputCount = inputBuf.length;
         for (let j = 0; j < inputCount; j++) {
-          const pinIdx = inputPinIdx[j]!;
-          const netIdx = pinNetIdx[pinIdx]!;
-          const netVal = nets[netIdx]!.value;
+          const netVal = nets[inputNetIdx[j]!]!.value;
           // Pure 'in' pins translate Z → X. 'inout' pins see Z directly.
-          inputBuf[j] = pins[pinIdx]!.dir === 'in' ? readAsLogic(netVal) : netVal;
+          inputBuf[j] = inputIsLogic[j] === 1 ? (netVal === 'Z' ? 'X' : netVal) : netVal;
         }
         const ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx);
         // State updates are local to each component's evaluate(); no peer
@@ -161,14 +160,12 @@ export class Simulator {
         const comp = components[compIdx]!;
         const proposedBuf = comp.proposedBuf;
         const outputBuf = comp.outputBuf;
-        const outputPinIdx = comp.outputPinIdx;
-        const pinNetIdx = comp.pinNetIdx;
+        const outputNetIdx = comp.outputNetIdx;
         for (let j = 0; j < proposedBuf.length; j++) {
           const newVal = proposedBuf[j]!;
           if (outputBuf[j] !== newVal) {
             outputBuf[j] = newVal;
-            const pinIdx = outputPinIdx[j]!;
-            const netIdx = pinNetIdx[pinIdx]!;
+            const netIdx = outputNetIdx[j]!;
             if (!netChanged[netIdx]) {
               netChanged[netIdx] = 1;
               changedQueue.push(netIdx);
@@ -219,12 +216,15 @@ export class Simulator {
   private computeNetValue(net: RuntimeNet, netIdx: number): NetState {
     const scratch = this.resolveScratch;
     scratch.length = 0;
-    for (const d of net.drivers) {
-      const comp = this.graph.components[d.comp]!;
-      scratch.push(comp.outputBuf[d.outIdx]!);
+    const drivers = net.drivers;
+    const components = this.graph.components;
+    for (let i = 0; i < drivers.length; i++) {
+      const d = drivers[i]!;
+      scratch.push(components[d.comp]!.outputBuf[d.outIdx]!);
     }
     if (net.forced !== 'Z') scratch.push(net.forced);
-    const result = resolveNet(scratch);
+    const result = this.resolveResult;
+    resolveNetInto(scratch, result);
     if (result.contention && !this.contendedThisSettle.has(netIdx)) {
       this.contendedThisSettle.add(netIdx);
       this.events.push({
