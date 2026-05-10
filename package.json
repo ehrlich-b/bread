@@ -14,6 +14,7 @@
     "demo:adder": "tsx scripts/adder_demo.ts",
     "demo:bus": "tsx scripts/register_bus_demo.ts",
     "demo:blink": "tsx scripts/blink_demo.ts",
+    "bench:eater": "tsx scripts/bench_eater.ts",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test"
   },
