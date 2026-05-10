@@ -1,0 +1,119 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.alu_8bit",
+  "description": "8-bit add/subtract ALU. With SU=0 the output is A+B; with SU=1 the output is A-B implemented in two's complement (B XOR-inverted, SU also fed as the carry-in). Two cascaded 74LS283 4-bit adders form the 8-bit add path; two 74LS86 quad-XORs do the conditional invert; a 74LS245 gates SUM onto BUS0..BUS7 when /EU is low. SUM and COUT stay live for the flags register; ZERO is a NOR-of-SUM so it asserts when SUM == 0. Used for the ALU in Ben Eater's SAP-1.",
+  "components": [
+    { "id": "xor_lo", "type": "ttl.74LS86" },
+    { "id": "xor_hi", "type": "ttl.74LS86" },
+    { "id": "add_lo", "type": "ttl.74LS283" },
+    { "id": "add_hi", "type": "ttl.74LS283" },
+    { "id": "buf",    "type": "ttl.74LS245" },
+    { "id": "zero",   "type": "prim.NOR", "params": { "inputs": 8 } },
+    { "id": "vcc_dir","type": "prim.CONST_1" }
+  ],
+  "nets": [
+    { "id": "a0", "endpoints": ["add_lo.A1"] },
+    { "id": "a1", "endpoints": ["add_lo.A2"] },
+    { "id": "a2", "endpoints": ["add_lo.A3"] },
+    { "id": "a3", "endpoints": ["add_lo.A4"] },
+    { "id": "a4", "endpoints": ["add_hi.A1"] },
+    { "id": "a5", "endpoints": ["add_hi.A2"] },
+    { "id": "a6", "endpoints": ["add_hi.A3"] },
+    { "id": "a7", "endpoints": ["add_hi.A4"] },
+
+    { "id": "b0", "endpoints": ["xor_lo.1A"] },
+    { "id": "b1", "endpoints": ["xor_lo.2A"] },
+    { "id": "b2", "endpoints": ["xor_lo.3A"] },
+    { "id": "b3", "endpoints": ["xor_lo.4A"] },
+    { "id": "b4", "endpoints": ["xor_hi.1A"] },
+    { "id": "b5", "endpoints": ["xor_hi.2A"] },
+    { "id": "b6", "endpoints": ["xor_hi.3A"] },
+    { "id": "b7", "endpoints": ["xor_hi.4A"] },
+
+    { "id": "su", "endpoints": [
+      "xor_lo.1B", "xor_lo.2B", "xor_lo.3B", "xor_lo.4B",
+      "xor_hi.1B", "xor_hi.2B", "xor_hi.3B", "xor_hi.4B",
+      "add_lo.C0"
+    ] },
+
+    { "id": "eb0", "endpoints": ["xor_lo.1Y", "add_lo.B1"] },
+    { "id": "eb1", "endpoints": ["xor_lo.2Y", "add_lo.B2"] },
+    { "id": "eb2", "endpoints": ["xor_lo.3Y", "add_lo.B3"] },
+    { "id": "eb3", "endpoints": ["xor_lo.4Y", "add_lo.B4"] },
+    { "id": "eb4", "endpoints": ["xor_hi.1Y", "add_hi.B1"] },
+    { "id": "eb5", "endpoints": ["xor_hi.2Y", "add_hi.B2"] },
+    { "id": "eb6", "endpoints": ["xor_hi.3Y", "add_hi.B3"] },
+    { "id": "eb7", "endpoints": ["xor_hi.4Y", "add_hi.B4"] },
+
+    { "id": "carry_chain", "endpoints": ["add_lo.C4", "add_hi.C0"] },
+
+    { "id": "sum0", "endpoints": ["add_lo.S1", "buf.A1", "zero.A"] },
+    { "id": "sum1", "endpoints": ["add_lo.S2", "buf.A2", "zero.B"] },
+    { "id": "sum2", "endpoints": ["add_lo.S3", "buf.A3", "zero.C"] },
+    { "id": "sum3", "endpoints": ["add_lo.S4", "buf.A4", "zero.D"] },
+    { "id": "sum4", "endpoints": ["add_hi.S1", "buf.A5", "zero.E"] },
+    { "id": "sum5", "endpoints": ["add_hi.S2", "buf.A6", "zero.F"] },
+    { "id": "sum6", "endpoints": ["add_hi.S3", "buf.A7", "zero.G"] },
+    { "id": "sum7", "endpoints": ["add_hi.S4", "buf.A8", "zero.H"] },
+
+    { "id": "cout",     "endpoints": ["add_hi.C4"] },
+    { "id": "zero_out", "endpoints": ["zero.Y"] },
+
+    { "id": "bus0", "endpoints": ["buf.B1"] },
+    { "id": "bus1", "endpoints": ["buf.B2"] },
+    { "id": "bus2", "endpoints": ["buf.B3"] },
+    { "id": "bus3", "endpoints": ["buf.B4"] },
+    { "id": "bus4", "endpoints": ["buf.B5"] },
+    { "id": "bus5", "endpoints": ["buf.B6"] },
+    { "id": "bus6", "endpoints": ["buf.B7"] },
+    { "id": "bus7", "endpoints": ["buf.B8"] },
+
+    { "id": "dir_v", "endpoints": ["vcc_dir.Y", "buf.DIR"] },
+    { "id": "eu",    "endpoints": ["buf./OE"] }
+  ],
+  "ports": [
+    { "name": "A0", "dir": "in", "internalNet": "a0" },
+    { "name": "A1", "dir": "in", "internalNet": "a1" },
+    { "name": "A2", "dir": "in", "internalNet": "a2" },
+    { "name": "A3", "dir": "in", "internalNet": "a3" },
+    { "name": "A4", "dir": "in", "internalNet": "a4" },
+    { "name": "A5", "dir": "in", "internalNet": "a5" },
+    { "name": "A6", "dir": "in", "internalNet": "a6" },
+    { "name": "A7", "dir": "in", "internalNet": "a7" },
+
+    { "name": "B0", "dir": "in", "internalNet": "b0" },
+    { "name": "B1", "dir": "in", "internalNet": "b1" },
+    { "name": "B2", "dir": "in", "internalNet": "b2" },
+    { "name": "B3", "dir": "in", "internalNet": "b3" },
+    { "name": "B4", "dir": "in", "internalNet": "b4" },
+    { "name": "B5", "dir": "in", "internalNet": "b5" },
+    { "name": "B6", "dir": "in", "internalNet": "b6" },
+    { "name": "B7", "dir": "in", "internalNet": "b7" },
+
+    { "name": "SU",  "dir": "in", "internalNet": "su" },
+    { "name": "/EU", "dir": "in", "internalNet": "eu" },
+
+    { "name": "BUS0", "dir": "inout", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "inout", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "inout", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "inout", "internalNet": "bus3" },
+    { "name": "BUS4", "dir": "inout", "internalNet": "bus4" },
+    { "name": "BUS5", "dir": "inout", "internalNet": "bus5" },
+    { "name": "BUS6", "dir": "inout", "internalNet": "bus6" },
+    { "name": "BUS7", "dir": "inout", "internalNet": "bus7" },
+
+    { "name": "SUM0", "dir": "out", "internalNet": "sum0" },
+    { "name": "SUM1", "dir": "out", "internalNet": "sum1" },
+    { "name": "SUM2", "dir": "out", "internalNet": "sum2" },
+    { "name": "SUM3", "dir": "out", "internalNet": "sum3" },
+    { "name": "SUM4", "dir": "out", "internalNet": "sum4" },
+    { "name": "SUM5", "dir": "out", "internalNet": "sum5" },
+    { "name": "SUM6", "dir": "out", "internalNet": "sum6" },
+    { "name": "SUM7", "dir": "out", "internalNet": "sum7" },
+
+    { "name": "COUT", "dir": "out", "internalNet": "cout" },
+    { "name": "ZERO", "dir": "out", "internalNet": "zero_out" }
+  ]
+}

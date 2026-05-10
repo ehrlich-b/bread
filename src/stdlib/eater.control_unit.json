@@ -1,0 +1,94 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.control_unit",
+  "description": "Microcoded control unit. A 74LS161 cycles a 3-bit T-state counter (mod-5: when QC goes high at T=4, an inverter pulls /LD low so the counter loads zero on the next clock edge). Two 28C16 EEPROMs hold 512 entries each — addressed by [CFLAG | ZFLAG | OPCODE | T-state] = 9 bits — and emit the 16 control signals for the SAP-1: HLT, /MI, /RI, /RO, /IO, /II, /AI, /AO from rom_hi; /EU, SU, /BI, /OI, CE, /CO, J, /FI from rom_lo. The microcode contents are injected at composite-registration time by src/stdlib/index.ts via generateMicrocodeHiHex()/generateMicrocodeLoHex() so the source file you're reading stays human-friendly.",
+  "components": [
+    { "id": "t_counter", "type": "ttl.74LS161" },
+    { "id": "inv_q2",    "type": "prim.NOT" },
+    { "id": "rom_hi",    "type": "mem.28C16" },
+    { "id": "rom_lo",    "type": "mem.28C16" },
+    { "id": "gnd",       "type": "prim.CONST_0" },
+    { "id": "vcc",       "type": "prim.CONST_1" }
+  ],
+  "nets": [
+    { "id": "clk", "endpoints": ["t_counter.CLK"] },
+    { "id": "clr", "endpoints": ["t_counter./CLR"] },
+
+    { "id": "tq0", "endpoints": ["t_counter.QA", "rom_hi.A0", "rom_lo.A0"] },
+    { "id": "tq1", "endpoints": ["t_counter.QB", "rom_hi.A1", "rom_lo.A1"] },
+    { "id": "tq2", "endpoints": ["t_counter.QC", "rom_hi.A2", "rom_lo.A2", "inv_q2.A"] },
+
+    { "id": "tld", "endpoints": ["inv_q2.Y", "t_counter./LD"] },
+
+    { "id": "op0", "endpoints": ["rom_hi.A3", "rom_lo.A3"] },
+    { "id": "op1", "endpoints": ["rom_hi.A4", "rom_lo.A4"] },
+    { "id": "op2", "endpoints": ["rom_hi.A5", "rom_lo.A5"] },
+    { "id": "op3", "endpoints": ["rom_hi.A6", "rom_lo.A6"] },
+
+    { "id": "zf",  "endpoints": ["rom_hi.A7", "rom_lo.A7"] },
+    { "id": "cf",  "endpoints": ["rom_hi.A8", "rom_lo.A8"] },
+
+    { "id": "sig_ao",  "endpoints": ["rom_hi.IO0"] },
+    { "id": "sig_ai",  "endpoints": ["rom_hi.IO1"] },
+    { "id": "sig_ii",  "endpoints": ["rom_hi.IO2"] },
+    { "id": "sig_io",  "endpoints": ["rom_hi.IO3"] },
+    { "id": "sig_ro",  "endpoints": ["rom_hi.IO4"] },
+    { "id": "sig_ri",  "endpoints": ["rom_hi.IO5"] },
+    { "id": "sig_mi",  "endpoints": ["rom_hi.IO6"] },
+    { "id": "sig_hlt", "endpoints": ["rom_hi.IO7"] },
+
+    { "id": "sig_fi",  "endpoints": ["rom_lo.IO0"] },
+    { "id": "sig_j",   "endpoints": ["rom_lo.IO1"] },
+    { "id": "sig_co",  "endpoints": ["rom_lo.IO2"] },
+    { "id": "sig_ce",  "endpoints": ["rom_lo.IO3"] },
+    { "id": "sig_oi",  "endpoints": ["rom_lo.IO4"] },
+    { "id": "sig_bi",  "endpoints": ["rom_lo.IO5"] },
+    { "id": "sig_su",  "endpoints": ["rom_lo.IO6"] },
+    { "id": "sig_eu",  "endpoints": ["rom_lo.IO7"] },
+
+    { "id": "gnd_net", "endpoints": [
+      "gnd.Y",
+      "t_counter.A", "t_counter.B", "t_counter.C", "t_counter.D",
+      "rom_hi.A9", "rom_hi.A10", "rom_lo.A9", "rom_lo.A10",
+      "rom_hi./CE", "rom_hi./OE", "rom_lo./CE", "rom_lo./OE"
+    ] },
+
+    { "id": "vcc_net", "endpoints": [
+      "vcc.Y",
+      "t_counter.ENT", "t_counter.ENP",
+      "rom_hi./WE", "rom_lo./WE"
+    ] }
+  ],
+  "ports": [
+    { "name": "CLK",    "dir": "in", "internalNet": "clk" },
+    { "name": "/CLR",   "dir": "in", "internalNet": "clr" },
+
+    { "name": "OPCODE0", "dir": "in", "internalNet": "op0" },
+    { "name": "OPCODE1", "dir": "in", "internalNet": "op1" },
+    { "name": "OPCODE2", "dir": "in", "internalNet": "op2" },
+    { "name": "OPCODE3", "dir": "in", "internalNet": "op3" },
+
+    { "name": "CFLAG", "dir": "in", "internalNet": "cf" },
+    { "name": "ZFLAG", "dir": "in", "internalNet": "zf" },
+
+    { "name": "HLT", "dir": "out", "internalNet": "sig_hlt" },
+    { "name": "/MI", "dir": "out", "internalNet": "sig_mi" },
+    { "name": "/RI", "dir": "out", "internalNet": "sig_ri" },
+    { "name": "/RO", "dir": "out", "internalNet": "sig_ro" },
+    { "name": "/IO", "dir": "out", "internalNet": "sig_io" },
+    { "name": "/II", "dir": "out", "internalNet": "sig_ii" },
+    { "name": "/AI", "dir": "out", "internalNet": "sig_ai" },
+    { "name": "/AO", "dir": "out", "internalNet": "sig_ao" },
+
+    { "name": "/EU", "dir": "out", "internalNet": "sig_eu" },
+    { "name": "SU",  "dir": "out", "internalNet": "sig_su" },
+    { "name": "/BI", "dir": "out", "internalNet": "sig_bi" },
+    { "name": "/OI", "dir": "out", "internalNet": "sig_oi" },
+    { "name": "CE",  "dir": "out", "internalNet": "sig_ce" },
+    { "name": "/CO", "dir": "out", "internalNet": "sig_co" },
+    { "name": "J",   "dir": "out", "internalNet": "sig_j" },
+    { "name": "/FI", "dir": "out", "internalNet": "sig_fi" }
+  ]
+}

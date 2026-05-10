@@ -1,0 +1,68 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.instruction_register",
+  "description": "8-bit instruction register: latches BUS into both halves on rising CLK when /II = 0. The HIGH nibble (BUS4..BUS7) is the opcode, always live on OPCODE0..OPCODE3 for the control unit. The LOW nibble (BUS0..BUS3) is the operand/address; the chip's tristate drives it back onto the bus when /IO = 0 (used by jump and load-immediate microcode steps). CLR is asynchronous and active-high (74LS173 chip convention; invert externally if your reset is active-low).",
+  "components": [
+    { "id": "ir_lo", "type": "ttl.74LS173" },
+    { "id": "ir_hi", "type": "ttl.74LS173" },
+    { "id": "tri_h4", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri_h5", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri_h6", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri_h7", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "gnd",   "type": "prim.CONST_0" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["ir_lo.D1", "ir_lo.Q1"] },
+    { "id": "bus1", "endpoints": ["ir_lo.D2", "ir_lo.Q2"] },
+    { "id": "bus2", "endpoints": ["ir_lo.D3", "ir_lo.Q3"] },
+    { "id": "bus3", "endpoints": ["ir_lo.D4", "ir_lo.Q4"] },
+    { "id": "bus4", "endpoints": ["ir_hi.D1", "tri_h4.Y"] },
+    { "id": "bus5", "endpoints": ["ir_hi.D2", "tri_h5.Y"] },
+    { "id": "bus6", "endpoints": ["ir_hi.D3", "tri_h6.Y"] },
+    { "id": "bus7", "endpoints": ["ir_hi.D4", "tri_h7.Y"] },
+
+    { "id": "op0", "endpoints": ["ir_hi.Q1"] },
+    { "id": "op1", "endpoints": ["ir_hi.Q2"] },
+    { "id": "op2", "endpoints": ["ir_hi.Q3"] },
+    { "id": "op3", "endpoints": ["ir_hi.Q4"] },
+
+    { "id": "clk", "endpoints": ["ir_lo.CLK", "ir_hi.CLK"] },
+    { "id": "clr", "endpoints": ["ir_lo.CLR", "ir_hi.CLR"] },
+
+    { "id": "ii", "endpoints": ["ir_lo./G1", "ir_hi./G1"] },
+    { "id": "io", "endpoints": [
+      "ir_lo./M",
+      "tri_h4./OE", "tri_h5./OE", "tri_h6./OE", "tri_h7./OE"
+    ] },
+
+    { "id": "gnd_net", "endpoints": [
+      "gnd.Y",
+      "ir_lo./G2", "ir_hi./G2",
+      "ir_lo./N",
+      "ir_hi./M", "ir_hi./N",
+      "tri_h4.A", "tri_h5.A", "tri_h6.A", "tri_h7.A"
+    ] }
+  ],
+  "ports": [
+    { "name": "BUS0", "dir": "inout", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "inout", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "inout", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "inout", "internalNet": "bus3" },
+    { "name": "BUS4", "dir": "inout", "internalNet": "bus4" },
+    { "name": "BUS5", "dir": "inout", "internalNet": "bus5" },
+    { "name": "BUS6", "dir": "inout", "internalNet": "bus6" },
+    { "name": "BUS7", "dir": "inout", "internalNet": "bus7" },
+
+    { "name": "CLK", "dir": "in", "internalNet": "clk" },
+    { "name": "CLR", "dir": "in", "internalNet": "clr" },
+    { "name": "/II", "dir": "in", "internalNet": "ii" },
+    { "name": "/IO", "dir": "in", "internalNet": "io" },
+
+    { "name": "OPCODE0", "dir": "out", "internalNet": "op0" },
+    { "name": "OPCODE1", "dir": "out", "internalNet": "op1" },
+    { "name": "OPCODE2", "dir": "out", "internalNet": "op2" },
+    { "name": "OPCODE3", "dir": "out", "internalNet": "op3" }
+  ]
+}

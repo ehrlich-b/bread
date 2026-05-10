@@ -1,0 +1,92 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.output_display",
+  "description": "Output module: 8-bit register + 2 hex digits. Two 74LS173 halves form an 8-bit register that latches BUS on rising CLK while /OI = 0; the low and high nibbles each address their own 28C16 holding the 16-byte hex-digit-to-7-seg-pattern lookup, and each ROM's data pins drive a dedicated io.7seg. The displays show the OUT register value as two hex digits (BUS7..BUS4 on the left, BUS3..BUS0 on the right). Simpler than Ben Eater's 4-digit BCD multiplexed scheme but uses the same parts. CLR is active-high (chip convention).",
+  "components": [
+    { "id": "out_lo", "type": "ttl.74LS173" },
+    { "id": "out_hi", "type": "ttl.74LS173" },
+    { "id": "rom_lo", "type": "mem.28C16",
+      "params": { "contents": "// hex-to-7-seg patterns: low byte holds segments a..g + dp\n3F 06 5B 4F 66 6D 7D 07 7F 6F 77 7C 39 5E 79 71" } },
+    { "id": "rom_hi", "type": "mem.28C16",
+      "params": { "contents": "// hex-to-7-seg patterns (same image as rom_lo)\n3F 06 5B 4F 66 6D 7D 07 7F 6F 77 7C 39 5E 79 71" } },
+    { "id": "disp_lo", "type": "io.7seg" },
+    { "id": "disp_hi", "type": "io.7seg" },
+    { "id": "gnd",     "type": "prim.CONST_0" },
+    { "id": "vcc",     "type": "prim.CONST_1" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["out_lo.D1"] },
+    { "id": "bus1", "endpoints": ["out_lo.D2"] },
+    { "id": "bus2", "endpoints": ["out_lo.D3"] },
+    { "id": "bus3", "endpoints": ["out_lo.D4"] },
+    { "id": "bus4", "endpoints": ["out_hi.D1"] },
+    { "id": "bus5", "endpoints": ["out_hi.D2"] },
+    { "id": "bus6", "endpoints": ["out_hi.D3"] },
+    { "id": "bus7", "endpoints": ["out_hi.D4"] },
+
+    { "id": "nlo0", "endpoints": ["out_lo.Q1", "rom_lo.A0"] },
+    { "id": "nlo1", "endpoints": ["out_lo.Q2", "rom_lo.A1"] },
+    { "id": "nlo2", "endpoints": ["out_lo.Q3", "rom_lo.A2"] },
+    { "id": "nlo3", "endpoints": ["out_lo.Q4", "rom_lo.A3"] },
+    { "id": "nhi0", "endpoints": ["out_hi.Q1", "rom_hi.A0"] },
+    { "id": "nhi1", "endpoints": ["out_hi.Q2", "rom_hi.A1"] },
+    { "id": "nhi2", "endpoints": ["out_hi.Q3", "rom_hi.A2"] },
+    { "id": "nhi3", "endpoints": ["out_hi.Q4", "rom_hi.A3"] },
+
+    { "id": "seg_lo_a",  "endpoints": ["rom_lo.IO0", "disp_lo.a"]  },
+    { "id": "seg_lo_b",  "endpoints": ["rom_lo.IO1", "disp_lo.b"]  },
+    { "id": "seg_lo_c",  "endpoints": ["rom_lo.IO2", "disp_lo.c"]  },
+    { "id": "seg_lo_d",  "endpoints": ["rom_lo.IO3", "disp_lo.d"]  },
+    { "id": "seg_lo_e",  "endpoints": ["rom_lo.IO4", "disp_lo.e"]  },
+    { "id": "seg_lo_f",  "endpoints": ["rom_lo.IO5", "disp_lo.f"]  },
+    { "id": "seg_lo_g",  "endpoints": ["rom_lo.IO6", "disp_lo.g"]  },
+    { "id": "seg_lo_dp", "endpoints": ["rom_lo.IO7", "disp_lo.dp"] },
+
+    { "id": "seg_hi_a",  "endpoints": ["rom_hi.IO0", "disp_hi.a"]  },
+    { "id": "seg_hi_b",  "endpoints": ["rom_hi.IO1", "disp_hi.b"]  },
+    { "id": "seg_hi_c",  "endpoints": ["rom_hi.IO2", "disp_hi.c"]  },
+    { "id": "seg_hi_d",  "endpoints": ["rom_hi.IO3", "disp_hi.d"]  },
+    { "id": "seg_hi_e",  "endpoints": ["rom_hi.IO4", "disp_hi.e"]  },
+    { "id": "seg_hi_f",  "endpoints": ["rom_hi.IO5", "disp_hi.f"]  },
+    { "id": "seg_hi_g",  "endpoints": ["rom_hi.IO6", "disp_hi.g"]  },
+    { "id": "seg_hi_dp", "endpoints": ["rom_hi.IO7", "disp_hi.dp"] },
+
+    { "id": "clk", "endpoints": ["out_lo.CLK", "out_hi.CLK"] },
+    { "id": "clr", "endpoints": ["out_lo.CLR", "out_hi.CLR"] },
+    { "id": "oi",  "endpoints": ["out_lo./G1", "out_hi./G1"] },
+
+    { "id": "gnd_net", "endpoints": [
+      "gnd.Y",
+      "out_lo./G2", "out_hi./G2",
+      "out_lo./M",  "out_lo./N",
+      "out_hi./M",  "out_hi./N",
+      "rom_lo./CE", "rom_lo./OE",
+      "rom_hi./CE", "rom_hi./OE",
+      "rom_lo.A4", "rom_lo.A5", "rom_lo.A6", "rom_lo.A7",
+      "rom_lo.A8", "rom_lo.A9", "rom_lo.A10",
+      "rom_hi.A4", "rom_hi.A5", "rom_hi.A6", "rom_hi.A7",
+      "rom_hi.A8", "rom_hi.A9", "rom_hi.A10"
+    ] },
+
+    { "id": "vcc_net", "endpoints": [
+      "vcc.Y",
+      "rom_lo./WE", "rom_hi./WE"
+    ] }
+  ],
+  "ports": [
+    { "name": "BUS0", "dir": "in", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "in", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "in", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "in", "internalNet": "bus3" },
+    { "name": "BUS4", "dir": "in", "internalNet": "bus4" },
+    { "name": "BUS5", "dir": "in", "internalNet": "bus5" },
+    { "name": "BUS6", "dir": "in", "internalNet": "bus6" },
+    { "name": "BUS7", "dir": "in", "internalNet": "bus7" },
+
+    { "name": "CLK", "dir": "in", "internalNet": "clk" },
+    { "name": "CLR", "dir": "in", "internalNet": "clr" },
+    { "name": "/OI", "dir": "in", "internalNet": "oi"  }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.flags_register",
+  "description": "2-bit flags register that captures the ALU carry-out and zero-detector on a rising CLK edge while /FI = 0. Built from a single 74LS173 with two of its four bits used (D3, D4 grounded). /M and /N are tied to GND so CFLAG and ZFLAG are always live for the control unit. CLR is active-high (chip convention).",
+  "components": [
+    { "id": "flags", "type": "ttl.74LS173" },
+    { "id": "gnd",   "type": "prim.CONST_0" }
+  ],
+  "nets": [
+    { "id": "cin", "endpoints": ["flags.D1"] },
+    { "id": "zin", "endpoints": ["flags.D2"] },
+
+    { "id": "cflag", "endpoints": ["flags.Q1"] },
+    { "id": "zflag", "endpoints": ["flags.Q2"] },
+
+    { "id": "clk", "endpoints": ["flags.CLK"] },
+    { "id": "clr", "endpoints": ["flags.CLR"] },
+    { "id": "fi",  "endpoints": ["flags./G1"] },
+
+    { "id": "gnd_net", "endpoints": [
+      "gnd.Y",
+      "flags.D3", "flags.D4",
+      "flags./G2",
+      "flags./M", "flags./N"
+    ] }
+  ],
+  "ports": [
+    { "name": "CIN",   "dir": "in", "internalNet": "cin" },
+    { "name": "ZIN",   "dir": "in", "internalNet": "zin" },
+    { "name": "CLK",   "dir": "in", "internalNet": "clk" },
+    { "name": "CLR",   "dir": "in", "internalNet": "clr" },
+    { "name": "/FI",   "dir": "in", "internalNet": "fi"  },
+
+    { "name": "CFLAG", "dir": "out", "internalNet": "cflag" },
+    { "name": "ZFLAG", "dir": "out", "internalNet": "zflag" }
+  ]
+}

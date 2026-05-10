@@ -1,0 +1,77 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.register_8bit",
+  "description": "8-bit clocked register with bus-gated tristate output and an always-live value output. Two 74LS173 halves form the storage; their /M and /N pins are tied to GND so Q drives unconditionally and feeds the ALU/display path. A 74LS245 (DIR=1, A->B) gates the same Q value onto BUS0..BUS7 when /OE is low. Load on rising CLK when /LD = 0. CLR is asynchronous and active-high (chip convention; invert externally if your global reset is active-low). Used for A, B, and OUT in Ben Eater's SAP-1.",
+  "components": [
+    { "id": "reg_lo", "type": "ttl.74LS173" },
+    { "id": "reg_hi", "type": "ttl.74LS173" },
+    { "id": "buf",    "type": "ttl.74LS245" },
+    { "id": "gnd_g2lo", "type": "prim.CONST_0" },
+    { "id": "gnd_g2hi", "type": "prim.CONST_0" },
+    { "id": "gnd_mlo",  "type": "prim.CONST_0" },
+    { "id": "gnd_nlo",  "type": "prim.CONST_0" },
+    { "id": "gnd_mhi",  "type": "prim.CONST_0" },
+    { "id": "gnd_nhi",  "type": "prim.CONST_0" },
+    { "id": "vcc_dir",  "type": "prim.CONST_1" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["reg_lo.D1", "buf.B1"] },
+    { "id": "bus1", "endpoints": ["reg_lo.D2", "buf.B2"] },
+    { "id": "bus2", "endpoints": ["reg_lo.D3", "buf.B3"] },
+    { "id": "bus3", "endpoints": ["reg_lo.D4", "buf.B4"] },
+    { "id": "bus4", "endpoints": ["reg_hi.D1", "buf.B5"] },
+    { "id": "bus5", "endpoints": ["reg_hi.D2", "buf.B6"] },
+    { "id": "bus6", "endpoints": ["reg_hi.D3", "buf.B7"] },
+    { "id": "bus7", "endpoints": ["reg_hi.D4", "buf.B8"] },
+
+    { "id": "val0", "endpoints": ["reg_lo.Q1", "buf.A1"] },
+    { "id": "val1", "endpoints": ["reg_lo.Q2", "buf.A2"] },
+    { "id": "val2", "endpoints": ["reg_lo.Q3", "buf.A3"] },
+    { "id": "val3", "endpoints": ["reg_lo.Q4", "buf.A4"] },
+    { "id": "val4", "endpoints": ["reg_hi.Q1", "buf.A5"] },
+    { "id": "val5", "endpoints": ["reg_hi.Q2", "buf.A6"] },
+    { "id": "val6", "endpoints": ["reg_hi.Q3", "buf.A7"] },
+    { "id": "val7", "endpoints": ["reg_hi.Q4", "buf.A8"] },
+
+    { "id": "clk", "endpoints": ["reg_lo.CLK", "reg_hi.CLK"] },
+    { "id": "clr", "endpoints": ["reg_lo.CLR", "reg_hi.CLR"] },
+
+    { "id": "ld",   "endpoints": ["reg_lo./G1", "reg_hi./G1"] },
+    { "id": "g2lo", "endpoints": ["gnd_g2lo.Y", "reg_lo./G2"] },
+    { "id": "g2hi", "endpoints": ["gnd_g2hi.Y", "reg_hi./G2"] },
+
+    { "id": "mlo", "endpoints": ["gnd_mlo.Y", "reg_lo./M"] },
+    { "id": "nlo", "endpoints": ["gnd_nlo.Y", "reg_lo./N"] },
+    { "id": "mhi", "endpoints": ["gnd_mhi.Y", "reg_hi./M"] },
+    { "id": "nhi", "endpoints": ["gnd_nhi.Y", "reg_hi./N"] },
+
+    { "id": "dir", "endpoints": ["vcc_dir.Y", "buf.DIR"] },
+    { "id": "oe",  "endpoints": ["buf./OE"] }
+  ],
+  "ports": [
+    { "name": "BUS0", "dir": "inout", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "inout", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "inout", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "inout", "internalNet": "bus3" },
+    { "name": "BUS4", "dir": "inout", "internalNet": "bus4" },
+    { "name": "BUS5", "dir": "inout", "internalNet": "bus5" },
+    { "name": "BUS6", "dir": "inout", "internalNet": "bus6" },
+    { "name": "BUS7", "dir": "inout", "internalNet": "bus7" },
+
+    { "name": "CLK",  "dir": "in",  "internalNet": "clk" },
+    { "name": "CLR",  "dir": "in",  "internalNet": "clr" },
+    { "name": "/LD",  "dir": "in",  "internalNet": "ld" },
+    { "name": "/OE",  "dir": "in",  "internalNet": "oe" },
+
+    { "name": "VAL0", "dir": "out", "internalNet": "val0" },
+    { "name": "VAL1", "dir": "out", "internalNet": "val1" },
+    { "name": "VAL2", "dir": "out", "internalNet": "val2" },
+    { "name": "VAL3", "dir": "out", "internalNet": "val3" },
+    { "name": "VAL4", "dir": "out", "internalNet": "val4" },
+    { "name": "VAL5", "dir": "out", "internalNet": "val5" },
+    { "name": "VAL6", "dir": "out", "internalNet": "val6" },
+    { "name": "VAL7", "dir": "out", "internalNet": "val7" }
+  ]
+}

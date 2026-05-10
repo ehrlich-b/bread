@@ -1,0 +1,75 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.ram_module",
+  "description": "16-byte RAM with embedded memory address register (MAR). MAR is a 4-bit 74LS173 that latches the low nibble of BUS on rising CLK when /MI = 0; its Q outputs feed the 6116 SRAM's low 4 address pins (A4..A10 are grounded so the visible RAM is 16x8). /RI passes through to the 6116's /WE, and /RO drives /OE. /CE is permanently asserted so the chip is always selected. Used for the RAM + MAR pair in Ben Eater's SAP-1.",
+  "components": [
+    { "id": "mar", "type": "ttl.74LS173" },
+    { "id": "ram", "type": "mem.6116" },
+
+    { "id": "gnd_g2",  "type": "prim.CONST_0" },
+    { "id": "gnd_m",   "type": "prim.CONST_0" },
+    { "id": "gnd_n",   "type": "prim.CONST_0" },
+    { "id": "gnd_ce",  "type": "prim.CONST_0" },
+    { "id": "gnd_a4",  "type": "prim.CONST_0" },
+    { "id": "gnd_a5",  "type": "prim.CONST_0" },
+    { "id": "gnd_a6",  "type": "prim.CONST_0" },
+    { "id": "gnd_a7",  "type": "prim.CONST_0" },
+    { "id": "gnd_a8",  "type": "prim.CONST_0" },
+    { "id": "gnd_a9",  "type": "prim.CONST_0" },
+    { "id": "gnd_a10", "type": "prim.CONST_0" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["mar.D1", "ram.DQ0"] },
+    { "id": "bus1", "endpoints": ["mar.D2", "ram.DQ1"] },
+    { "id": "bus2", "endpoints": ["mar.D3", "ram.DQ2"] },
+    { "id": "bus3", "endpoints": ["mar.D4", "ram.DQ3"] },
+    { "id": "bus4", "endpoints": ["ram.DQ4"] },
+    { "id": "bus5", "endpoints": ["ram.DQ5"] },
+    { "id": "bus6", "endpoints": ["ram.DQ6"] },
+    { "id": "bus7", "endpoints": ["ram.DQ7"] },
+
+    { "id": "addr0", "endpoints": ["mar.Q1", "ram.A0"] },
+    { "id": "addr1", "endpoints": ["mar.Q2", "ram.A1"] },
+    { "id": "addr2", "endpoints": ["mar.Q3", "ram.A2"] },
+    { "id": "addr3", "endpoints": ["mar.Q4", "ram.A3"] },
+
+    { "id": "a4_gnd",  "endpoints": ["gnd_a4.Y",  "ram.A4"]  },
+    { "id": "a5_gnd",  "endpoints": ["gnd_a5.Y",  "ram.A5"]  },
+    { "id": "a6_gnd",  "endpoints": ["gnd_a6.Y",  "ram.A6"]  },
+    { "id": "a7_gnd",  "endpoints": ["gnd_a7.Y",  "ram.A7"]  },
+    { "id": "a8_gnd",  "endpoints": ["gnd_a8.Y",  "ram.A8"]  },
+    { "id": "a9_gnd",  "endpoints": ["gnd_a9.Y",  "ram.A9"]  },
+    { "id": "a10_gnd", "endpoints": ["gnd_a10.Y", "ram.A10"] },
+
+    { "id": "ce_gnd", "endpoints": ["gnd_ce.Y", "ram./CE"] },
+
+    { "id": "clk", "endpoints": ["mar.CLK"] },
+    { "id": "clr", "endpoints": ["mar.CLR"] },
+
+    { "id": "mi",    "endpoints": ["mar./G1"] },
+    { "id": "g2_lo", "endpoints": ["gnd_g2.Y", "mar./G2"] },
+    { "id": "m_lo",  "endpoints": ["gnd_m.Y",  "mar./M"]  },
+    { "id": "n_lo",  "endpoints": ["gnd_n.Y",  "mar./N"]  },
+
+    { "id": "ri", "endpoints": ["ram./WE"] },
+    { "id": "ro", "endpoints": ["ram./OE"] }
+  ],
+  "ports": [
+    { "name": "BUS0", "dir": "inout", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "inout", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "inout", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "inout", "internalNet": "bus3" },
+    { "name": "BUS4", "dir": "inout", "internalNet": "bus4" },
+    { "name": "BUS5", "dir": "inout", "internalNet": "bus5" },
+    { "name": "BUS6", "dir": "inout", "internalNet": "bus6" },
+    { "name": "BUS7", "dir": "inout", "internalNet": "bus7" },
+
+    { "name": "CLK", "dir": "in", "internalNet": "clk" },
+    { "name": "CLR", "dir": "in", "internalNet": "clr" },
+    { "name": "/MI", "dir": "in", "internalNet": "mi" },
+    { "name": "/RI", "dir": "in", "internalNet": "ri" },
+    { "name": "/RO", "dir": "in", "internalNet": "ro" }
+  ]
+}

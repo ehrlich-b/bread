@@ -1,0 +1,50 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "eater.program_counter",
+  "description": "4-bit program counter built around a 74LS161. CE (active high) controls count-enable; /CO (active low) gates the counter Q outputs onto BUS0..BUS3 through 4 prim.TRISTATE buffers; J (active high) requests a synchronous parallel load on the next rising CLK so the PC takes the low nibble of the bus as a jump target. /CLR is the chip's async clear (active low). Used for the program counter in Ben Eater's SAP-1.",
+  "components": [
+    { "id": "pc", "type": "ttl.74LS161" },
+    { "id": "tri0", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri1", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri2", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "tri3", "type": "prim.TRISTATE", "params": { "oeActiveLow": true } },
+    { "id": "inv_j",   "type": "prim.NOT" },
+    { "id": "vcc_enp", "type": "prim.CONST_1" }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": ["pc.A", "tri0.Y"] },
+    { "id": "bus1", "endpoints": ["pc.B", "tri1.Y"] },
+    { "id": "bus2", "endpoints": ["pc.C", "tri2.Y"] },
+    { "id": "bus3", "endpoints": ["pc.D", "tri3.Y"] },
+
+    { "id": "qa", "endpoints": ["pc.QA", "tri0.A"] },
+    { "id": "qb", "endpoints": ["pc.QB", "tri1.A"] },
+    { "id": "qc", "endpoints": ["pc.QC", "tri2.A"] },
+    { "id": "qd", "endpoints": ["pc.QD", "tri3.A"] },
+
+    { "id": "co", "endpoints": ["tri0./OE", "tri1./OE", "tri2./OE", "tri3./OE"] },
+
+    { "id": "clk", "endpoints": ["pc.CLK"] },
+    { "id": "clr", "endpoints": ["pc./CLR"] },
+
+    { "id": "j",     "endpoints": ["inv_j.A"] },
+    { "id": "ld",    "endpoints": ["inv_j.Y", "pc./LD"] },
+
+    { "id": "ce",    "endpoints": ["pc.ENT"] },
+    { "id": "enp_h", "endpoints": ["vcc_enp.Y", "pc.ENP"] }
+  ],
+  "ports": [
+    { "name": "BUS0", "dir": "inout", "internalNet": "bus0" },
+    { "name": "BUS1", "dir": "inout", "internalNet": "bus1" },
+    { "name": "BUS2", "dir": "inout", "internalNet": "bus2" },
+    { "name": "BUS3", "dir": "inout", "internalNet": "bus3" },
+
+    { "name": "CLK",  "dir": "in", "internalNet": "clk" },
+    { "name": "/CLR", "dir": "in", "internalNet": "clr" },
+    { "name": "CE",   "dir": "in", "internalNet": "ce" },
+    { "name": "/CO",  "dir": "in", "internalNet": "co" },
+    { "name": "J",    "dir": "in", "internalNet": "j" }
+  ]
+}
