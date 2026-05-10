@@ -18,8 +18,9 @@ interface SwitchState {
 const ioSwitch: PrimitiveDef<SwitchState, undefined> = {
   pins: () => [{ name: 'Y', dir: 'out' }],
   init: () => ({ Y: 0 }),
-  evaluate(_inputs, state) {
-    return { outputs: [state.Y] };
+  evaluate(_inputs, outputs, state) {
+    outputs[0] = state.Y;
+    return undefined;
   },
 };
 

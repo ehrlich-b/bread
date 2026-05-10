@@ -14,7 +14,7 @@ const ioLed: PrimitiveDef<LedState, undefined> = {
   pins: () => [{ name: 'A', dir: 'in' }],
   init: () => ({ value: 'X' }),
   evaluate(inputs) {
-    return { outputs: [], nextState: { value: inputs[0]! } };
+    return { value: inputs[0]! };
   },
 };
 

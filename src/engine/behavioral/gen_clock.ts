@@ -30,18 +30,17 @@ const genClock: PrimitiveDef<ClockState, ClockParams> = {
     }
     return { Y: 0, lastToggleStep: 0 };
   },
-  evaluate(_inputs, state, params, ctx) {
+  evaluate(_inputs, outputs, state, params, ctx) {
     const step = ctx?.step ?? 0;
     const rateHz = ctx?.rateHz ?? 1;
     const half = halfPeriodSteps(rateHz, params.freqHz);
     if (step - state.lastToggleStep >= half) {
       const flipped: NetState = state.Y === 1 ? 0 : 1;
-      return {
-        outputs: [flipped],
-        nextState: { Y: flipped, lastToggleStep: step },
-      };
+      outputs[0] = flipped;
+      return { Y: flipped, lastToggleStep: step };
     }
-    return { outputs: [state.Y], nextState: state };
+    outputs[0] = state.Y;
+    return undefined;
   },
 };
 

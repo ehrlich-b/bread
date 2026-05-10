@@ -6,8 +6,9 @@ import { registerPrimitive } from './registry';
 
 const constantSource = (driverValue: DriverValue): PrimitiveDef<undefined, undefined> => ({
   pins: () => [{ name: 'Y', dir: 'out' }],
-  evaluate() {
-    return { outputs: [driverValue] };
+  evaluate(_inputs, outputs) {
+    outputs[0] = driverValue;
+    return undefined;
   },
 });
 

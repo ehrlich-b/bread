@@ -10,7 +10,9 @@ const evalTristate = (
   params: { oeActiveLow?: boolean } = {},
 ): DriverValue => {
   const prim = getPrimitive('prim.TRISTATE')!;
-  return prim.evaluate([a, oe], undefined, params).outputs[0]!;
+  const out: DriverValue[] = ['Z'];
+  prim.evaluate([a, oe], out, undefined, params);
+  return out[0]!;
 };
 
 describe('prim.TRISTATE', () => {

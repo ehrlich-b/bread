@@ -32,7 +32,7 @@ const invert = (q: NetState): NetState => {
 const dff: PrimitiveDef<DffState, DffParams> = {
   pins: dffPins,
   init: () => ({ q: 'X', prevClk: 'X' }),
-  evaluate(inputs, state, params) {
+  evaluate(inputs, outputs, state, params) {
     let i = 0;
     const d = inputs[i++]!;
     const clk = inputs[i++]!;
@@ -49,10 +49,9 @@ const dff: PrimitiveDef<DffState, DffParams> = {
       if (rose) q = d;
     }
 
-    return {
-      outputs: [q, invert(q)],
-      nextState: { q, prevClk: clk },
-    };
+    outputs[0] = q;
+    outputs[1] = invert(q);
+    return { q, prevClk: clk };
   },
 };
 

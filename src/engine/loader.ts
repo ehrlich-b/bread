@@ -76,7 +76,13 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
       inputPinIdx,
       outputPinIdx,
       pinNetIdx: new Array<number>(pins.length).fill(-1),
-      // Initial: not driving anything (Z). First settle reconciles.
+      // Pre-allocated input scratch — written by the simulator before each
+      // evaluate(). Initialized to 'X' so the first read sees a defined value.
+      inputBuf: new Array<'X'>(inputPinIdx.length).fill('X'),
+      // Two output buffers: proposed (filled by evaluate during READ) and
+      // committed (the values currently being driven onto each net). Both
+      // start at 'Z' so the first settle reconciles.
+      proposedBuf: new Array<'Z'>(outputPinIdx.length).fill('Z'),
       outputBuf: new Array<'Z'>(outputPinIdx.length).fill('Z'),
     });
     componentById.set(inst.id, components.length - 1);

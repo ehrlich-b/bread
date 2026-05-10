@@ -22,7 +22,7 @@ const tristatePins = (params: TristateParams): PinSpec[] => {
 
 const tristate: PrimitiveDef<undefined, TristateParams> = {
   pins: tristatePins,
-  evaluate(inputs, _state, params) {
+  evaluate(inputs, outputs, _state, params) {
     const a = inputs[0]!;
     const oe = inputs[1]!;
     const enabled: NetState = params.oeActiveLow
@@ -36,7 +36,8 @@ const tristate: PrimitiveDef<undefined, TristateParams> = {
     if (enabled === 0) out = 'Z';
     else if (enabled === 1) out = a;
     else out = 'X';
-    return { outputs: [out] };
+    outputs[0] = out;
+    return undefined;
   },
 };
 

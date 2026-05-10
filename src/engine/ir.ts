@@ -40,15 +40,19 @@ export interface PrimitiveDef<S = unknown, P = unknown> {
   // whose output is a function of time, not of any input net.
   tickActive?: boolean;
   // inputs[i] is the value at the i-th input/inout pin (in pin-spec order, restricted to in|inout).
-  // outputs[i] is the value to drive at the i-th output/inout pin (in pin-spec order, restricted to out|inout).
-  // ctx is optional for ergonomics in tests/primitives; the simulator always
-  // passes it. Behavioral components that depend on it may treat it as defined.
+  // The implementation MUST write into outputs[0..outputs.length) — one slot
+  // per output/inout pin, in pin-spec order. The buffer is owned by the
+  // simulator and pre-sized; do not mutate length, replace, or hand out
+  // references. Return the next state, or undefined to leave state alone. ctx
+  // is optional for ergonomics in tests/primitives; the simulator always
+  // passes it.
   evaluate(
-    inputs: NetState[],
+    inputs: readonly NetState[],
+    outputs: DriverValue[],
     state: S,
     params: P,
     ctx?: EvalCtx,
-  ): { outputs: DriverValue[]; nextState?: S };
+  ): S | undefined;
 }
 
 // ---- JSON shape ---------------------------------------------------------
@@ -101,6 +105,13 @@ export interface RuntimeComponent {
   outputPinIdx: number[];
   // For each pin (full pins[] index), the net it's wired to. -1 if unconnected.
   pinNetIdx: number[];
+  // Pre-allocated input scratch the simulator fills before each evaluate().
+  // length = inputPinIdx.length. Per-component (not shared) so each component's
+  // hidden class stays stable on V8.
+  inputBuf: NetState[];
+  // Pre-allocated proposed-output buffer. Each evaluate() writes here; commit
+  // copies into outputBuf and marks any net whose driver changed.
+  proposedBuf: DriverValue[];
   // Current driving value per output/inout pin (length = outputPinIdx.length).
   outputBuf: DriverValue[];
 }

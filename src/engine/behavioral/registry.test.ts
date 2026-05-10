@@ -4,7 +4,10 @@ import { getBehavioral, listBehavioral, registerBehavioral } from './registry';
 
 const stub: PrimitiveDef<undefined, undefined> = {
   pins: () => [{ name: 'Y', dir: 'out' }],
-  evaluate: () => ({ outputs: [0] }),
+  evaluate: (_inputs, outputs) => {
+    outputs[0] = 0;
+    return undefined;
+  },
 };
 
 let counter = 0;

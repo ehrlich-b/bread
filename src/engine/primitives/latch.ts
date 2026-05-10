@@ -23,7 +23,7 @@ const invert = (q: NetState): NetState => {
 const latch: PrimitiveDef<LatchState, undefined> = {
   pins: latchPins,
   init: () => ({ q: 'X' }),
-  evaluate(inputs, state) {
+  evaluate(inputs, outputs, state) {
     const d = inputs[0]!;
     const en = inputs[1]!;
     let q: NetState;
@@ -36,10 +36,9 @@ const latch: PrimitiveDef<LatchState, undefined> = {
       // would agree. If d === state.q (and is strong) we can pin Q to that.
       q = d === state.q && (d === 0 || d === 1) ? d : 'X';
     }
-    return {
-      outputs: [q, invert(q)],
-      nextState: { q },
-    };
+    outputs[0] = q;
+    outputs[1] = invert(q);
+    return { q };
   },
 };
 

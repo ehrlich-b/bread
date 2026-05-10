@@ -47,7 +47,7 @@ const naryPins = (params: NaryParams): PinSpec[] => {
 };
 
 const reduce = (
-  ins: NetState[],
+  ins: readonly NetState[],
   fn: (a: NetState, b: NetState) => NetState,
 ): NetState => {
   let acc = ins[0]!;
@@ -60,9 +60,10 @@ const naryGate = (
   invert: boolean,
 ): PrimitiveDef<undefined, NaryParams> => ({
   pins: naryPins,
-  evaluate(inputs) {
+  evaluate(inputs, outputs) {
     const y = reduce(inputs, fn);
-    return { outputs: [invert ? not1(y) : y] };
+    outputs[0] = invert ? not1(y) : y;
+    return undefined;
   },
 });
 
@@ -71,8 +72,9 @@ const not: PrimitiveDef<undefined, undefined> = {
     { name: 'A', dir: 'in' },
     { name: 'Y', dir: 'out' },
   ],
-  evaluate(inputs) {
-    return { outputs: [not1(inputs[0]!)] };
+  evaluate(inputs, outputs) {
+    outputs[0] = not1(inputs[0]!);
+    return undefined;
   },
 };
 
@@ -81,9 +83,10 @@ const buf: PrimitiveDef<undefined, undefined> = {
     { name: 'A', dir: 'in' },
     { name: 'Y', dir: 'out' },
   ],
-  evaluate(inputs) {
+  evaluate(inputs, outputs) {
     // BUF passes its input through. Z input → X (handled by scheduler before we see it).
-    return { outputs: [inputs[0]!] };
+    outputs[0] = inputs[0]!;
+    return undefined;
   },
 };
 

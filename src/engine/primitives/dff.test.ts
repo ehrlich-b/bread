@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { NetState } from '../ir';
+import type { DriverValue, NetState } from '../ir';
 import { getPrimitive } from './index';
 
 interface DffState {
@@ -12,10 +12,11 @@ const dff = (params: { clrActiveLow?: boolean; preActiveLow?: boolean } = {}) =>
   let state = prim.init!(params) as DffState;
   return {
     pins: prim.pins(params),
-    tick(inputs: NetState[]) {
-      const r = prim.evaluate(inputs, state, params);
-      state = r.nextState as DffState;
-      return r.outputs;
+    tick(inputs: NetState[]): DriverValue[] {
+      const out: DriverValue[] = ['Z', 'Z'];
+      const next = prim.evaluate(inputs, out, state, params);
+      if (next !== undefined) state = next as DffState;
+      return out;
     },
     state: () => state,
   };

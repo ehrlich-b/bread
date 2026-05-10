@@ -9,7 +9,9 @@ const evalAdder = (
   cin: NetState,
 ): DriverValue[] => {
   const prim = getPrimitive('prim.ADDER')!;
-  return prim.evaluate([...a, ...b, cin], undefined, { width }).outputs;
+  const out: DriverValue[] = new Array<DriverValue>(width + 1).fill('Z');
+  prim.evaluate([...a, ...b, cin], out, undefined, { width });
+  return out;
 };
 
 describe('prim.ADDER', () => {

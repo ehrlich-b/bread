@@ -5,19 +5,25 @@ import { getPrimitive } from './index';
 const eval2 = (id: string, a: NetState, b: NetState): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
-  return prim.evaluate([a, b], undefined, { inputs: 2 }).outputs[0]!;
+  const out: DriverValue[] = ['Z'];
+  prim.evaluate([a, b], out, undefined, { inputs: 2 });
+  return out[0]!;
 };
 
 const eval1 = (id: string, a: NetState): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
-  return prim.evaluate([a], undefined, undefined).outputs[0]!;
+  const out: DriverValue[] = ['Z'];
+  prim.evaluate([a], out, undefined, undefined);
+  return out[0]!;
 };
 
 const evalN = (id: string, ins: NetState[]): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
-  return prim.evaluate(ins, undefined, { inputs: ins.length }).outputs[0]!;
+  const out: DriverValue[] = ['Z'];
+  prim.evaluate(ins, out, undefined, { inputs: ins.length });
+  return out[0]!;
 };
 
 describe('prim.AND', () => {

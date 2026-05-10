@@ -37,12 +37,16 @@ export class Simulator {
   private readonly contendedThisSettle: Set<number> = new Set();
   // Components flagged tickActive in their def — re-dirtied at every tick().
   private readonly tickActive: number[] = [];
+  // Net-changed mark + commit-order queue, replacing a per-iteration Set.
+  private readonly netChanged: Uint8Array;
+  private readonly changedNetsQueue: number[] = [];
 
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.rateHz = opts.rateHz ?? 1;
     this.inDirty = new Uint8Array(graph.components.length);
+    this.netChanged = new Uint8Array(graph.nets.length);
     // Initial state per SIMULATION.md: every component dirty, every net X.
     // We deliberately skip pre-resolving nets — the loader already set every
     // net.value to 'X' and outputBuf to 'Z'. The first settle reconciles
@@ -116,59 +120,77 @@ export class Simulator {
       }
 
       // ---- READ phase ---------------------------------------------------
-      // Evaluate every dirty component using the current net state. We stash
-      // proposed outputs in each component's outputBuf only during COMMIT, so
-      // no component sees a peer's freshly-written value within this iteration.
-      const proposedOutputs: DriverValue[][] = new Array<DriverValue[]>(now.length);
-      const proposedNextStates: unknown[] = new Array<unknown>(now.length);
+      // Evaluate every dirty component using the current net state. Each
+      // primitive writes into its own pre-allocated proposedBuf; outputBuf
+      // (the values currently being driven onto each net) only updates in
+      // COMMIT, so no peer sees this iteration's outputs while it evaluates.
+      const components = this.graph.components;
+      const nets = this.graph.nets;
       for (let i = 0; i < now.length; i++) {
         const compIdx = now[i]!;
-        const comp = this.graph.components[compIdx]!;
-        const inputs: NetState[] = new Array<NetState>(comp.inputPinIdx.length);
-        for (let j = 0; j < comp.inputPinIdx.length; j++) {
-          const pinIdx = comp.inputPinIdx[j]!;
-          const netIdx = comp.pinNetIdx[pinIdx]!;
-          const netVal = this.graph.nets[netIdx]!.value;
+        const comp = components[compIdx]!;
+        const inputBuf = comp.inputBuf;
+        const inputPinIdx = comp.inputPinIdx;
+        const pinNetIdx = comp.pinNetIdx;
+        const pins = comp.pins;
+        const inputCount = inputBuf.length;
+        for (let j = 0; j < inputCount; j++) {
+          const pinIdx = inputPinIdx[j]!;
+          const netIdx = pinNetIdx[pinIdx]!;
+          const netVal = nets[netIdx]!.value;
           // Pure 'in' pins translate Z → X. 'inout' pins see Z directly.
-          inputs[j] = comp.pins[pinIdx]!.dir === 'in' ? readAsLogic(netVal) : netVal;
+          inputBuf[j] = pins[pinIdx]!.dir === 'in' ? readAsLogic(netVal) : netVal;
         }
-        const result = comp.primitive.evaluate(inputs, comp.state, comp.params, ctx);
-        proposedOutputs[i] = result.outputs;
-        proposedNextStates[i] = result.nextState;
+        const ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx);
+        // State updates are local to each component's evaluate(); no peer
+        // reads them from outside, so we apply immediately rather than
+        // deferring through a parallel array.
+        if (ns !== undefined) comp.state = ns;
       }
 
       // ---- COMMIT phase -------------------------------------------------
-      // Write outputs into outputBuf. Track which nets had a driver change so
-      // we can re-resolve them once at the end of the phase. Set is iteration-
-      // ordered, which keeps the scheduling deterministic.
-      const changedNets = new Set<number>();
+      // Compare each component's proposedBuf against its outputBuf; on change,
+      // copy through and queue the affected net for re-resolution. The
+      // Uint8Array mark + queue replaces a per-iteration Set; queue order is
+      // commit order, which keeps the scheduling deterministic.
+      const netChanged = this.netChanged;
+      const changedQueue = this.changedNetsQueue;
+      changedQueue.length = 0;
       for (let i = 0; i < now.length; i++) {
         const compIdx = now[i]!;
-        const comp = this.graph.components[compIdx]!;
-        const outputs = proposedOutputs[i]!;
-        for (let j = 0; j < outputs.length; j++) {
-          const newVal = outputs[j]!;
-          if (comp.outputBuf[j] !== newVal) {
-            comp.outputBuf[j] = newVal;
-            const pinIdx = comp.outputPinIdx[j]!;
-            const netIdx = comp.pinNetIdx[pinIdx]!;
-            changedNets.add(netIdx);
+        const comp = components[compIdx]!;
+        const proposedBuf = comp.proposedBuf;
+        const outputBuf = comp.outputBuf;
+        const outputPinIdx = comp.outputPinIdx;
+        const pinNetIdx = comp.pinNetIdx;
+        for (let j = 0; j < proposedBuf.length; j++) {
+          const newVal = proposedBuf[j]!;
+          if (outputBuf[j] !== newVal) {
+            outputBuf[j] = newVal;
+            const pinIdx = outputPinIdx[j]!;
+            const netIdx = pinNetIdx[pinIdx]!;
+            if (!netChanged[netIdx]) {
+              netChanged[netIdx] = 1;
+              changedQueue.push(netIdx);
+            }
           }
         }
-        const ns = proposedNextStates[i];
-        if (ns !== undefined) comp.state = ns;
         this.inDirty[compIdx] = 0;
       }
       now.length = 0;
 
       // Re-resolve every changed net; if the resolved value moved, wake its
       // listeners for the next iteration.
-      for (const netIdx of changedNets) {
-        const net = this.graph.nets[netIdx]!;
+      for (let q = 0; q < changedQueue.length; q++) {
+        const netIdx = changedQueue[q]!;
+        netChanged[netIdx] = 0;
+        const net = nets[netIdx]!;
         const newValue = this.computeNetValue(net, netIdx);
         if (newValue === net.value) continue;
         net.value = newValue;
-        for (const comp of net.listenerComps) {
+        const listeners = net.listenerComps;
+        for (let k = 0; k < listeners.length; k++) {
+          const comp = listeners[k]!;
           if (this.inDirty[comp]) continue;
           next.push(comp);
           this.inDirty[comp] = 1;

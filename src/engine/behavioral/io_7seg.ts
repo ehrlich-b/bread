@@ -26,17 +26,14 @@ const io7seg: PrimitiveDef<SevenSegState, undefined> = {
   init: () => ({ a: 'X', b: 'X', c: 'X', d: 'X', e: 'X', f: 'X', g: 'X', dp: 'X' }),
   evaluate(inputs) {
     return {
-      outputs: [],
-      nextState: {
-        a: inputs[0]!,
-        b: inputs[1]!,
-        c: inputs[2]!,
-        d: inputs[3]!,
-        e: inputs[4]!,
-        f: inputs[5]!,
-        g: inputs[6]!,
-        dp: inputs[7]!,
-      },
+      a: inputs[0]!,
+      b: inputs[1]!,
+      c: inputs[2]!,
+      d: inputs[3]!,
+      e: inputs[4]!,
+      f: inputs[5]!,
+      g: inputs[6]!,
+      dp: inputs[7]!,
     };
   },
 };

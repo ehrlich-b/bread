@@ -40,21 +40,19 @@ const pinNames = (() => {
   return pins;
 })();
 
-const driveAll = (v: DriverValue): DriverValue[] => {
-  const out = new Array<DriverValue>(DATA_BITS);
+const fillAll = (out: DriverValue[], v: DriverValue): void => {
   for (let i = 0; i < DATA_BITS; i++) out[i] = v;
-  return out;
 };
 
 const mem74LS189: PrimitiveDef<Mem74LS189State, Record<string, never>> = {
   pins: () => pinNames,
   init: () => ({ data: new Uint8Array(SIZE) }),
-  evaluate(inputs, state) {
+  evaluate(inputs, outputs, state) {
     const cs = inputs[ADDR_BITS + DATA_BITS]!;
     const we = inputs[ADDR_BITS + DATA_BITS + 1]!;
 
-    if (cs === 1) return { outputs: driveAll('Z') };
-    if (cs === 'X' || we === 'X') return { outputs: driveAll('X') };
+    if (cs === 1) { fillAll(outputs, 'Z'); return undefined; }
+    if (cs === 'X' || we === 'X') { fillAll(outputs, 'X'); return undefined; }
 
     let addr = 0;
     let addrX = false;
@@ -81,18 +79,18 @@ const mem74LS189: PrimitiveDef<Mem74LS189State, Record<string, never>> = {
         }
         if (!dataX) state.data[addr] = nibble;
       }
-      return { outputs: driveAll('Z') };
+      fillAll(outputs, 'Z');
+      return undefined;
     }
 
-    if (addrX) return { outputs: driveAll('X') };
+    if (addrX) { fillAll(outputs, 'X'); return undefined; }
 
     const nibble = state.data[addr]!;
-    const out = new Array<DriverValue>(DATA_BITS);
     for (let i = 0; i < DATA_BITS; i++) {
       // Open-collector inverted: stored 1 → drive 0; stored 0 → Z.
-      out[i] = ((nibble >> i) & 1) === 1 ? 0 : 'Z';
+      outputs[i] = ((nibble >> i) & 1) === 1 ? 0 : 'Z';
     }
-    return { outputs: out };
+    return undefined;
   },
 };
 

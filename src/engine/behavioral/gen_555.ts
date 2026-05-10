@@ -32,18 +32,17 @@ const gen555: PrimitiveDef<Gen555State, Gen555Params> = {
     }
     return { OUT: 0, lastToggleStep: 0 };
   },
-  evaluate(_inputs, state, params, ctx) {
+  evaluate(_inputs, outputs, state, params, ctx) {
     const step = ctx?.step ?? 0;
     const rateHz = ctx?.rateHz ?? 1;
     const half = halfPeriodSteps(rateHz, params.freqHz);
     if (step - state.lastToggleStep >= half) {
       const flipped: NetState = state.OUT === 1 ? 0 : 1;
-      return {
-        outputs: [flipped],
-        nextState: { OUT: flipped, lastToggleStep: step },
-      };
+      outputs[0] = flipped;
+      return { OUT: flipped, lastToggleStep: step };
     }
-    return { outputs: [state.OUT], nextState: state };
+    outputs[0] = state.OUT;
+    return undefined;
   },
 };
 

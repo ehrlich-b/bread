@@ -5,7 +5,7 @@
 // activeLow=true: selected Y is 0, others 1.
 // If any address bit is X, every output is X.
 
-import type { DriverValue, NetState, PinSpec, PrimitiveDef } from '../ir';
+import type { NetState, PinSpec, PrimitiveDef } from '../ir';
 import { registerPrimitive } from './registry';
 
 interface DecoderParams {
@@ -32,7 +32,7 @@ const decoderPins = (params: DecoderParams): PinSpec[] => {
 
 const decoder: PrimitiveDef<undefined, DecoderParams> = {
   pins: decoderPins,
-  evaluate(inputs, _state, params) {
+  evaluate(inputs, outputs, _state, params) {
     const outs = 1 << params.bits;
     let addr = 0;
     let unknown = false;
@@ -45,16 +45,15 @@ const decoder: PrimitiveDef<undefined, DecoderParams> = {
         break;
       }
     }
-    const outputs: DriverValue[] = new Array<DriverValue>(outs);
     if (unknown) {
-      outputs.fill('X');
+      for (let i = 0; i < outs; i++) outputs[i] = 'X';
     } else {
       const selected: NetState = params.activeLow ? 0 : 1;
       const idle: NetState = params.activeLow ? 1 : 0;
-      outputs.fill(idle);
+      for (let i = 0; i < outs; i++) outputs[i] = idle;
       outputs[addr] = selected;
     }
-    return { outputs };
+    return undefined;
   },
 };
 

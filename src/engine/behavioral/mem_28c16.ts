@@ -49,10 +49,8 @@ const pinNames = (() => {
   return pins;
 })();
 
-const driveAll = (v: DriverValue): DriverValue[] => {
-  const out = new Array<DriverValue>(DATA_BITS);
+const fillAll = (out: DriverValue[], v: DriverValue): void => {
   for (let i = 0; i < DATA_BITS; i++) out[i] = v;
-  return out;
 };
 
 // Decode a hex string into a fixed-size byte array. Permissive: whitespace and
@@ -90,13 +88,13 @@ const mem28C16: PrimitiveDef<Mem28C16State, Mem28C16Params> = {
       : new Uint8Array(SIZE);
     return { data };
   },
-  evaluate(inputs, state) {
+  evaluate(inputs, outputs, state) {
     const ce = inputs[ADDR_BITS + DATA_BITS]!;
     const oe = inputs[ADDR_BITS + DATA_BITS + 1]!;
     const we = inputs[ADDR_BITS + DATA_BITS + 2]!;
 
-    if (ce === 1) return { outputs: driveAll('Z') };
-    if (ce === 'X' || we === 'X') return { outputs: driveAll('X') };
+    if (ce === 1) { fillAll(outputs, 'Z'); return undefined; }
+    if (ce === 'X' || we === 'X') { fillAll(outputs, 'X'); return undefined; }
 
     let addr = 0;
     let addrX = false;
@@ -123,17 +121,17 @@ const mem28C16: PrimitiveDef<Mem28C16State, Mem28C16Params> = {
         }
         if (!dataX) state.data[addr] = byte;
       }
-      return { outputs: driveAll('Z') };
+      fillAll(outputs, 'Z');
+      return undefined;
     }
 
-    if (oe === 'X') return { outputs: driveAll('X') };
-    if (oe === 1) return { outputs: driveAll('Z') };
-    if (addrX) return { outputs: driveAll('X') };
+    if (oe === 'X') { fillAll(outputs, 'X'); return undefined; }
+    if (oe === 1) { fillAll(outputs, 'Z'); return undefined; }
+    if (addrX) { fillAll(outputs, 'X'); return undefined; }
 
     const byte = state.data[addr]!;
-    const out = new Array<DriverValue>(DATA_BITS);
-    for (let i = 0; i < DATA_BITS; i++) out[i] = ((byte >> i) & 1) as NetState;
-    return { outputs: out };
+    for (let i = 0; i < DATA_BITS; i++) outputs[i] = ((byte >> i) & 1) as NetState;
+    return undefined;
   },
 };
 

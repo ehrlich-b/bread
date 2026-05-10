@@ -5,7 +5,7 @@
 // The carry uses the standard majority form so it can stay defined when
 // possible (e.g. A=B=1 ⇒ carry=1 even if c is X).
 
-import type { DriverValue, NetState, PinSpec, PrimitiveDef } from '../ir';
+import type { NetState, PinSpec, PrimitiveDef } from '../ir';
 import { registerPrimitive } from './registry';
 
 interface AdderParams {
@@ -45,10 +45,9 @@ const xor2 = (a: NetState, b: NetState): NetState => {
 
 const adder: PrimitiveDef<undefined, AdderParams> = {
   pins: adderPins,
-  evaluate(inputs, _state, params) {
+  evaluate(inputs, outputs, _state, params) {
     const w = params.width;
     let c: NetState = inputs[2 * w]!;
-    const outputs: DriverValue[] = new Array<DriverValue>(w + 1);
     for (let i = 0; i < w; i++) {
       const a = inputs[i]!;
       const b = inputs[w + i]!;
@@ -59,7 +58,7 @@ const adder: PrimitiveDef<undefined, AdderParams> = {
       c = c_next;
     }
     outputs[w] = c;
-    return { outputs };
+    return undefined;
   },
 };
 

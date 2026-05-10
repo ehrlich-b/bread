@@ -6,7 +6,7 @@
 // DEMUX2 pins (width=w): A0..A{w-1}, S, Y0_0..Y0_{w-1}, Y1_0..Y1_{w-1}
 //   S==0 → Y0=A, Y1 driven 0.  S==1 → Y1=A, Y0 driven 0.  S=X → both X.
 
-import type { DriverValue, NetState, PinSpec, PrimitiveDef } from '../ir';
+import type { NetState, PinSpec, PrimitiveDef } from '../ir';
 import { registerPrimitive } from './registry';
 
 interface WidthParams {
@@ -32,10 +32,9 @@ const muxPins = (params: WidthParams): PinSpec[] => {
 
 const mux2: PrimitiveDef<undefined, WidthParams> = {
   pins: muxPins,
-  evaluate(inputs, _state, params) {
+  evaluate(inputs, outputs, _state, params) {
     const w = params.width;
     const s = inputs[2 * w]!;
-    const outputs: DriverValue[] = new Array<DriverValue>(w);
     for (let i = 0; i < w; i++) {
       const a = inputs[i]!;
       const b = inputs[w + i]!;
@@ -45,7 +44,7 @@ const mux2: PrimitiveDef<undefined, WidthParams> = {
       else y = a === b && (a === 0 || a === 1) ? a : 'X';
       outputs[i] = y;
     }
-    return { outputs };
+    return undefined;
   },
 };
 
@@ -61,10 +60,9 @@ const demuxPins = (params: WidthParams): PinSpec[] => {
 
 const demux2: PrimitiveDef<undefined, WidthParams> = {
   pins: demuxPins,
-  evaluate(inputs, _state, params) {
+  evaluate(inputs, outputs, _state, params) {
     const w = params.width;
     const s = inputs[w]!;
-    const outputs: DriverValue[] = new Array<DriverValue>(2 * w);
     for (let i = 0; i < w; i++) {
       const a = inputs[i]!;
       let y0: NetState;
@@ -85,7 +83,7 @@ const demux2: PrimitiveDef<undefined, WidthParams> = {
       outputs[i] = y0;
       outputs[w + i] = y1;
     }
-    return { outputs };
+    return undefined;
   },
 };
 

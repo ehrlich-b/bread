@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { CircuitJSON } from '../ir';
+import type { CircuitJSON, DriverValue } from '../ir';
 import { loadCircuit } from '../loader';
 import { Simulator } from '../sim';
 import { getPrimitive } from './index';
 
-const evalSource = (id: string) => {
+const evalSource = (id: string): DriverValue => {
   const prim = getPrimitive(id);
   if (!prim) throw new Error(`missing primitive ${id}`);
-  return prim.evaluate([], undefined, undefined).outputs[0]!;
+  const out: DriverValue[] = ['Z'];
+  prim.evaluate([], out, undefined, undefined);
+  return out[0]!;
 };
 
 describe('prim.CONST_0 / prim.CONST_1', () => {

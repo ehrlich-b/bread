@@ -8,7 +8,9 @@ const evalDecoder = (
   inputs: NetState[],
 ): DriverValue[] => {
   const prim = getPrimitive('prim.DECODER')!;
-  return prim.evaluate(inputs, undefined, { bits, activeLow }).outputs;
+  const out: DriverValue[] = new Array<DriverValue>(1 << bits).fill('Z');
+  prim.evaluate(inputs, out, undefined, { bits, activeLow });
+  return out;
 };
 
 describe('prim.DECODER', () => {

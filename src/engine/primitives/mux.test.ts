@@ -28,7 +28,9 @@ describe('prim.MUX2', () => {
 
   const mux = (a: NetState, b: NetState, s: NetState): DriverValue => {
     const prim = getPrimitive('prim.MUX2')!;
-    return prim.evaluate([a, b, s], undefined, { width: 1 }).outputs[0]!;
+    const out: DriverValue[] = ['Z'];
+    prim.evaluate([a, b, s], out, undefined, { width: 1 });
+    return out[0]!;
   };
 
   it('selects A when S=0, B when S=1', () => {
@@ -55,8 +57,9 @@ describe('prim.MUX2', () => {
       0, 1, 0, 1, // B bus
       1, // S
     ];
-    const result = prim.evaluate(inputs, undefined, { width: 4 });
-    expect(result.outputs).toEqual([0, 1, 0, 1]);
+    const out: DriverValue[] = new Array<DriverValue>(4).fill('Z');
+    prim.evaluate(inputs, out, undefined, { width: 4 });
+    expect(out).toEqual([0, 1, 0, 1]);
   });
 });
 
@@ -70,8 +73,9 @@ describe('prim.DEMUX2', () => {
 
   const demux = (a: NetState, s: NetState): [DriverValue, DriverValue] => {
     const prim = getPrimitive('prim.DEMUX2')!;
-    const r = prim.evaluate([a, s], undefined, { width: 1 });
-    return [r.outputs[0]!, r.outputs[1]!];
+    const out: DriverValue[] = ['Z', 'Z'];
+    prim.evaluate([a, s], out, undefined, { width: 1 });
+    return [out[0]!, out[1]!];
   };
 
   it('routes A to Y0 with Y1=0 when S=0', () => {
@@ -98,7 +102,8 @@ describe('prim.DEMUX2', () => {
       1, 0, 1, 1, // A
       1, // S=1 → goes to channel 1
     ];
-    const r = prim.evaluate(inputs, undefined, { width: 4 });
-    expect(r.outputs).toEqual([0, 0, 0, 0, 1, 0, 1, 1]);
+    const out: DriverValue[] = new Array<DriverValue>(8).fill('Z');
+    prim.evaluate(inputs, out, undefined, { width: 4 });
+    expect(out).toEqual([0, 0, 0, 0, 1, 0, 1, 1]);
   });
 });

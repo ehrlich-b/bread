@@ -21,6 +21,10 @@ import type { DriverValue, NetState, PinSpec, PrimitiveDef } from '../ir';
 import { decodeHexContents } from './mem_28c16';
 import { registerBehavioral } from './registry';
 
+const fillAll = (out: DriverValue[], v: DriverValue): void => {
+  for (let i = 0; i < DATA_BITS; i++) out[i] = v;
+};
+
 const ADDR_BITS = 11;
 const DATA_BITS = 8;
 const SIZE = 1 << ADDR_BITS; // 2048
@@ -43,12 +47,6 @@ const pinNames = (() => {
   return pins;
 })();
 
-const driveAll = (v: DriverValue): DriverValue[] => {
-  const out = new Array<DriverValue>(DATA_BITS);
-  for (let i = 0; i < DATA_BITS; i++) out[i] = v;
-  return out;
-};
-
 const mem6116: PrimitiveDef<Mem6116State, Mem6116Params> = {
   pins: () => pinNames,
   init: (params) => {
@@ -57,15 +55,15 @@ const mem6116: PrimitiveDef<Mem6116State, Mem6116Params> = {
       : new Uint8Array(SIZE);
     return { data };
   },
-  evaluate(inputs, state) {
+  evaluate(inputs, outputs, state) {
     const ce = inputs[ADDR_BITS + DATA_BITS]!;
     const oe = inputs[ADDR_BITS + DATA_BITS + 1]!;
     const we = inputs[ADDR_BITS + DATA_BITS + 2]!;
 
     // Standby — chip not selected.
-    if (ce === 1) return { outputs: driveAll('Z') };
+    if (ce === 1) { fillAll(outputs, 'Z'); return undefined; }
     // Any X on control pins → undefined behavior; flag with X on outputs.
-    if (ce === 'X' || we === 'X') return { outputs: driveAll('X') };
+    if (ce === 'X' || we === 'X') { fillAll(outputs, 'X'); return undefined; }
 
     // Decode address; any X bit poisons the address.
     let addr = 0;
@@ -94,18 +92,18 @@ const mem6116: PrimitiveDef<Mem6116State, Mem6116Params> = {
         }
         if (!dataX) state.data[addr] = byte;
       }
-      return { outputs: driveAll('Z') };
+      fillAll(outputs, 'Z');
+      return undefined;
     }
 
     // Read or output-disable.
-    if (oe === 'X') return { outputs: driveAll('X') };
-    if (oe === 1) return { outputs: driveAll('Z') };
-    if (addrX) return { outputs: driveAll('X') };
+    if (oe === 'X') { fillAll(outputs, 'X'); return undefined; }
+    if (oe === 1) { fillAll(outputs, 'Z'); return undefined; }
+    if (addrX) { fillAll(outputs, 'X'); return undefined; }
 
     const byte = state.data[addr]!;
-    const out = new Array<DriverValue>(DATA_BITS);
-    for (let i = 0; i < DATA_BITS; i++) out[i] = ((byte >> i) & 1) as NetState;
-    return { outputs: out };
+    for (let i = 0; i < DATA_BITS; i++) outputs[i] = ((byte >> i) & 1) as NetState;
+    return undefined;
   },
 };
 
