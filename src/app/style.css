@@ -253,6 +253,14 @@ button[aria-pressed='true'] {
   stroke-width: 1;
 }
 
+.grid-dot {
+  fill: color-mix(in oklab, var(--fg) 22%, transparent);
+}
+
+.grid-bg {
+  pointer-events: none;
+}
+
 .wire {
   stroke-width: 2;
   fill: none;

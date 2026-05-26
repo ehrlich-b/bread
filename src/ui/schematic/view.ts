@@ -29,6 +29,42 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const GRID = 10;
 const DRAG_THRESHOLD_PX = 3;
 
+// Viewport state lives at module scope so zoom/pan survive the host re-renders
+// that EditorModel notifications trigger. Nothing else reads these — they're
+// UI-only and don't belong on the editor state.
+const BASE_VIEW_W = 600;
+const BASE_VIEW_H = 320;
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 4;
+let viewZoom = 1;
+let viewPanX = 0;
+let viewPanY = 0;
+
+const clamp = (n: number, lo: number, hi: number): number =>
+  Math.max(lo, Math.min(hi, n));
+
+const applyViewBox = (svg: SVGSVGElement): void => {
+  const vw = BASE_VIEW_W / viewZoom;
+  const vh = BASE_VIEW_H / viewZoom;
+  svg.setAttribute(
+    'viewBox',
+    `${String(viewPanX)} ${String(viewPanY)} ${String(vw)} ${String(vh)}`,
+  );
+};
+
+// Zoom around an SVG-space anchor: the point at (centerX, centerY) stays put
+// in screen coordinates while the viewBox shrinks/grows. The math is the
+// fractional-position invariant: (anchor - new_pan) / new_vw == (anchor - pan) / vw.
+const zoomBy = (svg: SVGSVGElement, factor: number, centerX: number, centerY: number): void => {
+  const newZoom = clamp(viewZoom * factor, MIN_ZOOM, MAX_ZOOM);
+  if (newZoom === viewZoom) return;
+  const ratio = newZoom / viewZoom;
+  viewPanX = centerX - (centerX - viewPanX) / ratio;
+  viewPanY = centerY - (centerY - viewPanY) / ratio;
+  viewZoom = newZoom;
+  applyViewBox(svg);
+};
+
 const NET_CLASS: Record<NetState, string> = {
   0: 'wire wire-0',
   1: 'wire wire-1',
@@ -161,10 +197,39 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   host.classList.toggle('placing', placement !== null);
 
   const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 600 320');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.dataset.role = 'canvas';
+  applyViewBox(svg);
   host.appendChild(svg);
+
+  // Grid pattern: 10px dots in user coords, so they stay aligned to the snap
+  // grid as the viewBox pans/zooms. The pattern lives in <defs> and a fixed
+  // huge background rect draws it across the whole pannable area.
+  const defs = document.createElementNS(SVG_NS, 'defs');
+  const pattern = document.createElementNS(SVG_NS, 'pattern');
+  pattern.setAttribute('id', 'schematic-grid');
+  pattern.setAttribute('x', '0');
+  pattern.setAttribute('y', '0');
+  pattern.setAttribute('width', String(GRID));
+  pattern.setAttribute('height', String(GRID));
+  pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+  const dot = document.createElementNS(SVG_NS, 'circle');
+  dot.setAttribute('cx', String(GRID / 2));
+  dot.setAttribute('cy', String(GRID / 2));
+  dot.setAttribute('r', '0.8');
+  dot.setAttribute('class', 'grid-dot');
+  pattern.appendChild(dot);
+  defs.appendChild(pattern);
+  svg.appendChild(defs);
+
+  const gridBg = document.createElementNS(SVG_NS, 'rect');
+  gridBg.setAttribute('x', '-2000');
+  gridBg.setAttribute('y', '-2000');
+  gridBg.setAttribute('width', '4000');
+  gridBg.setAttribute('height', '4000');
+  gridBg.setAttribute('fill', 'url(#schematic-grid)');
+  gridBg.setAttribute('class', 'grid-bg');
+  svg.appendChild(gridBg);
 
   const wireLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(wireLayer);
@@ -260,6 +325,55 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (editor.state.selection.size > 0) editor.clearSelection();
   });
 
+  // ---- Zoom / pan ------------------------------------------------------
+  // Plain wheel pans (matches Figma / trackpad two-finger scroll).
+  // Cmd/Ctrl+wheel — including trackpad pinch, which browsers report with
+  // ctrlKey=true — zooms toward the cursor. preventDefault is required to
+  // suppress the browser's default page scroll / zoom.
+  svg.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      if (e.ctrlKey || e.metaKey) {
+        const local = clientToLocal(svg, e.clientX, e.clientY);
+        if (!local) return;
+        const factor = Math.exp(-e.deltaY * 0.002);
+        zoomBy(svg, factor, local.x, local.y);
+        return;
+      }
+      const ctm = svg.getScreenCTM();
+      if (!ctm) return;
+      viewPanX += e.deltaX / ctm.a;
+      viewPanY += e.deltaY / ctm.d;
+      applyViewBox(svg);
+    },
+    { passive: false },
+  );
+
+  // Middle-mouse drag pans. Component / pin mousedown handlers all bail on
+  // e.button !== 0 so this only fires on a plain middle press.
+  svg.addEventListener('mousedown', (e) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return;
+    const initPanX = viewPanX;
+    const initPanY = viewPanY;
+    const onMove = (em: MouseEvent): void => {
+      viewPanX = initPanX - (em.clientX - startX) / ctm.a;
+      viewPanY = initPanY - (em.clientY - startY) / ctm.d;
+      applyViewBox(svg);
+    };
+    const onUp = (): void => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+
   // ---- Document-level keyboard ----------------------------------------
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === 'Escape') {
@@ -284,6 +398,30 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (mod && (e.key === 'y' || e.key === 'Y')) {
       e.preventDefault();
       void editor.redo();
+      return;
+    }
+    // Zoom controls. Center the zoom on the viewBox midpoint so a centered
+    // circuit stays centered. `0` resets the view.
+    if (e.key === '+' || e.key === '=') {
+      e.preventDefault();
+      const vw = BASE_VIEW_W / viewZoom;
+      const vh = BASE_VIEW_H / viewZoom;
+      zoomBy(svg, 1.2, viewPanX + vw / 2, viewPanY + vh / 2);
+      return;
+    }
+    if (e.key === '-' || e.key === '_') {
+      e.preventDefault();
+      const vw = BASE_VIEW_W / viewZoom;
+      const vh = BASE_VIEW_H / viewZoom;
+      zoomBy(svg, 1 / 1.2, viewPanX + vw / 2, viewPanY + vh / 2);
+      return;
+    }
+    if (e.key === '0') {
+      e.preventDefault();
+      viewZoom = 1;
+      viewPanX = 0;
+      viewPanY = 0;
+      applyViewBox(svg);
       return;
     }
     const sel = editor.state.selection;

@@ -14,9 +14,9 @@ import { mountPalette } from '../ui/palette';
 import { mountSchematic } from '../ui/schematic';
 
 const isoStatus = document.getElementById('iso-status')!;
-isoStatus.textContent = self.crossOriginIsolated
-  ? 'crossOriginIsolated: true'
-  : 'crossOriginIsolated: false (SharedArrayBuffer disabled)';
+if (!self.crossOriginIsolated) {
+  isoStatus.textContent = 'SharedArrayBuffer disabled (no cross-origin isolation)';
+}
 
 const log = (msg: string): void => {
   const list = document.getElementById('event-log')!;
