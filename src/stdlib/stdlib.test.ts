@@ -805,3 +805,411 @@ describe('ttl.74LS161 (4-bit synchronous counter)', () => {
     expect(s.readNet('rco')).toBe(0);
   });
 });
+
+describe('ttl.74LS74 (Dual D flip-flop, async /PRE and /CLR)', () => {
+  const ports: Array<{ name: string; net: string }> = [
+    { name: '1D', net: 'd1' }, { name: '1CLK', net: 'clk1' },
+    { name: '/1PRE', net: 'pre1' }, { name: '/1CLR', net: 'clr1' },
+    { name: '1Q', net: 'q1' }, { name: '/1Q', net: 'q1n' },
+    { name: '2D', net: 'd2' }, { name: '2CLK', net: 'clk2' },
+    { name: '/2PRE', net: 'pre2' }, { name: '/2CLR', net: 'clr2' },
+    { name: '2Q', net: 'q2' }, { name: '/2Q', net: 'q2n' },
+  ];
+
+  // Power into a deterministic Q=0 on both sections: clock low, D=0,
+  // async inputs released, then a brief /CLR pulse.
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS74', ports)));
+    for (const sec of [1, 2]) {
+      s.setInput(`d${sec}`, 0);
+      s.setInput(`clk${sec}`, 0);
+      s.setInput(`pre${sec}`, 1);
+      s.setInput(`clr${sec}`, 0); // asserted: forces both Q to 0
+    }
+    s.settle();
+    for (const sec of [1, 2]) s.setInput(`clr${sec}`, 1);
+    s.settle();
+    return s;
+  };
+
+  // Power into a deterministic Q=1 on both sections via async /PRE.
+  const powerOnPreset = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS74', ports)));
+    for (const sec of [1, 2]) {
+      s.setInput(`d${sec}`, 0);
+      s.setInput(`clk${sec}`, 0);
+      s.setInput(`clr${sec}`, 1);
+      s.setInput(`pre${sec}`, 0); // asserted: forces both Q to 1
+    }
+    s.settle();
+    for (const sec of [1, 2]) s.setInput(`pre${sec}`, 1);
+    s.settle();
+    return s;
+  };
+
+  // Positive-edge tick.
+  const tick = (s: Simulator, sec: number): void => {
+    s.setInput(`clk${sec}`, 1); s.settle();
+    s.setInput(`clk${sec}`, 0); s.settle();
+  };
+
+  it('async /CLR forces Q=0 and /Q=1 on both sections with no clock', () => {
+    const s = fresh();
+    expect(s.readNet('q1')).toBe(0); expect(s.readNet('q1n')).toBe(1);
+    expect(s.readNet('q2')).toBe(0); expect(s.readNet('q2n')).toBe(1);
+  });
+
+  it('async /PRE forces Q=1 and /Q=0 on both sections with no clock', () => {
+    const s = powerOnPreset();
+    expect(s.readNet('q1')).toBe(1); expect(s.readNet('q1n')).toBe(0);
+    expect(s.readNet('q2')).toBe(1); expect(s.readNet('q2n')).toBe(0);
+  });
+
+  it('async /PRE overrides the clock: a set stays set even through D=0 edges', () => {
+    const s = fresh(); // Q=0
+    s.setInput('d1', 0);
+    s.setInput('pre1', 0); s.settle();
+    expect(s.readNet('q1')).toBe(1);
+    tick(s, 1); // rising edge with D=0 — async preset must win
+    s.setInput('pre1', 1); s.settle();
+    expect(s.readNet('q1')).toBe(1);
+  });
+
+  it('latches D on the rising CLK edge and holds until the next rising edge', () => {
+    const s = fresh();
+    s.setInput('d1', 1); s.settle();
+    expect(s.readNet('q1')).toBe(0); // D changed, no edge yet
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q1n')).toBe(0);
+    s.setInput('d1', 0); s.settle(); // D flips with no edge — held
+    expect(s.readNet('q1')).toBe(1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('async /CLR overrides the clock: an edge with D=1 cannot set a cleared FF', () => {
+    const s = fresh(); // Q=0
+    s.setInput('d1', 1); s.settle();
+    s.setInput('clr1', 0); s.settle();
+    tick(s, 1); // rising edge lands while /CLR is low
+    s.setInput('clr1', 1); s.settle();
+    expect(s.readNet('q1')).toBe(0); // came through the edge still cleared
+  });
+
+  it('section 2 is independent of section 1 clocking', () => {
+    const s = fresh();
+    s.setInput('d2', 1); s.settle();
+    tick(s, 2); // only section 2 clocks
+    expect(s.readNet('q2')).toBe(1);
+    expect(s.readNet('q1')).toBe(0);
+    tick(s, 1); // section 1 clocks with D=0 — stays 0, section 2 untouched
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('q2')).toBe(1);
+  });
+
+  it('per-section async /PRE and /CLR act independently', () => {
+    const s = fresh();
+    s.setInput('pre2', 0); s.settle();
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('q2')).toBe(1);
+    s.setInput('pre2', 1); s.setInput('clr2', 0); s.settle();
+    expect(s.readNet('q2')).toBe(0);
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('/Q always complements Q through preset, clear, and a clocked load', () => {
+    const s = fresh(); // Q=0, /Q=1
+    expect(s.readNet('q1n')).toBe(1);
+    s.setInput('pre1', 0); s.settle(); // preset Q=1
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q1n')).toBe(0);
+    s.setInput('pre1', 1); s.setInput('clr1', 0); s.settle(); // clear Q=0
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('q1n')).toBe(1);
+    s.setInput('clr1', 1); s.setInput('d1', 1); s.settle(); // load Q=1 on edge
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q1n')).toBe(0);
+  });
+});
+
+describe('ttl.74LS76 (Dual JK flip-flop, negative-edge, async /PRE and /CLR)', () => {
+  const ports: Array<{ name: string; net: string }> = [];
+  for (const sec of [1, 2]) {
+    ports.push({ name: `${sec}J`, net: `j${sec}` });
+    ports.push({ name: `${sec}K`, net: `k${sec}` });
+    ports.push({ name: `${sec}CLK`, net: `clk${sec}` });
+    ports.push({ name: `/${sec}PRE`, net: `pre${sec}` });
+    ports.push({ name: `/${sec}CLR`, net: `clr${sec}` });
+    ports.push({ name: `${sec}Q`, net: `q${sec}` });
+    ports.push({ name: `/${sec}Q`, net: `qn${sec}` });
+  }
+
+  // Power into a known Q=0 state: J=K=0, CLK resting HIGH (negative-edge chip),
+  // assert /CLR, settle, release.
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS76', ports)));
+    for (const sec of [1, 2]) {
+      s.setInput(`j${sec}`, 0);
+      s.setInput(`k${sec}`, 0);
+      s.setInput(`clk${sec}`, 1);
+      s.setInput(`pre${sec}`, 1);
+      s.setInput(`clr${sec}`, 0);
+    }
+    s.settle();
+    for (const sec of [1, 2]) s.setInput(`clr${sec}`, 1);
+    s.settle();
+    return s;
+  };
+
+  // Negative-edge tick: external CLK 1 → 0.
+  const tick = (s: Simulator, sec: number): void => {
+    s.setInput(`clk${sec}`, 1); s.settle();
+    s.setInput(`clk${sec}`, 0); s.settle();
+  };
+
+  it('async /CLR forces Q=0, /Q=1 on both sections with no clock', () => {
+    const s = fresh();
+    expect(s.readNet('q1')).toBe(0); expect(s.readNet('qn1')).toBe(1);
+    expect(s.readNet('q2')).toBe(0); expect(s.readNet('qn2')).toBe(1);
+  });
+
+  it('async /PRE forces Q=1, /Q=0 and overrides a reset clock edge', () => {
+    const s = fresh();
+    s.setInput('pre1', 0); s.settle();
+    expect(s.readNet('q1')).toBe(1); expect(s.readNet('qn1')).toBe(0);
+    s.setInput('j1', 0); s.setInput('k1', 1); s.settle(); // would reset on an edge
+    tick(s, 1);
+    s.setInput('pre1', 1); s.settle();
+    expect(s.readNet('q1')).toBe(1); // preset dominated the edge
+  });
+
+  it('hold (J=0, K=0) preserves Q across a falling edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0); // set
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    s.setInput('j1', 0); s.setInput('k1', 0); // hold
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+  });
+
+  it('reset (J=0, K=1) drives Q to 0 on the falling edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    s.setInput('j1', 0); s.setInput('k1', 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(0);
+    expect(s.readNet('qn1')).toBe(1);
+  });
+
+  it('set (J=1, K=0) drives Q to 1 on the falling edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('qn1')).toBe(0);
+  });
+
+  it('toggle (J=1, K=1) flips Q on each falling edge', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+  });
+
+  it('external rising edge does NOT trigger the flip-flop', () => {
+    const s = fresh();
+    // Burn the latent falling edge that fresh() leaves pending.
+    s.setInput('clk1', 0); s.settle();
+    s.setInput('j1', 1); s.setInput('k1', 0); s.settle();
+    s.setInput('clk1', 1); s.settle(); // external 0 → 1: should NOT trigger
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('async /CLR held low blocks a toggle edge from setting the FF', () => {
+    const s = fresh();
+    // Get Q=1 first via set, then hold /CLR low across a toggle edge.
+    s.setInput('j1', 1); s.setInput('k1', 0);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    s.setInput('j1', 1); s.setInput('k1', 1); // toggle would flip 1 → 0 anyway
+    s.setInput('clr1', 0); s.settle(); // assert clear so any flip is masked
+    tick(s, 1);
+    s.setInput('clr1', 1); s.settle();
+    expect(s.readNet('q1')).toBe(0);
+  });
+
+  it('section 2 is independent of section 1 clocks', () => {
+    const s = fresh();
+    s.setInput('j1', 1); s.setInput('k1', 1);
+    s.setInput('j2', 0); s.setInput('k2', 0);
+    tick(s, 1);
+    tick(s, 1);
+    tick(s, 1);
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q2')).toBe(0);
+  });
+
+  it('per-section /PRE and /CLR are independent', () => {
+    const s = fresh();
+    s.setInput('j2', 1); s.setInput('k2', 1);
+    tick(s, 2);
+    expect(s.readNet('q2')).toBe(1);
+    s.setInput('pre1', 0); s.settle(); // preset only section 1
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q2')).toBe(1);
+    s.setInput('clr2', 0); s.settle(); // clear only section 2
+    expect(s.readNet('q1')).toBe(1);
+    expect(s.readNet('q2')).toBe(0);
+  });
+
+  it('with both /PRE and /CLR asserted, this model resolves Q=0 (CLR wins)', () => {
+    // The real '76 gives an indeterminate Q=Qbar=1 row; the DFF primitive
+    // gives /CLR precedence. We document the modelled behavior rather than
+    // pretend to match an undefined corner.
+    const s = fresh();
+    s.setInput('pre1', 0); s.setInput('clr1', 0); s.settle();
+    expect(s.readNet('q1')).toBe(0);
+  });
+});
+
+describe('ttl.74LS153 (Dual 4-to-1 multiplexer, active-low strobe)', () => {
+  const sim = simWith(
+    wrap('ttl.74LS153', [
+      { name: '/1G', net: 'g1' }, { name: '/2G', net: 'g2' },
+      { name: 'A', net: 'a' }, { name: 'B', net: 'b' },
+      { name: '1C0', net: 'c10' }, { name: '1C1', net: 'c11' },
+      { name: '1C2', net: 'c12' }, { name: '1C3', net: 'c13' }, { name: '1Y', net: 'y1' },
+      { name: '2C0', net: 'c20' }, { name: '2C1', net: 'c21' },
+      { name: '2C2', net: 'c22' }, { name: '2C3', net: 'c23' }, { name: '2Y', net: 'y2' },
+    ]),
+  );
+
+  const driveSelect = (a: NetState, b: NetState): void => {
+    sim.setInput('a', a); sim.setInput('b', b);
+  };
+
+  it('full truth table on section 1: Y1 = 1C[2·B + A] for every select', () => {
+    sim.setInput('g1', 0);
+    // Pattern 1: 1C0=0, 1C1=1, 1C2=1, 1C3=0
+    sim.setInput('c10', 0); sim.setInput('c11', 1);
+    sim.setInput('c12', 1); sim.setInput('c13', 0);
+    for (const [a, b, y] of [[0, 0, 0], [1, 0, 1], [0, 1, 1], [1, 1, 0]] as const) {
+      driveSelect(a, b);
+      sim.settle();
+      expect(sim.readNet('y1')).toBe(y);
+    }
+    // Pattern 2 flips the mapping so each address is exercised against both 0/1.
+    sim.setInput('c10', 1); sim.setInput('c11', 0);
+    sim.setInput('c12', 0); sim.setInput('c13', 1);
+    for (const [a, b, y] of [[0, 0, 1], [1, 0, 0], [0, 1, 0], [1, 1, 1]] as const) {
+      driveSelect(a, b);
+      sim.settle();
+      expect(sim.readNet('y1')).toBe(y);
+    }
+  });
+
+  it('exhaustive section 1: every select × every 16 data vector routes the selected bit', () => {
+    sim.setInput('g1', 0);
+    for (let data = 0; data < 16; data++) {
+      sim.setInput('c10', (data & 1) as NetState);
+      sim.setInput('c11', ((data >> 1) & 1) as NetState);
+      sim.setInput('c12', ((data >> 2) & 1) as NetState);
+      sim.setInput('c13', ((data >> 3) & 1) as NetState);
+      for (let addr = 0; addr < 4; addr++) {
+        driveSelect((addr & 1) as NetState, ((addr >> 1) & 1) as NetState);
+        sim.settle();
+        expect(sim.readNet('y1')).toBe(((data >> addr) & 1) as NetState);
+      }
+    }
+  });
+
+  it('exhaustive section 2: every select × every 16 data vector routes the selected bit', () => {
+    sim.setInput('g2', 0);
+    sim.setInput('g1', 1); // park section 1
+    for (let data = 0; data < 16; data++) {
+      sim.setInput('c20', (data & 1) as NetState);
+      sim.setInput('c21', ((data >> 1) & 1) as NetState);
+      sim.setInput('c22', ((data >> 2) & 1) as NetState);
+      sim.setInput('c23', ((data >> 3) & 1) as NetState);
+      for (let addr = 0; addr < 4; addr++) {
+        driveSelect((addr & 1) as NetState, ((addr >> 1) & 1) as NetState);
+        sim.settle();
+        expect(sim.readNet('y2')).toBe(((data >> addr) & 1) as NetState);
+      }
+    }
+  });
+
+  it('full truth table on section 2: Y2 = 2C[2·B + A] for every select', () => {
+    sim.setInput('g2', 0);
+    sim.setInput('g1', 1); // park section 1
+    sim.setInput('c20', 1); sim.setInput('c21', 1);
+    sim.setInput('c22', 0); sim.setInput('c23', 1);
+    for (const [a, b, y] of [[0, 0, 1], [1, 0, 1], [0, 1, 0], [1, 1, 1]] as const) {
+      driveSelect(a, b);
+      sim.settle();
+      expect(sim.readNet('y2')).toBe(y);
+    }
+  });
+
+  it('both sections route simultaneously with shared select but distinct data', () => {
+    sim.setInput('g1', 0); sim.setInput('g2', 0);
+    sim.setInput('c10', 0); sim.setInput('c11', 1); sim.setInput('c12', 0); sim.setInput('c13', 1);
+    sim.setInput('c20', 1); sim.setInput('c21', 0); sim.setInput('c22', 1); sim.setInput('c23', 0);
+    for (const [a, b, y1, y2] of
+      [[0, 0, 0, 1], [1, 0, 1, 0], [0, 1, 0, 1], [1, 1, 1, 0]] as const) {
+      driveSelect(a, b);
+      sim.settle();
+      expect(sim.readNet('y1')).toBe(y1);
+      expect(sim.readNet('y2')).toBe(y2);
+    }
+  });
+
+  it('/G high forces the output low for every select, regardless of data', () => {
+    sim.setInput('g1', 1);
+    sim.setInput('c10', 1); sim.setInput('c11', 1); sim.setInput('c12', 1); sim.setInput('c13', 1);
+    for (const [a, b] of [[0, 0], [1, 0], [0, 1], [1, 1]] as const) {
+      driveSelect(a, b);
+      sim.settle();
+      expect(sim.readNet('y1')).toBe(0);
+    }
+  });
+
+  it('non-selected data inputs do not influence the output', () => {
+    sim.setInput('g1', 0);
+    // Fix select to C1 (A=1, B=0) with 1C1=1, then flip every other input.
+    driveSelect(1, 0);
+    sim.setInput('c11', 1);
+    sim.settle();
+    expect(sim.readNet('y1')).toBe(1);
+    for (const c10 of [0, 1]) {
+      for (const c12 of [0, 1]) {
+        for (const c13 of [0, 1]) {
+          sim.setInput('c10', c10 as NetState);
+          sim.setInput('c12', c12 as NetState);
+          sim.setInput('c13', c13 as NetState);
+          sim.settle();
+          expect(sim.readNet('y1')).toBe(1);
+        }
+      }
+    }
+  });
+
+  it('disabling one section leaves the other unaffected', () => {
+    sim.setInput('g1', 1); sim.setInput('g2', 0);
+    sim.setInput('c20', 0); sim.setInput('c21', 0); sim.setInput('c22', 0); sim.setInput('c23', 1);
+    sim.setInput('c10', 1);
+    driveSelect(1, 1); // select C3 on section 2, C3 on section 1 as well
+    sim.settle();
+    expect(sim.readNet('y2')).toBe(1); // 2C3 = 1
+    expect(sim.readNet('y1')).toBe(0); // /1G high → forced low
+  });
+});

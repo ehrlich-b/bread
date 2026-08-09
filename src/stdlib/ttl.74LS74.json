@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS74",
+  "description": "Dual D flip-flop with active-low async preset (/PRE) and clear (/CLR), positive-edge triggered. Async inputs dominate the clock: /CLR=L forces Q=0; /PRE=L forces Q=1. The prim.DFF gives /CLR precedence over /PRE, so the datasheet row where BOTH are low (which the 74LS74 datasheet leaves as an indeterminate 'Q=H, /Q=H') resolves to Q=0 here — see comment in dff.ts. Otherwise on the rising edge of CLK, Q follows D.",
+  "components": [
+    { "id": "dff1", "type": "prim.DFF", "params": { "clrActiveLow": true, "preActiveLow": true } },
+    { "id": "dff2", "type": "prim.DFF", "params": { "clrActiveLow": true, "preActiveLow": true } }
+  ],
+  "nets": [
+    { "id": "n1D",   "endpoints": ["dff1.D"] },
+    { "id": "n1CLK", "endpoints": ["dff1.CLK"] },
+    { "id": "n1PRE", "endpoints": ["dff1./PRE"] },
+    { "id": "n1CLR", "endpoints": ["dff1./CLR"] },
+    { "id": "n1Q",   "endpoints": ["dff1.Q"] },
+    { "id": "n1Qn",  "endpoints": ["dff1.Qn"] },
+
+    { "id": "n2D",   "endpoints": ["dff2.D"] },
+    { "id": "n2CLK", "endpoints": ["dff2.CLK"] },
+    { "id": "n2PRE", "endpoints": ["dff2./PRE"] },
+    { "id": "n2CLR", "endpoints": ["dff2./CLR"] },
+    { "id": "n2Q",   "endpoints": ["dff2.Q"] },
+    { "id": "n2Qn",  "endpoints": ["dff2.Qn"] }
+  ],
+  "ports": [
+    { "name": "1D",   "dir": "in",  "internalNet": "n1D" },
+    { "name": "1CLK", "dir": "in",  "internalNet": "n1CLK" },
+    { "name": "/1PRE", "dir": "in", "internalNet": "n1PRE" },
+    { "name": "/1CLR", "dir": "in", "internalNet": "n1CLR" },
+    { "name": "1Q",   "dir": "out", "internalNet": "n1Q" },
+    { "name": "/1Q",  "dir": "out", "internalNet": "n1Qn" },
+    { "name": "2D",   "dir": "in",  "internalNet": "n2D" },
+    { "name": "2CLK", "dir": "in",  "internalNet": "n2CLK" },
+    { "name": "/2PRE", "dir": "in", "internalNet": "n2PRE" },
+    { "name": "/2CLR", "dir": "in", "internalNet": "n2CLR" },
+    { "name": "2Q",   "dir": "out", "internalNet": "n2Q" },
+    { "name": "/2Q",  "dir": "out", "internalNet": "n2Qn" }
+  ]
+}
