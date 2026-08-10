@@ -38,7 +38,8 @@ const latch: PrimitiveDef<LatchState, undefined> = {
     }
     outputs[0] = q;
     outputs[1] = invert(q);
-    return { q };
+    state.q = q;
+    return state;
   },
 };
 

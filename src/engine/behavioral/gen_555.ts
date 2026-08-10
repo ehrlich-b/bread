@@ -39,7 +39,9 @@ const gen555: PrimitiveDef<Gen555State, Gen555Params> = {
     if (step - state.lastToggleStep >= half) {
       const flipped: NetState = state.OUT === 1 ? 0 : 1;
       outputs[0] = flipped;
-      return { OUT: flipped, lastToggleStep: step };
+      state.OUT = flipped;
+      state.lastToggleStep = step;
+      return state;
     }
     outputs[0] = state.OUT;
     return undefined;
