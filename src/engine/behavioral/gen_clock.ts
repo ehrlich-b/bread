@@ -37,7 +37,9 @@ const genClock: PrimitiveDef<ClockState, ClockParams> = {
     if (step - state.lastToggleStep >= half) {
       const flipped: NetState = state.Y === 1 ? 0 : 1;
       outputs[0] = flipped;
-      return { Y: flipped, lastToggleStep: step };
+      state.Y = flipped;
+      state.lastToggleStep = step;
+      return state;
     }
     outputs[0] = state.Y;
     return undefined;

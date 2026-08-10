@@ -13,8 +13,9 @@ interface LedState {
 const ioLed: PrimitiveDef<LedState, undefined> = {
   pins: () => [{ name: 'A', dir: 'in' }],
   init: () => ({ value: 'X' }),
-  evaluate(inputs) {
-    return { value: inputs[0]! };
+  evaluate(inputs, _outputs, state) {
+    state.value = inputs[0]!;
+    return undefined;
   },
 };
 
