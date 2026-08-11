@@ -30,6 +30,7 @@ import eaterFlagsRegister from './eater.flags_register.json';
 import eaterOutputDisplay from './eater.output_display.json';
 import eaterControlUnit from './eater.control_unit.json';
 import { generateMicrocodeHiHex, generateMicrocodeLoHex } from './eater.microcode';
+import ls374 from './ttl.74LS374.json';
 
 registerComposite('ttl.74LS00', ls00 as CircuitJSON);
 registerComposite('ttl.74LS02', ls02 as CircuitJSON);
@@ -46,6 +47,7 @@ registerComposite('ttl.74LS173', ls173 as CircuitJSON);
 registerComposite('ttl.74LS245', ls245 as CircuitJSON);
 registerComposite('ttl.74LS273', ls273 as CircuitJSON);
 registerComposite('ttl.74LS283', ls283 as CircuitJSON);
+registerComposite('ttl.74LS374', ls374 as CircuitJSON);
 
 registerComposite('eater.register_8bit', eaterRegister8bit as CircuitJSON);
 registerComposite('eater.alu_8bit', eaterAlu8bit as CircuitJSON);

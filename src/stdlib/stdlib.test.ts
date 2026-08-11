@@ -805,3 +805,107 @@ describe('ttl.74LS161 (4-bit synchronous counter)', () => {
     expect(s.readNet('rco')).toBe(0);
   });
 });
+
+describe('ttl.74LS374 (Octal D flip-flop, three-state)', () => {
+  const ports: Array<{ name: string; net: string }> = [];
+  for (let i = 1; i <= 8; i++) ports.push({ name: `${i}D`, net: `d${i}` });
+  ports.push({ name: 'CP', net: 'cp' });
+  ports.push({ name: '/OE', net: 'oe' });
+  for (let i = 1; i <= 8; i++) ports.push({ name: `${i}Q`, net: `q${i}` });
+
+  const fresh = (): Simulator => {
+    const s = new Simulator(loadCircuit(wrap('ttl.74LS374', ports)));
+    s.setInput('cp', 0);
+    s.setInput('oe', 0); // output-enable active (outputs present stored bits)
+    s.settle();
+    return s;
+  };
+
+  const tick = (s: Simulator): void => {
+    s.setInput('cp', 1); s.settle();
+    s.setInput('cp', 0); s.settle();
+  };
+
+  const setD = (s: Simulator, byte: number): void => {
+    for (let i = 0; i < 8; i++) s.setInput(`d${i + 1}`, ((byte >> i) & 1) as NetState);
+    s.settle();
+  };
+
+  const readQ = (s: Simulator): number => {
+    let v = 0;
+    for (let i = 0; i < 8; i++) {
+      const q = s.readNet(`q${i + 1}`);
+      if (q !== 0 && q !== 1) throw new Error(`q${i + 1}=${String(q)}`);
+      v |= q << i;
+    }
+    return v;
+  };
+
+  const readQStates = (s: Simulator): NetState[] => {
+    const out: NetState[] = [];
+    for (let i = 0; i < 8; i++) out.push(s.readNet(`q${i + 1}`));
+    return out;
+  };
+
+  it('loads two distinct bytes on rising CP', () => {
+    const s = fresh();
+    setD(s, 0xa5);
+    tick(s);
+    expect(readQ(s)).toBe(0xa5);
+    setD(s, 0x3c);
+    tick(s);
+    expect(readQ(s)).toBe(0x3c);
+  });
+
+  it('holds value when D changes without a clock edge', () => {
+    const s = fresh();
+    setD(s, 0xa5);
+    tick(s);
+    expect(readQ(s)).toBe(0xa5);
+    setD(s, 0x5a); // change D, no edge
+    expect(readQ(s)).toBe(0xa5);
+  });
+
+  it('outputs go Hi-Z on /OE=1 and the same value reappears on /OE=0', () => {
+    const s = fresh();
+    setD(s, 0x5a);
+    tick(s);
+    expect(readQ(s)).toBe(0x5a);
+    s.setInput('oe', 1); s.settle();
+    expect(readQStates(s)).toEqual(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']);
+    s.setInput('oe', 0); s.settle();
+    expect(readQ(s)).toBe(0x5a); // stored state untouched by disabling outputs
+  });
+
+  it('clocks in a new byte while outputs are disabled', () => {
+    const s = fresh();
+    setD(s, 0x5a);
+    tick(s);
+    expect(readQ(s)).toBe(0x5a);
+    s.setInput('oe', 1); s.settle(); // disable outputs
+    expect(readQStates(s)).toEqual(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']);
+    setD(s, 0x3c);
+    tick(s); // clock in new byte while disabled
+    expect(readQStates(s)).toEqual(['Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z']);
+    s.setInput('oe', 0); s.settle(); // enable outputs: NEW byte appears
+    expect(readQ(s)).toBe(0x3c);
+  });
+
+  it('/OE=X drives outputs to X, not Z', () => {
+    const s = fresh();
+    setD(s, 0x5a);
+    tick(s);
+    s.setInput('oe', 'X'); s.settle();
+    expect(readQStates(s)).toEqual(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']);
+  });
+
+  it('falling edge of CP does not latch', () => {
+    const s = fresh();
+    setD(s, 0xa5);
+    s.setInput('cp', 1); s.settle(); // rising edge latches 0xa5; CP now high
+    expect(readQ(s)).toBe(0xa5);
+    setD(s, 0x3c);                    // D changes while CP is high
+    s.setInput('cp', 0); s.settle(); // falling edge must NOT latch
+    expect(readQ(s)).toBe(0xa5);
+  });
+});
