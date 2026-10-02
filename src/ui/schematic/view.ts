@@ -434,10 +434,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       for (const id of sel) {
-        const inst = editor.state.circuit.components.find((c) => c.id === id);
-        if (!inst) continue;
-        const next = (rotationOf(inst) + 90) % 360;
-        void editor.updateComponent(id, { rotation: next });
+        void editor.rotateComponent(id);
       }
     }
   };
