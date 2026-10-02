@@ -7,8 +7,8 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('svg')).toBeVisible();
-  await expect(page.locator('#iso-status')).toHaveText(/crossOriginIsolated: true/);
+  await expect(page.locator('svg[data-role="canvas"]')).toBeVisible();
+  expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
 });
 
 test('schematic renders four components and three wires', async ({ page }) => {
