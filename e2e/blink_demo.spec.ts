@@ -71,3 +71,23 @@ test('Pause stops LED updates', async ({ page }) => {
   await page.waitForTimeout(1500);
   expect(await led.getAttribute('fill')).toBe(frozen);
 });
+
+test('tick-rate control reports achieved throughput and rejects an invalid rate', async ({ page }) => {
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const throughput = page.getByLabel('Simulation throughput');
+  await expect(throughput).toContainText('Paused');
+  const rate = page.getByRole('spinbutton', { name: 'Simulation ticks per second' });
+  await rate.fill('20000');
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await expect(throughput).toContainText('requested 20,000 ticks/s');
+  await expect.poll(async () => Number((await throughput.textContent())?.match(/measured ([\d,]+) ticks\/s/)?.[1]?.replaceAll(',', ''))).toBeGreaterThan(1000);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(throughput).toContainText('measured 0 ticks/s');
+  const ticks = async (): Promise<number> => Number((await throughput.textContent())?.match(/· ([\d,]+) ticks$/)?.[1]?.replaceAll(',', ''));
+  const before = await ticks();
+  await page.getByRole('button', { name: 'Step', exact: true }).click();
+  await expect.poll(ticks).toBe(before + 1);
+  await rate.fill('0'); await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await expect(page.locator('#controls [role="alert"]')).toContainText('integer from 1');
+  await expect(throughput).toContainText('Paused');
+});

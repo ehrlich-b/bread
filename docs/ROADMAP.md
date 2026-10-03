@@ -10,6 +10,12 @@ Milestones, each independently demonstrable. Ship in order.
 
 M7 in progress.
 
+The NAND-to-CPU ascent now has actual editor evidence through 14 reusable
+modules and an arithmetic/HALT CPU. [CPU_ASCENT.md](CPU_ASCENT.md) records the
+remaining manual load/store and branch checks, separate headless ISA tests,
+and current measured performance. Historical 88 kHz reference figures below
+are not measurements of this new CPU or the interactive UI.
+
 ## M0 — Engine kernel  ✅ done
 
 No UI. No worker. Plain Node module.
@@ -79,7 +85,7 @@ No UI. No worker. Plain Node module.
 
 ## M7 — Polish
 
-- Visual reusable chip authoring: select a fragment, name ports, place nested chips, edit/test/save definitions with the project. ✅ Implementation and automated regressions; manual ascent validation ongoing. See [CHIP_AUTHORING.md](CHIP_AUTHORING.md).
+- Visual reusable chip authoring: select a fragment, name ports, place nested chips, edit/test/save definitions with the project. ✅ Implementation, independent review, automated regressions, and manual gates-to-CPU arithmetic validation. Broader manual CPU validation remains open. See [CHIP_AUTHORING.md](CHIP_AUTHORING.md).
 
 - Bus-grouped wires (visual: multiple bits as one fat line).
 - Probes + waveform viewer (read `io.pin_output` history, render as VCD-style traces).

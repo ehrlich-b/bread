@@ -94,4 +94,19 @@ export interface EventNotif {
   step: number;
 }
 
-export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif;
+export const MAX_RATE_HZ = 1_000_000;
+export const validateRateHz = (rateHz: number): number => {
+  if (!Number.isInteger(rateHz) || rateHz < 1 || rateHz > MAX_RATE_HZ) throw new Error(`Simulation tick rate must be an integer from 1 to ${MAX_RATE_HZ.toLocaleString()}`);
+  return rateHz;
+};
+
+// Tick throughput is distinct from circuit clock edges and instructions.
+export interface MetricsNotif {
+  type: 'metrics';
+  running: boolean;
+  targetRateHz: number;
+  actualRateHz: number;
+  ticks: number;
+}
+
+export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif;

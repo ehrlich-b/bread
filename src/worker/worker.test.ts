@@ -44,3 +44,50 @@ it('invalidates a pending timer chain across pause and resume', async () => {
   const stale = timers.shift()!; stale(); expect(timers).toHaveLength(1);
   const current = timers.shift()!; current(); expect(timers).toHaveLength(1);
 });
+
+it('validates rates transactionally and reports measured ticks, including the 1 Hz boundary', async () => {
+  let receive!: (e: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (m: WorkerRes) => messages.push(m) });
+  const microtasks: Array<() => void> = [];
+  vi.stubGlobal('queueMicrotask', (fn: () => void) => microtasks.push(fn));
+  vi.stubGlobal('setTimeout', () => 1);
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  await import('./worker');
+  const circuit: CircuitJSON = { version: 1, kind: 'circuit', name: 'boundary', components: [], nets: [] };
+  receive({ data: { type: 'load', id: 1, circuit } });
+  for (const rateHz of [0, -1, NaN, Infinity, 1.5, 1_000_001]) {
+    receive({ data: { type: 'run', id: 2, rateHz } }); expect(messages.at(-1)).toMatchObject({ type: 'err', id: 2 });
+  }
+  expect(microtasks).toHaveLength(0);
+  receive({ data: { type: 'run', id: 3, rateHz: 1 } });
+  now = 1000; microtasks.shift()!();
+  expect(messages.filter((m) => m.type === 'metrics').at(-1)).toMatchObject({ running: true, targetRateHz: 1, actualRateHz: 1, ticks: 1 });
+  receive({ data: { type: 'load', id: 4, circuit, rateHz: 0 } });
+  expect(messages.at(-1)).toMatchObject({ type: 'err', id: 4 });
+  receive({ data: { type: 'pause', id: 5 } });
+  expect(messages.filter((m) => m.type === 'metrics').at(-1)).toMatchObject({ running: false, actualRateHz: 0, ticks: 1 });
+  receive({ data: { type: 'step', id: 6 } });
+  expect(messages.filter((m) => m.type === 'metrics').at(-1)).toMatchObject({ ticks: 2 });
+});
+
+it('yields an overloaded high-rate batch within its time budget and keeps pause responsive', async () => {
+  let receive!: (e: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (m: WorkerRes) => messages.push(m) });
+  const microtasks: Array<() => void> = []; const timers: Array<() => void> = [];
+  vi.stubGlobal('queueMicrotask', (fn: () => void) => microtasks.push(fn));
+  vi.stubGlobal('setTimeout', (fn: () => void) => { timers.push(fn); return timers.length; });
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  await import('./worker');
+  receive({ data: { type: 'load', id: 1, circuit: { version: 1, kind: 'circuit', name: 'large rate', components: [], nets: [] } } });
+  receive({ data: { type: 'run', id: 2, rateHz: 1_000_000 } });
+  now = 1000;
+  vi.spyOn(performance, 'now').mockImplementation(() => { const current = now; now += 10; return current; });
+  microtasks.shift()!();
+  const metrics = messages.filter((m) => m.type === 'metrics').at(-1);
+  expect(metrics).toMatchObject({ targetRateHz: 1_000_000, ticks: 32 });
+  receive({ data: { type: 'pause', id: 3 } });
+  expect(messages.at(-1)).toMatchObject({ type: 'ack', id: 3 });
+  timers.shift()!(); expect(timers).toHaveLength(0);
+});

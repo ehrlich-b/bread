@@ -139,3 +139,26 @@ test('visible JSON export contains the actual authored chip library and can reop
   await page.getByRole('button', { name: 'Open pasted JSON', exact: true }).click();
   await expect(page.locator('[data-comp-type="user.Not"]')).toHaveCount(1);
 });
+
+test('parameterized gates and storage expose their actual pins for wiring', async ({ page }) => {
+  await page.getByRole('button', { name: 'New circuit', exact: true }).click();
+  await place(page, 'prim.DFF', 200, 100);
+  await page.locator('[data-comp-id="dff1"]').click();
+  await page.locator('.inspector-form textarea[data-field="params"]').fill('{"clrActiveLow":true,"preActiveLow":true}');
+  await page.locator('.inspector-form button[data-action="apply"]').click();
+  await expect(page.locator('[data-pin="dff1./CLR"]')).toBeVisible();
+  await expect(page.locator('[data-pin="dff1./PRE"]')).toBeVisible();
+  await place(page, 'prim.NAND', 380, 100);
+  await page.locator('[data-comp-id="nand1"]').click();
+  await page.locator('.inspector-form textarea[data-field="params"]').fill('{"inputs":4}');
+  await page.locator('.inspector-form button[data-action="apply"]').click();
+  await expect(page.locator('[data-pin="nand1.C"]')).toBeVisible();
+  await expect(page.locator('[data-pin="nand1.D"]')).toBeVisible();
+  await place(page, 'prim.TRISTATE', 200, 300);
+  await page.locator('[data-comp-id="tristate1"]').click();
+  await page.locator('.inspector-form textarea[data-field="params"]').fill('{"oeActiveLow":true}');
+  await page.locator('.inspector-form button[data-action="apply"]').click();
+  await expect(page.locator('[data-pin="tristate1./OE"]')).toBeVisible();
+  await expect(page.locator('[data-pin="tristate1.OE"]')).toHaveCount(0);
+  await wire(page, 'nand1.Y', 'dff1./CLR');
+});
