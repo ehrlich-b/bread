@@ -339,3 +339,7 @@ aside { max-height: calc(100vh - 100px); overflow: auto; }
 .label { pointer-events: none; }
 
 aside > * { flex-shrink: 0; }
+
+.json-dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 8px; width: min(760px, 85vw); }
+.json-dialog::backdrop { background: #0009; }
+.json-dialog textarea { box-sizing: border-box; width: 100%; height: 60vh; background: var(--bg); color: var(--fg); font: 12px ui-monospace, monospace; border: 1px solid #8888; resize: vertical; }

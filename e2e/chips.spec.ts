@@ -122,3 +122,20 @@ test('an internal chip edit propagates to every wired instance', async ({ page }
   await page.locator('[data-comp-id="switch1"] [data-role="switch-handle"]').click();
   for (const id of ['led1', 'led2']) await expect(page.locator(`[data-comp-id="${id}"] .led`)).toHaveAttribute('fill', 'var(--led-x)');
 });
+
+test('visible JSON export contains the actual authored chip library and can reopen', async ({ page }) => {
+  await createNot(page);
+  await page.getByRole('button', { name: 'Circuit JSON', exact: true }).click();
+  const text = page.getByRole('textbox', { name: 'Circuit JSON', exact: true });
+  await expect(text).toHaveAttribute('readonly', '');
+  const contents = await text.inputValue();
+  const parsed = JSON.parse(contents) as { definitions: Array<{ name: string }>; components: Array<{ type: string }> };
+  expect(parsed.definitions[0]!.name).toBe('user.Not');
+  expect(parsed.components[0]!.type).toBe('user.Not');
+  await page.getByRole('button', { name: 'Close JSON', exact: true }).click();
+  await page.reload(); await expect(canvas(page)).toBeVisible();
+  await page.getByRole('button', { name: 'Paste JSON', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Paste circuit JSON', exact: true }).fill(contents);
+  await page.getByRole('button', { name: 'Open pasted JSON', exact: true }).click();
+  await expect(page.locator('[data-comp-type="user.Not"]')).toHaveCount(1);
+});
