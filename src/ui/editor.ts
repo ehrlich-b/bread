@@ -13,6 +13,7 @@
 import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON } from '../engine/ir';
 import type { LoadSnapshot, WorkerBus } from './bus';
 import { chipBody, createChip } from './chips/model';
+import { busPairs, connectSignals } from './signals';
 
 export interface Placement {
   type: string;
@@ -26,6 +27,7 @@ export interface EditorState {
   placement: Placement | null;
   editingChip: string | null;
   error: string | null;
+  busWiring: boolean;
 }
 
 interface EditorDocument {
@@ -42,9 +44,12 @@ export class EditorModel {
   private portInputs = new Map<string, NetState>();
   private get circuit(): CircuitJSON { return this.document.draft ?? this.document.project; }
   get project(): CircuitJSON { return this.document.project; }
+  // Export after all edits already requested by the user have committed.
+  whenIdle(): Promise<void> { return this.inflight; }
   private snapshot: LoadSnapshot;
   private selection: Set<string> = new Set();
   private placement: Placement | null = null;
+  private busWiring = false;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
   private pendingComponentIds: Set<string> = new Set();
@@ -71,6 +76,7 @@ export class EditorModel {
       placement: this.placement,
       editingChip: this.document.editing,
       error: this.error,
+      busWiring: this.busWiring,
     };
   }
 
@@ -97,32 +103,21 @@ export class EditorModel {
   //   - pins on different nets: merge the second into the first
   //   - same net or same pin: no-op
   connect(fromEp: string, toEp: string): Promise<void> {
-    return this.applyMutate((circuit) => {
-      if (fromEp === toEp) return null;
-      const fromNet = circuit.nets.find((n) => n.endpoints.includes(fromEp));
-      const toNet = circuit.nets.find((n) => n.endpoints.includes(toEp));
-      if (fromNet && toNet && fromNet.id === toNet.id) return null;
+    return this.applyMutate((circuit) => connectSignals(circuit, fromEp, toEp));
+  }
 
-      let nets = circuit.nets;
-      if (!fromNet && !toNet) {
-        const id = this.generateNetId();
-        nets = [...nets, { id, endpoints: [fromEp, toEp] }];
-      } else if (fromNet && !toNet) {
-        nets = nets.map((n) =>
-          n.id === fromNet.id ? { ...n, endpoints: [...n.endpoints, toEp] } : n,
-        );
-      } else if (!fromNet && toNet) {
-        nets = nets.map((n) =>
-          n.id === toNet.id ? { ...n, endpoints: [...n.endpoints, fromEp] } : n,
-        );
-      } else if (fromNet && toNet) {
-        const merged = [...fromNet.endpoints, ...toNet.endpoints];
-        nets = nets
-          .filter((n) => n.id !== toNet.id)
-          .map((n) => (n.id === fromNet.id ? { ...n, endpoints: merged } : n));
-      }
-      return { ...circuit, nets, ...(circuit.ports ? { ports: circuit.ports.map((p) => fromNet && toNet && p.internalNet === toNet.id ? { ...p, internalNet: fromNet!.id } : p) } : {}) };
+  connectBus(from: string, to: string, width: number): Promise<void> {
+    return this.applyMutate((circuit) => {
+      let next = circuit;
+      for (const [source, target] of busPairs(circuit, from, to, width)) next = connectSignals(next, source, target) ?? next;
+      return next === circuit ? null : next;
     });
+  }
+
+  setBusWiring(enabled: boolean): void {
+    this.busWiring = enabled;
+    if (enabled) this.placement = null;
+    this.notify();
   }
 
   // ---- Placement ---------------------------------------------------------

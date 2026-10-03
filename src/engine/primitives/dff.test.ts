@@ -7,7 +7,7 @@ interface DffState {
   prevClk: NetState;
 }
 
-const dff = (params: { clrActiveLow?: boolean; preActiveLow?: boolean } = {}) => {
+const dff = (params: { clrActiveLow?: boolean; preActiveLow?: boolean; initialQ?: 0 | 1 } = {}) => {
   const prim = getPrimitive('prim.DFF')!;
   let state = prim.init!(params) as DffState;
   return {
@@ -49,6 +49,26 @@ describe('prim.DFF (basic)', () => {
     const f = dff();
     const out = f.tick([1, 0]);
     expect(out).toEqual(['X', 'X']);
+  });
+});
+
+describe('prim.DFF (explicit power-on state)', () => {
+  it('preserves unknown startup unless a known value is requested', () => {
+    const unknown = dff();
+    expect(unknown.tick([1, 1])).toEqual(['X', 'X']);
+    expect(dff({ initialQ: 0 }).tick([1, 0])).toEqual([0, 1]);
+    expect(dff({ initialQ: 1 }).tick([0, 0])).toEqual([1, 0]);
+  });
+  it('starts the previous clock LOW for an initialized source-simulator DFF', () => {
+    const f = dff({ initialQ: 0 });
+    expect(f.tick([1, 1])).toEqual([1, 0]);
+    expect(f.tick([0, 1])).toEqual([1, 0]);
+    f.tick([0, 0]);
+    expect(f.tick([0, 1])).toEqual([0, 1]);
+  });
+  it('rejects invalid initialization without changing the existing pin layout', () => {
+    expect(() => dff({ initialQ: 'X' } as never)).toThrow(/initialQ/);
+    expect(dff({ initialQ: 0 }).pins.map((p) => p.name)).toEqual(['D', 'CLK', 'Q', 'Qn']);
   });
 });
 

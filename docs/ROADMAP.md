@@ -88,6 +88,9 @@ No UI. No worker. Plain Node module.
 - Visual reusable chip authoring: select a fragment, name ports, place nested chips, edit/test/save definitions with the project. ✅ Implementation, independent review, automated regressions, and manual gates-to-CPU arithmetic validation. Broader manual CPU validation remains open. See [CHIP_AUTHORING.md](CHIP_AUTHORING.md).
 
 - Bus-grouped wires (visual: multiple bits as one fat line).
+- Atomic bus wiring with an explicit scalar-bit mapping preview is available;
+  wires remain separate electrical signals. Configurable word ROMs and live
+  binary/hex inspector readouts support the [original Digital CPU port](ORIGINAL_CPU_PORT.md).
 - Probes + waveform viewer (read `io.pin_output` history, render as VCD-style traces).
 - Testbench format (`*.test.json`): drive inputs, assert outputs over time, run headless via `npm test`.
 - Verilog export, best-effort: primitives + composites only; behavioral chips emit `/* not synthesizable */` stubs.

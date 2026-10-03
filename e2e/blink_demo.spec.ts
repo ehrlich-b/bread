@@ -37,6 +37,28 @@ test('switch click toggles label and handle color', async ({ page }) => {
   await expect(handle).toHaveAttribute('fill', /led-off/);
 });
 
+test('a manual switch keeps its drive across selection and bus modes, then resets on structural edits', async ({ page }) => {
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const sw = page.locator('[data-comp-id="sw"]');
+  const label = sw.locator('[data-role="switch-label"]');
+  const output = page.locator('[data-net-id="sw_out"]');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-1');
+  await page.getByRole('button', { name: 'Connect bus', exact: true }).click();
+  await expect(label).toHaveText('1');
+  await page.getByRole('button', { name: 'Connect bus', exact: true }).click();
+  await sw.click({ modifiers: ['Shift'] });
+  await expect(label).toHaveText('1');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-0');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-1');
+  await page.locator('[data-comp-id="and"] .gate-body').click();
+  await page.keyboard.press('r');
+  await expect(output).toHaveClass('wire wire-0');
+  await expect(label).toHaveText('0');
+});
+
 test('LED stays off while switch=0 and blinks when switch=1', async ({ page }) => {
   const sw = page.locator('[data-comp-id="sw"]');
   const led = page.locator('[data-comp-id="led"] [data-role="led"]');

@@ -39,6 +39,29 @@ const setup = (): { editor: EditorModel; mutate: WorkerBus['mutate'] & ReturnTyp
 };
 
 describe('editor actions waiting for the worker', () => {
+  it('waits for committed export data and releases the export barrier after a rejected edit', async () => {
+    const { editor, mutate } = setup();
+    let finish!: () => void;
+    mutate.mockImplementationOnce((next) => new Promise<LoadSnapshot>((resolve) => {
+      finish = () => resolve(snapshotFor(next));
+    }));
+    const pending = editor.updateComponent('a', { label: 'ready to save' });
+    let exported = false;
+    const idle = editor.whenIdle().then(() => { exported = true; });
+    await Promise.resolve();
+    expect(exported).toBe(false);
+    expect(editor.project.components[0]!.label).toBeUndefined();
+    finish();
+    await Promise.all([pending, idle]);
+    expect(editor.project.components[0]!.label).toBe('ready to save');
+
+    mutate.mockRejectedValueOnce(new Error('worker rejected edit'));
+    const rejected = editor.updateComponent('a', { label: 'invalid' });
+    await expect(rejected).rejects.toThrow('worker rejected edit');
+    await editor.whenIdle();
+    expect(editor.project.components[0]!.label).toBe('ready to save');
+  });
+
   it('keeps both placements when the second arrives before the first commits', async () => {
     const { editor } = setup();
     await Promise.all([

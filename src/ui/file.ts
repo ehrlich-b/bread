@@ -97,7 +97,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   });
 
   saveBtn.addEventListener('click', () => {
-    void saveCircuit(editor.project).catch((err: unknown) => {
+    void saveCircuit(editor).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       editor.reportError(msg);
     });
@@ -135,13 +135,17 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   pasteBtn.addEventListener('click', () => { pasteText.value = ''; pasteError.textContent = ''; pasteDialog.showModal(); pasteText.focus(); });
 
   showBtn.addEventListener('click', () => {
-    jsonHint.textContent = `Copy this circuit and its chip library into ${editor.project.name || 'circuit'}.json. This is the same content as Download JSON.`;
-    jsonText.value = JSON.stringify(editor.project, null, 2);
-    jsonDialog.showModal();
-    jsonText.focus(); jsonText.select();
+    void editor.whenIdle().then(() => {
+      jsonHint.textContent = `Copy this circuit and its chip library into ${editor.project.name || 'circuit'}.json. This is the same content as Download JSON.`;
+      jsonText.value = JSON.stringify(editor.project, null, 2);
+      if (!jsonDialog.open) jsonDialog.showModal();
+      jsonText.focus(); jsonText.select();
+    });
   });
 
-  downloadBtn.addEventListener('click', () => downloadCircuit(editor.project));
+  downloadBtn.addEventListener('click', () => {
+    void editor.whenIdle().then(() => downloadCircuit(editor.project));
+  });
   uploadBtn.addEventListener('click', () => fileInput.click());
   newBtn.addEventListener('click', () => { void editor.newCircuit().catch(() => {}); });
 
@@ -200,20 +204,22 @@ const button = (label: string, action: string): HTMLButtonElement => {
   return b;
 };
 
-const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
-  const data = JSON.stringify(circuit, null, 2);
-  const filename = `${circuit.name || 'circuit'}.json`;
+const saveCircuit = async (editor: EditorModel): Promise<void> => {
+  const filename = `${editor.project.name || 'circuit'}.json`;
   const sfp = getSaveFilePicker();
   if (sfp) {
     try {
+      // Open the picker during the user gesture. Waiting first could lose
+      // transient activation; capture the committed document after it opens.
       const handle = await sfp({
         suggestedName: filename,
         types: [
           { description: 'Bread circuit', accept: { 'application/json': ['.json'] } },
         ],
       });
+      await editor.whenIdle();
       const writable = await handle.createWritable();
-      await writable.write(data);
+      await writable.write(JSON.stringify(editor.project, null, 2));
       await writable.close();
       return;
     } catch (err) {
@@ -221,7 +227,8 @@ const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
       // Fall through to download.
     }
   }
-  downloadCircuit(circuit);
+  await editor.whenIdle();
+  downloadCircuit(editor.project);
 };
 
 const downloadCircuit = (circuit: CircuitJSON): void => {

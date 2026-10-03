@@ -345,6 +345,14 @@ aside { max-height: calc(100vh - 100px); overflow: auto; }
 
 aside > * { flex-shrink: 0; }
 
+.bus-hint { font-size: .8rem; flex-basis: 100%; }
+.signal-readout { grid-column: 1 / -1; padding: .4rem; border: 1px solid #8885; }
+.signal-readout > div { display: grid; grid-template-columns: 1fr 1.4fr; gap: .3rem; margin-top: .3rem; }
+.signal-readout output { white-space: pre-wrap; overflow-wrap: anywhere; font: .8rem ui-monospace, monospace; }
+.inspector-form fieldset { min-width: 0; grid-column: 1 / -1; margin: .3rem 0; }
+.inspector-form fieldset p { font-size: .8rem; line-height: 1.4; }
+.inspector-form fieldset label { display: block; margin: .4rem 0; }
+
 .json-dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 8px; width: min(760px, 85vw); }
 .json-dialog::backdrop { background: #0009; }
 .json-dialog textarea { box-sizing: border-box; width: 100%; height: 60vh; background: var(--bg); color: var(--fg); font: 12px ui-monospace, monospace; border: 1px solid #8888; resize: vertical; }
