@@ -135,7 +135,7 @@ const rotatePin = (p: PinOffset, sz: { w: number; h: number }, deg: number): Pin
 const buildPinLookup = (circuit: CircuitJSON): Map<string, PinLookup> => {
   const out = new Map<string, PinLookup>();
   for (const inst of circuit.components) {
-    const renderer = resolveRenderer(inst.type, inst.params);
+    const renderer = resolveRenderer(inst.type, inst.params, circuit.definitions);
     if (!renderer) continue;
     const [px, py] = positionOf(inst);
     const rot = rotationOf(inst);
@@ -283,7 +283,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
         e.stopPropagation();
         const local = clientToLocal(svg, e.clientX, e.clientY);
         if (!local) return;
-        const renderer = resolveRenderer(p.type, p.params);
+        const renderer = resolveRenderer(p.type, p.params, circuit.definitions);
         const sz = renderer?.size ?? { w: 60, h: 40 };
         const id = editor.generateId(p.type);
         const x = Math.round((local.x - sz.w / 2) / GRID) * GRID;
@@ -442,7 +442,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   // ---- Components -----------------------------------------------------
   for (const inst of circuit.components) {
-    const renderer = resolveRenderer(inst.type, inst.params);
+    const renderer = resolveRenderer(inst.type, inst.params, circuit.definitions);
     const g = document.createElementNS(SVG_NS, 'g');
     g.dataset.compId = inst.id;
     g.dataset.compType = inst.type;

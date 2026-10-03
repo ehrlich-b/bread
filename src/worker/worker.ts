@@ -26,6 +26,7 @@ let netsView: Uint8Array | null = null;
 let eventsCursor = 0;
 
 let running = false;
+let loopGeneration = 0;
 let targetRateHz = 1000;
 let stepBudget = 0;
 let lastLoopTimeMs = 0;
@@ -59,12 +60,15 @@ const drainEvents = (): void => {
 };
 
 const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
-  graph = loadCircuit(req.circuit);
-  sim = new Simulator(graph, { rateHz: req.rateHz ?? targetRateHz });
+  // Prepare the whole candidate before changing the live simulator.
+  const nextGraph = loadCircuit(req.circuit);
+  const nextSim = new Simulator(nextGraph, { rateHz: req.rateHz ?? targetRateHz });
+  nextSim.settle();
+  const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
+  graph = nextGraph;
+  sim = nextSim;
+  netsBuffer = nextBuffer;
   // Initial settle so the first frame doesn't show all-X.
-  sim.settle();
-
-  netsBuffer = new SharedArrayBuffer(graph.nets.length);
   netsView = new Uint8Array(netsBuffer);
   writeNets();
   eventsCursor = 0;
@@ -87,13 +91,15 @@ const handleRun = (req: Extract<WorkerReq, { type: 'run' }>): void => {
     running = true;
     stepBudget = 0;
     lastLoopTimeMs = performance.now();
-    queueMicrotask(loop);
+    const generation = ++loopGeneration;
+    queueMicrotask(() => loop(generation));
   }
   post({ type: 'ack', id: req.id });
 };
 
 const handlePause = (req: Extract<WorkerReq, { type: 'pause' }>): void => {
   running = false;
+  loopGeneration++;
   post({ type: 'ack', id: req.id });
 };
 
@@ -116,35 +122,36 @@ const handleSetInput = (req: Extract<WorkerReq, { type: 'set_input' }>): void =>
 };
 
 const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
-  const wasRunning = running;
-  running = false;
-  graph = loadCircuit(req.circuit);
-  sim = new Simulator(graph, { rateHz: targetRateHz });
-  sim.settle();
-  // The previous SAB is now stale: the new graph might have a different number
-  // of nets, and existing references in the UI need to be reissued anyway.
-  netsBuffer = new SharedArrayBuffer(graph.nets.length);
-  netsView = new Uint8Array(netsBuffer);
+  // A rejected candidate leaves both the old graph and its run loop intact.
+  const nextGraph = loadCircuit(req.circuit);
+  const nextSim = new Simulator(nextGraph, { rateHz: targetRateHz });
+  nextSim.settle();
+  const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
+  graph = nextGraph;
+  sim = nextSim;
+  netsBuffer = nextBuffer;
+  netsView = new Uint8Array(nextBuffer);
+  stepBudget = 0;
+  lastLoopTimeMs = performance.now();
   writeNets();
   eventsCursor = 0;
   drainEvents();
-  post({
-    type: 'load_res',
-    id: req.id,
-    netIds: graph.nets.map((n) => n.id),
-    componentIds: graph.components.map((c) => c.id),
-    netsBuffer,
-  });
-  if (wasRunning) {
-    running = true;
-    stepBudget = 0;
-    lastLoopTimeMs = performance.now();
-    queueMicrotask(loop);
-  }
+  post({ type: 'load_res', id: req.id, netIds: graph.nets.map((n) => n.id), componentIds: graph.components.map((c) => c.id), netsBuffer });
+  // A running worker already has a scheduled loop. Scheduling another here
+  // creates an additional timer chain after every edit.
 };
 
-const loop = (): void => {
-  if (!running || !sim) return;
+const handleSetNetInput = (req: Extract<WorkerReq, { type: 'set_net_input' }>): void => {
+  if (!sim) throw new Error('set_net_input before load');
+  sim.setInput(req.net, req.value);
+  sim.settle();
+  writeNets();
+  drainEvents();
+  post({ type: 'ack', id: req.id });
+};
+
+const loop = (generation: number): void => {
+  if (!running || !sim || generation !== loopGeneration) return;
   const now = performance.now();
   const dt = Math.max(0, (now - lastLoopTimeMs) / 1000);
   lastLoopTimeMs = now;
@@ -157,7 +164,7 @@ const loop = (): void => {
   drainEvents();
   // setTimeout(0) yields ~4ms in browsers, which gives plenty of room for
   // even 1 kHz tick rates and keeps message handling responsive.
-  setTimeout(loop, 0);
+  setTimeout(() => loop(generation), 0);
 };
 
 const onMessage = (req: WorkerReq): void => {
@@ -168,6 +175,7 @@ const onMessage = (req: WorkerReq): void => {
       case 'pause': handlePause(req); break;
       case 'step': handleStep(req); break;
       case 'set_input': handleSetInput(req); break;
+      case 'set_net_input': handleSetNetInput(req); break;
       case 'mutate': handleMutate(req); break;
       default: {
         const x: never = req;

@@ -106,7 +106,34 @@ export const mountPalette = (host: HTMLElement, editor: EditorModel): (() => voi
     }
   }
 
+  const libraryHost = document.createElement('div');
+  host.append(libraryHost);
+  let library = editor.state.circuit.definitions;
+  let editing = editor.state.editingChip;
+  const renderLibrary = (): void => {
+    libraryHost.innerHTML = '';
+    if (!library?.length) return;
+    const heading = document.createElement('div'); heading.className = 'palette-group'; heading.textContent = 'My chips';
+    libraryHost.append(heading);
+    for (const def of library) {
+      const row = document.createElement('div'); row.className = 'palette-chip';
+      const place = document.createElement('button'); place.className = 'palette-entry'; place.dataset.paletteType = def.name;
+      place.textContent = def.name.slice(5); place.type = 'button'; place.disabled = editing === def.name;
+      place.addEventListener('click', () => editor.state.placement?.type === def.name ? editor.clearPlacement() : editor.setPlacement(def.name));
+      const edit = document.createElement('button'); edit.type = 'button'; edit.textContent = 'Edit'; edit.setAttribute('aria-label', `Edit ${def.name.slice(5)}`);
+      edit.disabled = editing !== null;
+      edit.addEventListener('click', () => { void editor.editChip(def.name).catch(() => {}); });
+      row.append(place, edit); libraryHost.append(row);
+    }
+  };
+  renderLibrary();
   const refresh = (): void => {
+    if (library !== editor.state.circuit.definitions || editing !== editor.state.editingChip) {
+      library = editor.state.circuit.definitions; editing = editor.state.editingChip; renderLibrary();
+    }
+    for (const b of libraryHost.querySelectorAll<HTMLButtonElement>('[data-palette-type]')) {
+      b.setAttribute('aria-pressed', String(editor.state.placement?.type === b.dataset.paletteType));
+    }
     const placement = editor.state.placement;
     for (const { btn, type } of buttons) {
       btn.setAttribute('aria-pressed', placement?.type === type ? 'true' : 'false');

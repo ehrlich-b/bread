@@ -5,6 +5,7 @@
 
 import blinkDemo from '../../examples/blink_demo.json';
 import type { CircuitJSON } from '../engine/ir';
+import { mountChips } from '../ui/chips';
 import { createWorkerBus } from '../ui/bus';
 import { mountControls } from '../ui/controls';
 import { EditorModel } from '../ui/editor';
@@ -39,6 +40,7 @@ const main = async (): Promise<void> => {
   mountSchematic(document.getElementById('schematic')!, editor);
   mountControls(document.getElementById('controls')!, editor);
   mountFileControls(document.getElementById('file')!, editor);
+  mountChips(document.getElementById('chips')!, editor);
   mountInspector(document.getElementById('inspector')!, editor);
 
   // Default to running so the LED actually blinks on first load.

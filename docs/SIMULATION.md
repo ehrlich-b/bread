@@ -121,7 +121,7 @@ The 74LS189 RAM has open-collector inverted outputs — both behaviors are part 
 
 ## Initial state
 
-On circuit load, all nets are `X` and every component is dirty. `settle` runs once. A circuit with sane initial conditions (pull-ups/downs, async clears tied to a power-on-reset signal) settles into a defined state. Circuits that fail to settle from `X` are bugs in the user's circuit, not the simulator.
+On circuit load, all nets are `X` and every component is dirty. `settle` runs once. Its first commit resolves every net, including undriven nets and drivers which remain at their initial `Z`; these nets become `Z`. Pure logic inputs still read `Z` as `X`. A circuit with sane initial conditions (pull-ups/downs, async clears tied to a power-on-reset signal) settles into a defined state. Circuits that fail to settle from `X` are bugs in the user's circuit, not the simulator.
 
 Behavioral components define their own `init(params): state`. Memory inits to all zeros unless contents are loaded; flip-flops init to `Q=X, Q'=X` until clocked or cleared.
 

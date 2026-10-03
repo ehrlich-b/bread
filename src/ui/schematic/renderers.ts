@@ -1,3 +1,4 @@
+import type { CircuitJSON } from "../../engine/ir";
 // Per-component-type SVG renderer presets. Each entry knows how to draw the
 // component's body inside a translated <g> and where its pins live (so the
 // wire layer can route to absolute coordinates).
@@ -387,8 +388,9 @@ import { buildGenericRenderer } from './generic_renderer';
 export const resolveRenderer = (
   typeId: string,
   params?: Record<string, unknown>,
+  definitions?: readonly CircuitJSON[],
 ): Renderer | null => {
   const r = renderers[typeId];
   if (r) return r;
-  return buildGenericRenderer(typeId, params);
+  return buildGenericRenderer(typeId, params, definitions);
 };

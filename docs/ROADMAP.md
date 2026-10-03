@@ -79,6 +79,8 @@ No UI. No worker. Plain Node module.
 
 ## M7 — Polish
 
+- Visual reusable chip authoring: select a fragment, name ports, place nested chips, edit/test/save definitions with the project. ✅ Implementation and automated regressions; manual ascent validation ongoing. See [CHIP_AUTHORING.md](CHIP_AUTHORING.md).
+
 - Bus-grouped wires (visual: multiple bits as one fat line).
 - Probes + waveform viewer (read `io.pin_output` history, render as VCD-style traces).
 - Testbench format (`*.test.json`): drive inputs, assert outputs over time, run headless via `npm test`.

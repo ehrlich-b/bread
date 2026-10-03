@@ -84,7 +84,7 @@ describe('Simulator: NAND latch', () => {
       ['n_S', 'n_R', 'n_Q', 'n_Qn'],
     );
     expect(trace).toEqual([
-      'n_S=X n_R=X n_Q=X n_Qn=X',
+      'n_S=Z n_R=Z n_Q=X n_Qn=X',
       'n_S=1 n_R=1 n_Q=X n_Qn=X',
       'n_S=0 n_R=1 n_Q=1 n_Qn=0',
       'n_S=1 n_R=1 n_Q=1 n_Qn=0',
