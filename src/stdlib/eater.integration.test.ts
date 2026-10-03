@@ -35,7 +35,7 @@ const decodeDigit = (state: { a: NetState; b: NetState; c: NetState; d: NetState
 };
 
 describe('ben_eater_8bit (integration)', () => {
-  it('runs the fibonacci program and shows 1, 2, 3, 5, ..., 233 on the display', () => {
+  it('runs three ordered Fibonacci cycles, including the repeated initial 1', () => {
     const sim = new Simulator(loadCircuit(circuit));
     // Initial settle with reset asserted (sw_reset defaults to 0).
     sim.settle();
@@ -54,25 +54,25 @@ describe('ben_eater_8bit (integration)', () => {
       return `${decodeDigit(hi)}${decodeDigit(lo)}`;
     };
 
-    // Run the simulator. With gen.clock at 2 Hz and the simulator's default
-    // rateHz=1, the clock toggles on every tick (halfPeriod = 1 step). 2 ticks
-    // = one rising edge = one T-state advance. Five T-states per instruction.
-    // Each fibonacci value takes ~9 instructions of the loop.
-    const observed = new Set<string>();
-    for (let i = 0; i < 5000; i++) {
+    const expected = ['01', '01', '02', '03', '05', '08', '0d', '15', '22', '37', '59', '90', 'E9'];
+    // Sample at OUT-register load edges, preserving order and duplicate values.
+    // A set of display values could pass even if instructions ran out of order.
+    const observed: string[] = [];
+    let previousClock = sim.readNet('gated_clk');
+    for (let i = 0; i < 10000 && observed.length < expected.length * 3; i++) {
+      const outputEnabled = sim.readNet('ctl_oi') === 0;
       sim.tick();
-      sim.tick();
-      const d = readDisplay();
-      if (/^[0-9A-Fbd][0-9A-Fbd]$/.test(d)) observed.add(d);
+      const clock = sim.readNet('gated_clk');
+      if (previousClock === 0 && clock === 1 && outputEnabled) observed.push(readDisplay());
+      previousClock = clock;
     }
 
-    // Sequence the program produces: 01, 02, 03, 05, 08, 0D, 15, 22, 37, 59,
+    // Sequence the program produces: 01, 01, 02, 03, 05, 08, 0D, 15, 22, 37, 59,
     // 90, E9. After E9 the next ADD overflows and JC restarts at 0, so the
     // display cycles back to 01 etc.
     // Note: the 7-seg ROM encodes 'd' (lowercase) and 'b' (lowercase) since
     // those digits use a different segment pattern from a 'D'/'B' that would
     // overlap with '0' and '8' respectively.
-    const expected = ['01', '02', '03', '05', '08', '0d', '15', '22', '37', '59', '90', 'E9'];
-    for (const v of expected) expect(observed.has(v), `expected display to show ${v} at some point`).toBe(true);
+    expect(observed).toEqual([...expected, ...expected, ...expected]);
   });
 });

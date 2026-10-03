@@ -66,7 +66,7 @@ No UI. No worker. Plain Node module.
 - `ttl.74LS107`, `74LS138`, `74LS139`, `74LS157`, `74LS161`, `74LS245`, `74LS273` composites. ✅
 - Eight `eater.*` SAP-1 composites — `register_8bit`, `alu_8bit`, `ram_module`, `program_counter`, `instruction_register`, `flags_register`, `output_display`, `control_unit`. The control unit's microcode is authored in `src/stdlib/eater.microcode.ts` and stamped into the two onboard 28C16s at registration time. ✅
 - Pre-built `examples/ben_eater_8bit.json` reference circuit, registered in the Examples dropdown. ✅
-- **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
+- **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
 
 ## M6 — Performance  (partial — paused at 88 kHz)
 
