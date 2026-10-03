@@ -68,6 +68,8 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   const saveBtn = button('Save', 'save');
   const downloadBtn = button('Download JSON', 'download');
   const uploadBtn = button('Open JSON', 'upload');
+  const showBtn = button('Circuit JSON', 'show-json');
+  const pasteBtn = button('Paste JSON', 'paste-json');
   const newBtn = button('New circuit', 'new');
   const loadBtn = button('Load', 'load');
   const fileInput = document.createElement('input');
@@ -99,6 +101,44 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
       const msg = err instanceof Error ? err.message : String(err);
       editor.reportError(msg);
     });
+  });
+
+  const jsonDialog = document.createElement('dialog');
+  jsonDialog.className = 'json-dialog';
+  jsonDialog.setAttribute('aria-label', 'Circuit JSON export');
+  const jsonHint = document.createElement('p');
+  const jsonText = document.createElement('textarea');
+  jsonText.readOnly = true;
+  jsonText.setAttribute('aria-label', 'Circuit JSON');
+  jsonText.spellcheck = false;
+  const closeJson = button('Close JSON', 'close-json');
+  closeJson.addEventListener('click', () => jsonDialog.close());
+  jsonDialog.append(jsonHint, jsonText, closeJson);
+  document.body.append(jsonDialog);
+  const pasteDialog = document.createElement('dialog');
+  pasteDialog.className = 'json-dialog';
+  pasteDialog.setAttribute('aria-label', 'Open circuit JSON');
+  const pasteText = document.createElement('textarea');
+  pasteText.setAttribute('aria-label', 'Paste circuit JSON');
+  pasteText.spellcheck = false;
+  const pasteHint = document.createElement('p'); pasteHint.textContent = 'Paste a saved circuit JSON file, including its chip library.';
+  const pasteError = document.createElement('p'); pasteError.setAttribute('role', 'alert');
+  const openPaste = button('Open pasted JSON', 'open-pasted-json');
+  openPaste.addEventListener('click', () => {
+    openPaste.disabled = true;
+    void Promise.resolve().then(() => editor.replaceCircuit(JSON.parse(pasteText.value) as CircuitJSON)).then(() => pasteDialog.close()).catch((error: unknown) => {
+      pasteError.textContent = error instanceof Error ? error.message : String(error);
+    }).finally(() => { openPaste.disabled = false; });
+  });
+  const cancelPaste = button('Cancel paste', 'cancel-paste'); cancelPaste.addEventListener('click', () => pasteDialog.close());
+  pasteDialog.append(pasteHint, pasteText, pasteError, openPaste, cancelPaste); document.body.append(pasteDialog);
+  pasteBtn.addEventListener('click', () => { pasteText.value = ''; pasteError.textContent = ''; pasteDialog.showModal(); pasteText.focus(); });
+
+  showBtn.addEventListener('click', () => {
+    jsonHint.textContent = `Copy this circuit and its chip library into ${editor.project.name || 'circuit'}.json. This is the same content as Download JSON.`;
+    jsonText.value = JSON.stringify(editor.project, null, 2);
+    jsonDialog.showModal();
+    jsonText.focus(); jsonText.select();
   });
 
   downloadBtn.addEventListener('click', () => downloadCircuit(editor.project));
@@ -138,14 +178,16 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     });
   });
 
-  host.append(newBtn, saveBtn, downloadBtn, loadBtn, uploadBtn, examplesSelect, fileInput);
+  host.append(newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
   const refresh = (): void => {
-    for (const control of [newBtn, saveBtn, downloadBtn, loadBtn, uploadBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
+    for (const control of [newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
   };
   const unsub = editor.subscribe(refresh); refresh();
 
   return () => {
     unsub();
+    jsonDialog.remove();
+    pasteDialog.remove();
     host.innerHTML = '';
   };
 };
