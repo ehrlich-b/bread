@@ -121,6 +121,11 @@ aside {
   gap: 0.4rem;
 }
 
+#controls label { font-size: .85rem; }
+#controls input { width: 7rem; background: var(--bg); color: var(--fg); border: 1px solid #8888; border-radius: 3px; padding: .25rem; }
+#controls output { width: 100%; font-size: .75rem; line-height: 1.5; }
+#controls [role="alert"] { color: var(--led-on); font-size: .8rem; }
+
 #file {
   display: flex;
   flex-wrap: wrap;

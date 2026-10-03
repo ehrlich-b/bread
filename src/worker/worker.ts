@@ -14,6 +14,7 @@ import { Simulator } from '../engine/sim';
 import '../stdlib/index';
 import {
   NET_STATE_BYTE,
+  validateRateHz,
   type EventNotif,
   type WorkerReq,
   type WorkerRes,
@@ -31,11 +32,25 @@ let targetRateHz = 1000;
 let stepBudget = 0;
 let lastLoopTimeMs = 0;
 const MAX_BATCH = 5000;
+const BATCH_BUDGET_MS = 8;
+let ticksTotal = 0;
+let sampleTicks = 0;
+let sampleTimeMs = 0;
 
 const post = (msg: WorkerRes): void => {
   // postMessage is on the worker global; the type is the bare DedicatedWorkerGlobalScope.
   (self as unknown as DedicatedWorkerGlobalScope).postMessage(msg);
 };
+
+const reportMetrics = (force = false): void => {
+  const now = performance.now();
+  const elapsed = now - sampleTimeMs;
+  if (!force && elapsed < 500) return;
+  post({ type: 'metrics', running, targetRateHz, actualRateHz: running && elapsed > 0 ? (ticksTotal - sampleTicks) * 1000 / elapsed : 0, ticks: ticksTotal });
+  sampleTicks = ticksTotal; sampleTimeMs = now;
+};
+
+const resetMetrics = (): void => { ticksTotal = 0; sampleTicks = 0; sampleTimeMs = performance.now(); reportMetrics(true); };
 
 const writeNets = (): void => {
   if (!graph || !netsView) return;
@@ -61,18 +76,23 @@ const drainEvents = (): void => {
 
 const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
   // Prepare the whole candidate before changing the live simulator.
+  const nextRate = validateRateHz(req.rateHz ?? targetRateHz);
   const nextGraph = loadCircuit(req.circuit);
-  const nextSim = new Simulator(nextGraph, { rateHz: req.rateHz ?? targetRateHz });
+  const nextSim = new Simulator(nextGraph, { rateHz: nextRate });
   nextSim.settle();
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
   sim = nextSim;
+  targetRateHz = nextRate;
+  stepBudget = 0;
+  lastLoopTimeMs = performance.now();
   netsBuffer = nextBuffer;
   // Initial settle so the first frame doesn't show all-X.
   netsView = new Uint8Array(netsBuffer);
   writeNets();
   eventsCursor = 0;
   drainEvents();
+  resetMetrics();
 
   post({
     type: 'load_res',
@@ -85,8 +105,12 @@ const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
 
 const handleRun = (req: Extract<WorkerReq, { type: 'run' }>): void => {
   if (!sim) throw new Error('run before load');
+  validateRateHz(req.rateHz);
   targetRateHz = req.rateHz;
   sim.rateHz = req.rateHz;
+  stepBudget = 0;
+  lastLoopTimeMs = performance.now();
+  sampleTicks = ticksTotal; sampleTimeMs = lastLoopTimeMs;
   if (!running) {
     running = true;
     stepBudget = 0;
@@ -94,20 +118,24 @@ const handleRun = (req: Extract<WorkerReq, { type: 'run' }>): void => {
     const generation = ++loopGeneration;
     queueMicrotask(() => loop(generation));
   }
+  reportMetrics(true);
   post({ type: 'ack', id: req.id });
 };
 
 const handlePause = (req: Extract<WorkerReq, { type: 'pause' }>): void => {
   running = false;
   loopGeneration++;
+  reportMetrics(true);
   post({ type: 'ack', id: req.id });
 };
 
 const handleStep = (req: Extract<WorkerReq, { type: 'step' }>): void => {
   if (!sim) throw new Error('step before load');
   sim.tick();
+  ticksTotal++;
   writeNets();
   drainEvents();
+  reportMetrics(true);
   post({ type: 'ack', id: req.id });
 };
 
@@ -136,6 +164,7 @@ const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
   writeNets();
   eventsCursor = 0;
   drainEvents();
+  resetMetrics();
   post({ type: 'load_res', id: req.id, netIds: graph.nets.map((n) => n.id), componentIds: graph.components.map((c) => c.id), netsBuffer });
   // A running worker already has a scheduled loop. Scheduling another here
   // creates an additional timer chain after every edit.
@@ -155,13 +184,22 @@ const loop = (generation: number): void => {
   const now = performance.now();
   const dt = Math.max(0, (now - lastLoopTimeMs) / 1000);
   lastLoopTimeMs = now;
-  stepBudget += dt * targetRateHz;
+  // Discard wall-time debt beyond a quarter second, so an overloaded tab
+  // can pause promptly rather than spending indefinitely catching up.
+  stepBudget = Math.min(stepBudget + dt * targetRateHz, Math.max(1, targetRateHz / 4));
   // Cap how many ticks one loop turn does so we don't lock the worker.
-  const ticks = Math.min(Math.floor(stepBudget), MAX_BATCH);
-  for (let i = 0; i < ticks; i++) sim.tick();
+  const wanted = Math.min(Math.floor(stepBudget), MAX_BATCH);
+  const deadline = now + BATCH_BUDGET_MS;
+  let ticks = 0;
+  for (; ticks < wanted; ticks++) {
+    sim.tick();
+    if ((ticks + 1) % 32 === 0 && performance.now() >= deadline) { ticks++; break; }
+  }
+  ticksTotal += ticks;
   stepBudget -= ticks;
   writeNets();
   drainEvents();
+  reportMetrics();
   // setTimeout(0) yields ~4ms in browsers, which gives plenty of room for
   // even 1 kHz tick rates and keeps message handling responsive.
   setTimeout(() => loop(generation), 0);
