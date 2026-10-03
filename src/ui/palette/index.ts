@@ -65,6 +65,7 @@ export const PALETTE: PaletteEntry[] = [
 
   { group: 'Memory', type: 'mem.6116', label: '6116 SRAM' },
   { group: 'Memory', type: 'mem.28C16', label: '28C16 EEPROM' },
+  { group: 'Memory', type: 'mem.ROM', label: 'ROM (words)', params: { addressBits: 5, dataBits: 8 } },
   { group: 'Memory', type: 'mem.74LS189', label: '74LS189 RAM' },
 ];
 

@@ -11,5 +11,6 @@ import './mem_28c16';
 import './mem_6116';
 import './mem_74ls189';
 import './cnt_74ls193';
+import './mem_rom';
 
 export { getBehavioral, listBehavioral, registerBehavioral } from './registry';

@@ -4,6 +4,9 @@ import { registerPrimitive } from './registry';
 interface DffParams {
   clrActiveLow?: boolean;
   preActiveLow?: boolean;
+  // Explicit simulator power-on value, useful when porting a circuit whose
+  // source simulator initializes storage. Unspecified still starts unknown.
+  initialQ?: 0 | 1;
 }
 
 interface DffState {
@@ -12,6 +15,9 @@ interface DffState {
 }
 
 const dffPins = (params: DffParams): PinSpec[] => {
+  if (params.initialQ !== undefined && params.initialQ !== 0 && params.initialQ !== 1) {
+    throw new Error('DFF initialQ must be 0 or 1');
+  }
   const pins: PinSpec[] = [
     { name: 'D', dir: 'in' },
     { name: 'CLK', dir: 'in' },
@@ -31,7 +37,10 @@ const invert = (q: NetState): NetState => {
 
 const dff: PrimitiveDef<DffState, DffParams> = {
   pins: dffPins,
-  init: () => ({ q: 'X', prevClk: 'X' }),
+  init: (params) => {
+    dffPins(params);
+    return { q: params.initialQ ?? 'X', prevClk: params.initialQ === undefined ? 'X' : 0 };
+  },
   evaluate(inputs, outputs, state, params) {
     let i = 0;
     const d = inputs[i++]!;
