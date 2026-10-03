@@ -2,7 +2,7 @@
   "version": 1,
   "kind": "circuit",
   "name": "ben_eater_8bit",
-  "description": "Ben Eater's SAP-1 8-bit computer, built from the eater.* composite modules. The RAM (mem.6116 + 74LS173 MAR) is inlined at the top level so the program can be preloaded via params.contents — every other subsystem is a composite. The pre-loaded RAM contents implement a Fibonacci program: it streams 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the 2-digit hex display, and when 144 + 89 + 233 → 377 overflows the 8-bit ALU, JC 0 jumps back to the start. Reset switch defaults to 0 (asserted) so registers come up clean; click it once to release reset and run.",
+  "description": "Ben Eater's SAP-1 8-bit computer, built from the eater.* composite modules. The RAM (mem.6116 + 74LS173 MAR) is inlined at the top level so the program can be preloaded via params.contents — every other subsystem is a composite. The pre-loaded RAM contents implement a Fibonacci program: it streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the 2-digit hex display, and when 233 + 144 → 377 overflows the 8-bit ALU, JC 0 jumps back to the start. Reset switch defaults to 0 (asserted) so registers come up clean; click it once to release reset and run.",
   "components": [
     { "id": "reg_a",   "type": "eater.register_8bit", "position": [60,  60] },
     { "id": "reg_b",   "type": "eater.register_8bit", "position": [320, 60] },

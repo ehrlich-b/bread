@@ -13,9 +13,11 @@ Alpha. Milestones M0–M5 from [docs/ROADMAP.md](docs/ROADMAP.md) are shipped:
 - Schematic editor: place / move / rotate / delete, orthogonal wire drawing, property inspector, save/load via File System Access API (with download fallback), undo/redo with Cmd-Z. Built-from-gates 1-bit full adder verified end-to-end via Playwright.
 - Behavioral chip set: `gen.555`, `io.7seg` (with live segment fills), `mem.6116` SRAM, `mem.74LS189` RAM, and `mem.28C16` EEPROM. The EEPROM has a hand-crafted DIP renderer plus a paste-hex / upload-`.bin` affordance in the property inspector; `mem.6116` and `mem.28C16` both round-trip `params.contents` through circuit JSON.
 - Eater SAP-1 module library: eight `eater.*` composites (`register_8bit`, `alu_8bit`, `ram_module`, `program_counter`, `instruction_register`, `flags_register`, `output_display`, `control_unit`). The control unit's microcode is generated in TypeScript and injected into the two onboard 28C16 EEPROMs at composite-registration time so the source stays human-readable.
-- Bundled `examples/ben_eater_8bit.json` — a fully-wired SAP-1 with a Fibonacci program preloaded into the 6116. Click the RESET switch to release reset and the engine streams 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on the overflow and restarts the loop.
+- Bundled `examples/ben_eater_8bit.json` — a fully-wired SAP-1 with a Fibonacci program preloaded into the 6116. Click the RESET switch to release reset and the engine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on the overflow and restarts the loop.
 
-295 vitest cases green; 32 Playwright e2e tests cover the editor, blink demo, save/load + bundled-examples menu, full-adder truth table, the generic-renderer / palette surface, the 28C16 hex-display example, and the Ben Eater 8-bit reference. The full stdlib (every primitive, every TTL composite, every behavioral) is clickable from the palette via a generic IC renderer that builds itself from the engine's pin spec.
+320 vitest cases green; 32 Playwright e2e tests cover the editor, blink demo, save/load + bundled-examples menu, full-adder truth table, the generic-renderer / palette surface, the 28C16 hex-display example, and the Ben Eater 8-bit reference. The full stdlib (every primitive, every TTL composite, every behavioral) is clickable from the palette via a generic IC renderer that builds itself from the engine's pin spec.
+
+The [NAND-to-CPU checkpoint](docs/CPU_CLIMB_CHECKPOINT.md) records the manual-browser blocker, editor queue regressions, independent reference-program checks, and measured performance.
 
 ## What it is
 
@@ -24,7 +26,7 @@ A schematic-style digital simulator with:
 - A TTL chip library (74xx series, EEPROMs, SRAMs — the parts on Eater's bench).
 - An event-driven, two-phase simulation engine.
 - Persistent circuits in a versioned JSON format.
-- Subcircuit hierarchy, composed visually or in JSON.
+- Subcircuit hierarchy via JSON composites; visual port/chip authoring is still missing.
 - A web UI that runs simulation in a Web Worker so the schematic stays responsive.
 
 Built in TypeScript. Engine has a path to WASM if profiling demands it.
