@@ -1,4 +1,4 @@
-step=0 init     /S=X /R=X Q=X Qn=X
+step=0 init     /S=Z /R=Z Q=X Qn=X
 step=1 idle     /S=1 /R=1 Q=X Qn=X
 step=2 set      /S=0 /R=1 Q=1 Qn=0
 step=3 hold-set /S=1 /R=1 Q=1 Qn=0

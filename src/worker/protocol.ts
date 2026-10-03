@@ -48,6 +48,13 @@ export interface SetInputReq {
   value: NetState;
 }
 
+export interface SetNetInputReq {
+  type: 'set_net_input';
+  id: number;
+  net: string;
+  value: NetState;
+}
+
 // Replace the engine's circuit with a new IR. Distinct from `load` so the UI
 // can signal intent: mutate preserves the worker's targetRateHz and auto-
 // resumes if the simulator was running. The response shape matches LoadRes
@@ -59,7 +66,7 @@ export interface MutateReq {
   circuit: CircuitJSON;
 }
 
-export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | MutateReq;
+export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq;
 
 export interface LoadRes {
   type: 'load_res';

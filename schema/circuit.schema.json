@@ -31,7 +31,12 @@
       "items": { "$ref": "#/$defs/Port" },
       "description": "Required for composites; ignored for top-level circuits."
     },
-    "metadata": { "type": "object" }
+    "metadata": { "type": "object" },
+    "definitions": {
+      "type": "array",
+      "items": { "allOf": [{ "$ref": "#" }, { "properties": { "kind": { "const": "composite" } } }] },
+      "description": "Project-local user chips, named user.<name>. Definitions may reference each other but may not embed libraries."
+    }
   },
   "allOf": [
     {

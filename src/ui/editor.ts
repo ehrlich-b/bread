@@ -10,8 +10,9 @@
 // Selection is local-only (the worker doesn't care). Selected component IDs
 // referencing instances that disappear after a mutation are pruned silently.
 
-import type { CircuitJSON, ComponentInstanceJSON, NetJSON } from '../engine/ir';
+import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON } from '../engine/ir';
 import type { LoadSnapshot, WorkerBus } from './bus';
+import { chipBody, createChip } from './chips/model';
 
 export interface Placement {
   type: string;
@@ -23,12 +24,24 @@ export interface EditorState {
   snapshot: LoadSnapshot;
   selection: ReadonlySet<string>;
   placement: Placement | null;
+  editingChip: string | null;
+  error: string | null;
+}
+
+interface EditorDocument {
+  project: CircuitJSON;
+  draft: CircuitJSON | null;
+  editing: string | null;
 }
 
 const MAX_UNDO_DEPTH = 200;
 
 export class EditorModel {
-  private circuit: CircuitJSON;
+  private document: EditorDocument;
+  private error: string | null = null;
+  private portInputs = new Map<string, NetState>();
+  private get circuit(): CircuitJSON { return this.document.draft ?? this.document.project; }
+  get project(): CircuitJSON { return this.document.project; }
   private snapshot: LoadSnapshot;
   private selection: Set<string> = new Set();
   private placement: Placement | null = null;
@@ -38,15 +51,15 @@ export class EditorModel {
   // Each entry is the circuit *before* a user-initiated mutation; pop one to
   // undo. redoStack mirrors it for forward replays. Bounded so very long
   // sessions don't grow without bound.
-  private undoStack: CircuitJSON[] = [];
-  private redoStack: CircuitJSON[] = [];
+  private undoStack: EditorDocument[] = [];
+  private redoStack: EditorDocument[] = [];
 
   constructor(
     public readonly bus: WorkerBus,
     circuit: CircuitJSON,
     snapshot: LoadSnapshot,
   ) {
-    this.circuit = circuit;
+    this.document = { project: circuit, draft: null, editing: null };
     this.snapshot = snapshot;
   }
 
@@ -56,6 +69,8 @@ export class EditorModel {
       snapshot: this.snapshot,
       selection: this.selection,
       placement: this.placement,
+      editingChip: this.document.editing,
+      error: this.error,
     };
   }
 
@@ -106,7 +121,7 @@ export class EditorModel {
           .filter((n) => n.id !== toNet.id)
           .map((n) => (n.id === fromNet.id ? { ...n, endpoints: merged } : n));
       }
-      return { ...circuit, nets };
+      return { ...circuit, nets, ...(circuit.ports ? { ports: circuit.ports.map((p) => fromNet && toNet && p.internalNet === toNet.id ? { ...p, internalNet: fromNet!.id } : p) } : {}) };
     });
   }
 
@@ -196,7 +211,67 @@ export class EditorModel {
   }
 
   replaceCircuit(circuit: CircuitJSON): Promise<void> {
-    return this.applyMutate(() => circuit);
+    return this.applyDocument(() => ({ project: circuit, draft: null, editing: null }));
+  }
+
+  newCircuit(): Promise<void> {
+    return this.applyDocument((doc) => ({ project: { version: 1, kind: 'circuit', name: 'Untitled', components: [], nets: [], definitions: (doc.draft ?? doc.project).definitions ?? [] }, draft: null, editing: null }));
+  }
+
+  createChip(name: string, ports: PortJSON[], selected: ReadonlySet<string> = new Set(this.selection)): Promise<void> {
+    return this.applyMutate((circuit) => createChip(circuit, selected, name, ports));
+  }
+
+  editChip(type: string): Promise<void> {
+    return this.applyDocument((doc) => {
+      if (doc.draft) throw new Error('Save or cancel the open chip before editing another.');
+      const definition = doc.project.definitions?.find((d) => d.name === type);
+      if (!definition) throw new Error(`Unknown user chip ${type}`);
+      return { ...doc, editing: type, draft: chipBody(definition, doc.project.definitions ?? []) };
+    });
+  }
+
+  saveChip(): Promise<void> {
+    return this.applyDocument((doc) => {
+      if (!doc.draft || !doc.editing) return null;
+      const { definitions: library, ...body } = doc.draft;
+      const previous = doc.project.definitions?.find((d) => d.name === doc.editing);
+      const definition: CircuitJSON = { ...body, name: doc.editing, kind: 'composite', metadata: { ...body.metadata, revision: Number(previous?.metadata?.revision ?? 1) + 1 } };
+      const definitions = (library ?? []).map((d) => d.name === doc.editing ? definition : d);
+      return { project: { ...doc.project, definitions }, draft: null, editing: null };
+    });
+  }
+
+  cancelChip(): Promise<void> {
+    return this.applyDocument((doc) => doc.draft ? { ...doc, draft: null, editing: null } : null);
+  }
+
+  updatePorts(ports: PortJSON[]): Promise<void> {
+    return this.applyMutate((circuit) => ({ ...circuit, ports }));
+  }
+
+  exposePin(endpoint: string, name: string, dir: PortJSON['dir']): Promise<void> {
+    return this.applyMutate((circuit) => {
+      let net = circuit.nets.find((n) => n.endpoints.includes(endpoint));
+      const nets = [...circuit.nets];
+      if (!net) { net = { id: this.generateNetId(), endpoints: [endpoint] }; nets.push(net); }
+      if (circuit.ports?.some((p) => p.internalNet === net!.id)) throw new Error('That signal already has a port. Tied pins share one port.');
+      return { ...circuit, nets, ports: [...(circuit.ports ?? []), { name, dir, internalNet: net.id }] };
+    });
+  }
+
+  async setPortInput(netId: string, value: NetState): Promise<void> {
+    await this.inflight;
+    if (!this.document.editing || !this.circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out')) {
+      throw new Error('Only chip input and bidirectional ports can be driven.');
+    }
+    await this.bus.setNetInput(netId, value);
+    this.portInputs.set(netId, value);
+  }
+
+  reportError(error: unknown): void {
+    this.error = error instanceof Error ? error.message : String(error);
+    this.notify();
   }
 
   // ---- Selection ---------------------------------------------------------
@@ -253,6 +328,14 @@ export class EditorModel {
   // ---- Internal ---------------------------------------------------------
 
   private applyMutate(build: (circuit: CircuitJSON) => CircuitJSON | null): Promise<void> {
+    return this.applyDocument((doc) => {
+      const next = build(doc.draft ?? doc.project);
+      if (next === null) return null;
+      return doc.draft ? { ...doc, draft: next } : { ...doc, project: next };
+    });
+  }
+
+  private applyDocument(build: (doc: EditorDocument) => EditorDocument | null): Promise<void> {
     return this.applyTransition(build, (old) => {
       this.undoStack.push(old);
       if (this.undoStack.length > MAX_UNDO_DEPTH) this.undoStack.shift();
@@ -260,41 +343,42 @@ export class EditorModel {
     });
   }
 
-  // Resolve the action against committed state only after prior actions finish.
-  // Serializing just the worker request would allow stale copies of the circuit
-  // (or stale undo targets) to overwrite earlier queued actions. A null result
-  // is a no-op and leaves the worker and history untouched.
-  // The history callback runs after the worker
-  // confirms the new graph but before we update local state — `old` is the
-  // current circuit at that moment.
+  // Both document changes and history targets resolve after prior RPCs finish.
   private async applyTransition(
-    build: (circuit: CircuitJSON) => CircuitJSON | null,
-    onCommit: (old: CircuitJSON) => void,
+    build: (doc: EditorDocument) => EditorDocument | null,
+    onCommit: (old: EditorDocument) => void,
   ): Promise<void> {
     const prev = this.inflight;
     let release!: () => void;
-    this.inflight = new Promise<void>((res) => {
-      release = res;
-    });
+    this.inflight = new Promise<void>((res) => { release = res; });
     try {
       await prev;
-      const newCircuit = build(this.circuit);
-      if (newCircuit === null) return;
-      const snapshot = await this.bus.mutate(newCircuit);
-      const ids = new Set(newCircuit.components.map((c) => c.id));
-      let pruned = false;
-      const nextSel = new Set<string>();
-      for (const sid of this.selection) {
-        if (ids.has(sid)) nextSel.add(sid);
-        else pruned = true;
+      const next = build(this.document);
+      if (next === null) return;
+      const circuit = next.draft ?? next.project;
+      const snapshot = await this.bus.mutate(circuit);
+      const ids = new Set(circuit.components.map((c) => c.id));
+      this.selection = new Set([...this.selection].filter((id) => ids.has(id)));
+      if (next.editing !== this.document.editing) {
+        this.selection.clear();
+        this.placement = null;
+        this.portInputs.clear();
       }
-      if (pruned) this.selection = nextSel;
-      onCommit(this.circuit);
-      this.circuit = newCircuit;
+      onCommit(this.document);
+      this.document = next;
       this.snapshot = snapshot;
+      // Testing a chip starts with released inputs. Preserve explicit drives
+      // across structural edits, and release ports which became outputs.
+      for (const [netId, value] of this.portInputs) {
+        if (circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out') && snapshot.netIndex.has(netId)) {
+          await this.bus.setNetInput(netId, value);
+        } else this.portInputs.delete(netId);
+      }
+      this.error = null;
       this.notify();
-    } finally {
-      release();
-    }
+    } catch (error) {
+      this.reportError(error);
+      throw error;
+    } finally { release(); }
   }
 }

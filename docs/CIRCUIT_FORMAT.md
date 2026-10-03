@@ -32,7 +32,7 @@ The canonical IR for both saved circuits and composite chip definitions. Version
 }
 ```
 
-- `type` resolves against the registry: built-in primitive, built-in behavioral, or stdlib/user composite by ID. Resolution is name-only; the registry must contain the type at load time, or load fails.
+- `type` resolves against the registry: built-in primitive, built-in behavioral, or stdlib/user composite by ID. Built-ins resolve from the registry; user chips resolve from the root file’s optional `definitions` array. A missing type fails to load.
 - `position` and `rotation` are schematic-view layout metadata. The engine ignores them.
 - `params` is type-specific. The engine validates against the type's parameter schema. Examples:
   - `prim.NAND`: `{ "inputs": 4 }`.
@@ -54,7 +54,7 @@ The canonical IR for both saved circuits and composite chip definitions. Version
 - `waypoints` are schematic-view routing hints (orthogonal segments). Engine ignores them.
 - `name` is optional, user-friendly. Useful for buses, probes, and Verilog export.
 
-A net with one endpoint is dangling; the engine warns but doesn't error (the user may be in the middle of editing).
+A net with one endpoint is allowed (the user may be in the middle of editing); an undriven net settles to `Z`.
 
 A net referenced by zero endpoints is invalid; load fails.
 
@@ -116,6 +116,14 @@ When a circuit instantiates a composite (via `"type": "ttl.74LS00"`), the loader
   ]
 }
 ```
+
+## Project-local chip definitions
+
+A version 1 root circuit may contain `definitions`, an array of version 1 composites with stable `user.<name>` IDs. A definition may reference any other definition in that array. It does not carry an embedded library of its own. The editor creates this array through selection-to-chip authoring and persists it inside the same JSON file.
+
+The loader validates unused definitions too, including ports, component/net IDs, type references and cycles. Port names are unique and each internal signal has one external port; tied inputs share a port. Definitions are scoped to this project, so opening a different file cannot silently replace a type in a global registry. Editing a definition updates its instances and increments `metadata.revision`.
+
+Old version 1 circuits without `definitions` remain supported. A standalone composite remains a library definition; open its containing circuit project to edit it through the UI.
 
 ## Validation
 

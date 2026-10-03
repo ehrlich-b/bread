@@ -15,7 +15,7 @@ import '../stdlib/index';
 
 import { getBehavioral, listBehavioral } from './behavioral/registry';
 import { getComposite, listComposites } from './composites/registry';
-import type { PinSpec } from './ir';
+import type { CircuitJSON, PinSpec } from './ir';
 import { getPrimitive, listPrimitives } from './primitives/registry';
 
 export { listBehavioral, listComposites, listPrimitives };
@@ -27,12 +27,13 @@ export { listBehavioral, listComposites, listPrimitives };
 export const getPinsForType = (
   typeId: string,
   params?: Record<string, unknown>,
+  definitions: readonly CircuitJSON[] = [],
 ): PinSpec[] | null => {
   const prim = getPrimitive(typeId);
   if (prim) return prim.pins(params ?? {});
   const beh = getBehavioral(typeId);
   if (beh) return beh.pins(params ?? {});
-  const comp = getComposite(typeId);
+  const comp = definitions.find((d) => d.name === typeId) ?? getComposite(typeId);
   if (comp?.ports) return comp.ports.map((p) => ({ name: p.name, dir: p.dir }));
   return null;
 };

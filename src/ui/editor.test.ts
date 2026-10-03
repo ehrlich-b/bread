@@ -32,7 +32,7 @@ const setup = (): { editor: EditorModel; mutate: WorkerBus['mutate'] & ReturnTyp
     mutate,
     load: async (next) => snapshotFor(next),
     run: async () => {}, pause: async () => {}, step: async () => {},
-    setInput: async () => {}, on: () => () => {}, readNet: () => 'X',
+    setInput: async () => {}, setNetInput: async () => {}, on: () => () => {}, readNet: () => 'X',
     netIds: [], componentIds: [],
   };
   return { editor: new EditorModel(bus, circuit, snapshotFor(circuit)), mutate };

@@ -66,6 +66,9 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   host.innerHTML = '';
 
   const saveBtn = button('Save', 'save');
+  const downloadBtn = button('Download JSON', 'download');
+  const uploadBtn = button('Open JSON', 'upload');
+  const newBtn = button('New circuit', 'new');
   const loadBtn = button('Load', 'load');
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -83,7 +86,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error('load failed:', msg);
+        editor.reportError(msg);
       })
       .finally(() => {
         // Reset so loading the same file twice fires the change event again.
@@ -92,16 +95,20 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   });
 
   saveBtn.addEventListener('click', () => {
-    void saveCircuit(editor.state.circuit).catch((err: unknown) => {
+    void saveCircuit(editor.project).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('save failed:', msg);
+      editor.reportError(msg);
     });
   });
+
+  downloadBtn.addEventListener('click', () => downloadCircuit(editor.project));
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  newBtn.addEventListener('click', () => { void editor.newCircuit().catch(() => {}); });
 
   loadBtn.addEventListener('click', () => {
     void openCircuit(editor, fileInput).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('load failed:', msg);
+      editor.reportError(msg);
     });
   });
 
@@ -127,13 +134,18 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     const fresh = JSON.parse(JSON.stringify(ex.circuit)) as CircuitJSON;
     void editor.replaceCircuit(fresh).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('load example failed:', msg);
+      editor.reportError(msg);
     });
   });
 
-  host.append(saveBtn, loadBtn, examplesSelect, fileInput);
+  host.append(newBtn, saveBtn, downloadBtn, loadBtn, uploadBtn, examplesSelect, fileInput);
+  const refresh = (): void => {
+    for (const control of [newBtn, saveBtn, downloadBtn, loadBtn, uploadBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
+  };
+  const unsub = editor.subscribe(refresh); refresh();
 
   return () => {
+    unsub();
     host.innerHTML = '';
   };
 };
@@ -167,6 +179,12 @@ const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
       // Fall through to download.
     }
   }
+  downloadCircuit(circuit);
+};
+
+const downloadCircuit = (circuit: CircuitJSON): void => {
+  const data = JSON.stringify(circuit, null, 2);
+  const filename = `${circuit.name || 'circuit'}.json`;
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -175,7 +193,7 @@ const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 const openCircuit = async (editor: EditorModel, fallbackInput: HTMLInputElement): Promise<void> => {

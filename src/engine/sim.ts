@@ -120,6 +120,8 @@ export class Simulator {
   private readonly netV: Uint8Array;
   private readonly forcedV: Uint8Array;
 
+  private initialResolution = true;
+
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
@@ -469,6 +471,10 @@ export class Simulator {
       // components compare strings and mirror into the flat outBuf so net
       // resolution has one source of truth.
       changedQueue.length = 0;
+      if (this.initialResolution) {
+        for (let n = 0; n < nets.length; n++) { netChanged[n] = 1; changedQueue.push(n); }
+        this.initialResolution = false;
+      }
       for (let i = 0; i < nowLen; i++) {
         const ci = now[i]!;
         if (native[ci]) {

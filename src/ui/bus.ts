@@ -26,6 +26,7 @@ export interface WorkerBus {
   pause(): Promise<void>;
   step(): Promise<void>;
   setInput(component: string, pin: string, value: NetState): Promise<void>;
+  setNetInput(net: string, value: NetState): Promise<void>;
   on(event: 'event', handler: (e: EventNotif) => void): () => void;
   readNet(netId: string): NetState;
   netIds: string[];
@@ -126,6 +127,11 @@ export const createWorkerBus = (): WorkerBus => {
     async setInput(component, pin, value) {
       const id = nextId++;
       await send<void>({ type: 'set_input', id, component, pin, value });
+    },
+
+    async setNetInput(net, value) {
+      const id = nextId++;
+      await send<void>({ type: 'set_net_input', id, net, value });
     },
 
     on(_event, handler) {

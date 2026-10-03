@@ -65,6 +65,8 @@ export interface CircuitJSON {
   components: ComponentInstanceJSON[];
   nets: NetJSON[];
   ports?: PortJSON[];
+  // Project-local composite definitions, saved with the root circuit.
+  definitions?: CircuitJSON[];
   metadata?: Record<string, unknown>;
 }
 
