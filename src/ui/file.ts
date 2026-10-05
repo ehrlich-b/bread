@@ -66,6 +66,11 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   host.innerHTML = '';
 
   const saveBtn = button('Save', 'save');
+  const downloadBtn = button('Download JSON', 'download');
+  const uploadBtn = button('Open JSON', 'upload');
+  const showBtn = button('Circuit JSON', 'show-json');
+  const pasteBtn = button('Paste JSON', 'paste-json');
+  const newBtn = button('New circuit', 'new');
   const loadBtn = button('Load', 'load');
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -83,7 +88,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
       })
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error('load failed:', msg);
+        editor.reportError(msg);
       })
       .finally(() => {
         // Reset so loading the same file twice fires the change event again.
@@ -92,16 +97,62 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   });
 
   saveBtn.addEventListener('click', () => {
-    void saveCircuit(editor.state.circuit).catch((err: unknown) => {
+    void saveCircuit(editor).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('save failed:', msg);
+      editor.reportError(msg);
     });
   });
+
+  const jsonDialog = document.createElement('dialog');
+  jsonDialog.className = 'json-dialog';
+  jsonDialog.setAttribute('aria-label', 'Circuit JSON export');
+  const jsonHint = document.createElement('p');
+  const jsonText = document.createElement('textarea');
+  jsonText.readOnly = true;
+  jsonText.setAttribute('aria-label', 'Circuit JSON');
+  jsonText.spellcheck = false;
+  const closeJson = button('Close JSON', 'close-json');
+  closeJson.addEventListener('click', () => jsonDialog.close());
+  jsonDialog.append(jsonHint, jsonText, closeJson);
+  document.body.append(jsonDialog);
+  const pasteDialog = document.createElement('dialog');
+  pasteDialog.className = 'json-dialog';
+  pasteDialog.setAttribute('aria-label', 'Open circuit JSON');
+  const pasteText = document.createElement('textarea');
+  pasteText.setAttribute('aria-label', 'Paste circuit JSON');
+  pasteText.spellcheck = false;
+  const pasteHint = document.createElement('p'); pasteHint.textContent = 'Paste a saved circuit JSON file, including its chip library.';
+  const pasteError = document.createElement('p'); pasteError.setAttribute('role', 'alert');
+  const openPaste = button('Open pasted JSON', 'open-pasted-json');
+  openPaste.addEventListener('click', () => {
+    openPaste.disabled = true;
+    void Promise.resolve().then(() => editor.replaceCircuit(JSON.parse(pasteText.value) as CircuitJSON)).then(() => pasteDialog.close()).catch((error: unknown) => {
+      pasteError.textContent = error instanceof Error ? error.message : String(error);
+    }).finally(() => { openPaste.disabled = false; });
+  });
+  const cancelPaste = button('Cancel paste', 'cancel-paste'); cancelPaste.addEventListener('click', () => pasteDialog.close());
+  pasteDialog.append(pasteHint, pasteText, pasteError, openPaste, cancelPaste); document.body.append(pasteDialog);
+  pasteBtn.addEventListener('click', () => { pasteText.value = ''; pasteError.textContent = ''; pasteDialog.showModal(); pasteText.focus(); });
+
+  showBtn.addEventListener('click', () => {
+    void editor.whenIdle().then(() => {
+      jsonHint.textContent = `Copy this circuit and its chip library into ${editor.project.name || 'circuit'}.json. This is the same content as Download JSON.`;
+      jsonText.value = JSON.stringify(editor.project, null, 2);
+      if (!jsonDialog.open) jsonDialog.showModal();
+      jsonText.focus(); jsonText.select();
+    });
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    void editor.whenIdle().then(() => downloadCircuit(editor.project));
+  });
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  newBtn.addEventListener('click', () => { void editor.newCircuit().catch(() => {}); });
 
   loadBtn.addEventListener('click', () => {
     void openCircuit(editor, fileInput).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('load failed:', msg);
+      editor.reportError(msg);
     });
   });
 
@@ -127,13 +178,20 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     const fresh = JSON.parse(JSON.stringify(ex.circuit)) as CircuitJSON;
     void editor.replaceCircuit(fresh).catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('load example failed:', msg);
+      editor.reportError(msg);
     });
   });
 
-  host.append(saveBtn, loadBtn, examplesSelect, fileInput);
+  host.append(newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
+  const refresh = (): void => {
+    for (const control of [newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
+  };
+  const unsub = editor.subscribe(refresh); refresh();
 
   return () => {
+    unsub();
+    jsonDialog.remove();
+    pasteDialog.remove();
     host.innerHTML = '';
   };
 };
@@ -146,20 +204,22 @@ const button = (label: string, action: string): HTMLButtonElement => {
   return b;
 };
 
-const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
-  const data = JSON.stringify(circuit, null, 2);
-  const filename = `${circuit.name || 'circuit'}.json`;
+const saveCircuit = async (editor: EditorModel): Promise<void> => {
+  const filename = `${editor.project.name || 'circuit'}.json`;
   const sfp = getSaveFilePicker();
   if (sfp) {
     try {
+      // Open the picker during the user gesture. Waiting first could lose
+      // transient activation; capture the committed document after it opens.
       const handle = await sfp({
         suggestedName: filename,
         types: [
           { description: 'Bread circuit', accept: { 'application/json': ['.json'] } },
         ],
       });
+      await editor.whenIdle();
       const writable = await handle.createWritable();
-      await writable.write(data);
+      await writable.write(JSON.stringify(editor.project, null, 2));
       await writable.close();
       return;
     } catch (err) {
@@ -167,6 +227,13 @@ const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
       // Fall through to download.
     }
   }
+  await editor.whenIdle();
+  downloadCircuit(editor.project);
+};
+
+const downloadCircuit = (circuit: CircuitJSON): void => {
+  const data = JSON.stringify(circuit, null, 2);
+  const filename = `${circuit.name || 'circuit'}.json`;
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -175,7 +242,7 @@ const saveCircuit = async (circuit: CircuitJSON): Promise<void> => {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 const openCircuit = async (editor: EditorModel, fallbackInput: HTMLInputElement): Promise<void> => {

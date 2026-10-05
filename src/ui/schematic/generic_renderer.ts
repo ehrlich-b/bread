@@ -14,7 +14,7 @@
 // a polish item once the basic surface is clickable.
 
 import { getPinsForType } from '../../engine';
-import type { PinSpec } from '../../engine/ir';
+import type { CircuitJSON, PinSpec } from '../../engine/ir';
 import { rect, text, type PinOffset, type Renderer } from './renderers';
 
 const PIN_PITCH = 14;
@@ -74,10 +74,11 @@ const layoutPins = (
 export const buildGenericRenderer = (
   typeId: string,
   params?: Record<string, unknown>,
+  definitions?: readonly CircuitJSON[],
 ): Renderer | null => {
   let pinSpec: PinSpec[] | null;
   try {
-    pinSpec = getPinsForType(typeId, params);
+    pinSpec = getPinsForType(typeId, params, definitions);
   } catch {
     // Required params missing or invalid. Fall back to "unknown chip" so the
     // user still sees something on the canvas instead of a hard crash.

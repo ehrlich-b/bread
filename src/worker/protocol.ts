@@ -48,6 +48,13 @@ export interface SetInputReq {
   value: NetState;
 }
 
+export interface SetNetInputReq {
+  type: 'set_net_input';
+  id: number;
+  net: string;
+  value: NetState;
+}
+
 // Replace the engine's circuit with a new IR. Distinct from `load` so the UI
 // can signal intent: mutate preserves the worker's targetRateHz and auto-
 // resumes if the simulator was running. The response shape matches LoadRes
@@ -59,7 +66,7 @@ export interface MutateReq {
   circuit: CircuitJSON;
 }
 
-export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | MutateReq;
+export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq;
 
 export interface LoadRes {
   type: 'load_res';
@@ -87,4 +94,19 @@ export interface EventNotif {
   step: number;
 }
 
-export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif;
+export const MAX_RATE_HZ = 1_000_000;
+export const validateRateHz = (rateHz: number): number => {
+  if (!Number.isInteger(rateHz) || rateHz < 1 || rateHz > MAX_RATE_HZ) throw new Error(`Simulation tick rate must be an integer from 1 to ${MAX_RATE_HZ.toLocaleString()}`);
+  return rateHz;
+};
+
+// Tick throughput is distinct from circuit clock edges and instructions.
+export interface MetricsNotif {
+  type: 'metrics';
+  running: boolean;
+  targetRateHz: number;
+  actualRateHz: number;
+  ticks: number;
+}
+
+export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif;

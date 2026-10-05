@@ -23,6 +23,7 @@
 import type { CircuitJSON, ComponentInstanceJSON, NetState } from '../../engine/ir';
 import type { LoadSnapshot } from '../bus';
 import type { EditorModel } from '../editor';
+import { showBusDialog } from '../bus_dialog';
 import { resolveRenderer, type PinOffset } from './renderers';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -34,7 +35,7 @@ const DRAG_THRESHOLD_PX = 3;
 // UI-only and don't belong on the editor state.
 const BASE_VIEW_W = 600;
 const BASE_VIEW_H = 320;
-const MIN_ZOOM = 0.25;
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 4;
 let viewZoom = 1;
 let viewPanX = 0;
@@ -135,7 +136,7 @@ const rotatePin = (p: PinOffset, sz: { w: number; h: number }, deg: number): Pin
 const buildPinLookup = (circuit: CircuitJSON): Map<string, PinLookup> => {
   const out = new Map<string, PinLookup>();
   for (const inst of circuit.components) {
-    const renderer = resolveRenderer(inst.type, inst.params);
+    const renderer = resolveRenderer(inst.type, inst.params, circuit.definitions);
     if (!renderer) continue;
     const [px, py] = positionOf(inst);
     const rot = rotationOf(inst);
@@ -180,10 +181,18 @@ const transformFor = (inst: ComponentInstanceJSON, sz: { w: number; h: number })
 };
 
 export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => void) => {
-  let dispose = renderOnce(host, editor);
+  // Switch drive requests survive local selection/mode changes. A new worker
+  // snapshot means a structural reload, which resets io.switch to LOW.
+  let switchValues = new Map<string, NetState>();
+  let snapshot = editor.state.snapshot;
+  let dispose = renderOnce(host, editor, switchValues);
   const unsub = editor.subscribe(() => {
+    if (snapshot !== editor.state.snapshot) {
+      switchValues = new Map();
+      snapshot = editor.state.snapshot;
+    }
     dispose();
-    dispose = renderOnce(host, editor);
+    dispose = renderOnce(host, editor, switchValues);
   });
   return () => {
     dispose();
@@ -191,7 +200,7 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
   };
 };
 
-const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
+const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<string, NetState>): (() => void) => {
   const { circuit, snapshot, placement, selection } = editor.state;
   host.innerHTML = '';
   host.classList.toggle('placing', placement !== null);
@@ -237,12 +246,24 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   svg.appendChild(compLayer);
   const overlayLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(overlayLayer);
+  const fit = document.createElement('button'); fit.type = 'button';
+  fit.textContent = 'Fit circuit'; fit.className = 'schematic-fit';
+  fit.addEventListener('click', () => {
+    if (circuit.components.length === 0) return;
+    const bounds = compLayer.getBBox();
+    viewZoom = clamp(Math.min(BASE_VIEW_W / (bounds.width + 80), BASE_VIEW_H / (bounds.height + 80)), MIN_ZOOM, MAX_ZOOM);
+    viewPanX = bounds.x - (BASE_VIEW_W / viewZoom - bounds.width) / 2;
+    viewPanY = bounds.y - (BASE_VIEW_H / viewZoom - bounds.height) / 2;
+    applyViewBox(svg);
+  });
+  host.append(fit);
 
   const pinAbs = buildPinLookup(circuit);
 
   // ---- Wire-drawing state (local) --------------------------------------
   let wireFrom: { ep: string; abs: PinOffset } | null = null;
   let pendingLine: SVGPolylineElement | null = null;
+  let disposeBusDialog: (() => void) | null = null;
   // Drag suppression: set when a real drag completes, consumed by the next
   // click on the same component <g>. Prevents the post-drag click from
   // re-selecting after we just committed a move.
@@ -271,7 +292,10 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     const from = wireFrom.ep;
     cancelWire();
     if (from === ep) return;
-    void editor.connect(from, ep);
+    if (editor.state.busWiring) {
+      try { disposeBusDialog?.(); disposeBusDialog = showBusDialog(editor, from, ep); }
+      catch (error) { editor.reportError(error); }
+    } else void editor.connect(from, ep);
   };
 
   // ---- Background canvas: placement + selection clear ------------------
@@ -283,7 +307,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
         e.stopPropagation();
         const local = clientToLocal(svg, e.clientX, e.clientY);
         if (!local) return;
-        const renderer = resolveRenderer(p.type, p.params);
+        const renderer = resolveRenderer(p.type, p.params, circuit.definitions);
         const sz = renderer?.size ?? { w: 60, h: 40 };
         const id = editor.generateId(p.type);
         const x = Math.round((local.x - sz.w / 2) / GRID) * GRID;
@@ -376,6 +400,9 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   // ---- Document-level keyboard ----------------------------------------
   const onKey = (e: KeyboardEvent): void => {
+    // A dialog owns its keyboard input; canvas shortcuts must not edit the
+    // circuit behind the bus mapping or JSON/chip dialogs.
+    if (document.querySelector('dialog[open]')) return;
     if (e.key === 'Escape') {
       cancelWire();
       if (editor.state.placement) editor.clearPlacement();
@@ -434,10 +461,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       for (const id of sel) {
-        const inst = editor.state.circuit.components.find((c) => c.id === id);
-        if (!inst) continue;
-        const next = (rotationOf(inst) + 90) % 360;
-        void editor.updateComponent(id, { rotation: next });
+        void editor.rotateComponent(id);
       }
     }
   };
@@ -445,7 +469,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   // ---- Components -----------------------------------------------------
   for (const inst of circuit.components) {
-    const renderer = resolveRenderer(inst.type, inst.params);
+    const renderer = resolveRenderer(inst.type, inst.params, circuit.definitions);
     const g = document.createElementNS(SVG_NS, 'g');
     g.dataset.compId = inst.id;
     g.dataset.compType = inst.type;
@@ -469,9 +493,8 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
       continue;
     }
     g.setAttribute('transform', transformFor(inst, renderer.size));
-    renderer.draw(g, inst.id, inst.params);
+    renderer.draw(g, inst.label || inst.id, inst.params);
 
-    let switchVal: NetState = 0;
     let refreshSwitch: ((v: NetState) => void) | null = null;
     if (inst.type === 'io.switch') {
       const handle = g.querySelector('[data-role="switch-handle"]') as SVGRectElement;
@@ -480,6 +503,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
         handle.setAttribute('fill', v === 1 ? 'var(--led-on)' : 'var(--led-off)');
         label.textContent = String(v);
       };
+      refreshSwitch(switchValues.get(inst.id) ?? 0);
     }
 
     // Pin handles
@@ -559,9 +583,14 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
       // Switches preserve their M3 contract: a plain click toggles. Hold
       // Shift/Cmd to fall through to selection so they're still editable.
       if (inst.type === 'io.switch' && refreshSwitch && !e.shiftKey && !e.metaKey) {
-        switchVal = switchVal === 1 ? 0 : 1;
+        const previous = switchValues.get(inst.id) ?? 0;
+        const switchVal = previous === 1 ? 0 : 1;
+        switchValues.set(inst.id, switchVal);
         refreshSwitch(switchVal);
-        void editor.bus.setInput(inst.id, 'Y', switchVal);
+        void editor.bus.setInput(inst.id, 'Y', switchVal).catch((error: unknown) => {
+          if (switchValues.get(inst.id) === switchVal) switchValues.set(inst.id, previous);
+          editor.reportError(error);
+        });
         return;
       }
       const additive = e.shiftKey || e.metaKey;
@@ -600,6 +629,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   return () => {
     disposed = true;
     cancelAnimationFrame(rafHandle);
+    disposeBusDialog?.();
     document.removeEventListener('keydown', onKey);
   };
 };

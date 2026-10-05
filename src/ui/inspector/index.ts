@@ -7,15 +7,18 @@
 // multiple selected, summarises and exposes only batch operations (rotate,
 // delete via keyboard).
 
-import type { ComponentInstanceJSON } from '../../engine/ir';
+import type { CircuitJSON, ComponentInstanceJSON } from '../../engine/ir';
 import type { EditorModel, EditorState } from '../editor';
+import { decodeWordContents, wordRomDimensions, type WordRomParams } from '../../engine/behavioral/mem_rom';
+import { buildWordRomEditor } from './word_rom';
+import { buildSignalReadout } from './signals';
 
 const ROTATIONS = [0, 90, 180, 270];
 
 // Component types that accept `params.contents` as a hex ROM image. The
 // inspector renders a friendlier textarea + file input for these instead of
 // requiring the user to paste a multi-line string into the JSON params field.
-const HEX_CAPABLE_TYPES = new Set(['mem.28C16']);
+const HEX_CAPABLE_TYPES = new Set(['mem.28C16', 'mem.ROM']);
 
 const bytesToHex = (bytes: Uint8Array): string => {
   const lines: string[] = [];
@@ -30,28 +33,44 @@ const bytesToHex = (bytes: Uint8Array): string => {
 };
 
 export const mountInspector = (host: HTMLElement, editor: EditorModel): (() => void) => {
+  let refreshSignals = (): void => {};
+  let renderedCircuit: CircuitJSON | null = null;
+  let renderedSelection: string | null = null;
   const render = (state: EditorState): void => {
     const { selection, circuit } = state;
     if (selection.size === 0) {
+      refreshSignals = () => {}; renderedCircuit = null;
       host.innerHTML = '<div class="inspector-empty">Nothing selected</div>';
       return;
     }
     if (selection.size > 1) {
+      refreshSignals = () => {}; renderedCircuit = null;
       const ids = [...selection].join(', ');
       host.innerHTML = `<div class="inspector-empty">Multiple selected: ${ids}<br/>Press R to rotate, Del to delete.</div>`;
       return;
     }
     const id = [...selection][0]!;
+    if (renderedCircuit === circuit && renderedSelection === id) return;
     const inst = circuit.components.find((c) => c.id === id);
     if (!inst) {
       host.innerHTML = `<div class="inspector-empty">Selected ${id} (no longer exists)</div>`;
       return;
     }
-    host.replaceChildren(buildForm(editor, inst));
+    const form = buildForm(editor, inst);
+    const readout = buildSignalReadout(circuit, inst);
+    form.prepend(readout.element);
+    refreshSignals = () => readout.refresh(editor.state.snapshot);
+    renderedCircuit = circuit; renderedSelection = id;
+    host.replaceChildren(form); refreshSignals();
   };
 
   render(editor.state);
-  return editor.subscribe(render);
+  const unsubscribe = editor.subscribe(render);
+  let stopped = false;
+  let frame = 0;
+  const tick = (): void => { if (stopped) return; refreshSignals(); frame = requestAnimationFrame(tick); };
+  frame = requestAnimationFrame(tick);
+  return () => { stopped = true; cancelAnimationFrame(frame); unsubscribe(); };
 };
 
 const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElement => {
@@ -75,6 +94,9 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
 
   form.appendChild(ro('ID', inst.id));
   form.appendChild(ro('Type', inst.type));
+  const labelInput = document.createElement('input');
+  labelInput.value = inst.label ?? ''; labelInput.dataset.field = 'label';
+  form.append(wrapLabel('Label', labelInput));
 
   const pos = inst.position ?? [0, 0];
 
@@ -99,6 +121,7 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
   // JSON field focused on small structural params and the hex field focused
   // on the ROM image, with no quoting/escaping in either direction.
   const isHexCapable = HEX_CAPABLE_TYPES.has(inst.type);
+  const isWordRom = inst.type === 'mem.ROM';
   let paramsForJson: Record<string, unknown> | undefined = inst.params;
   let initialContents = '';
   if (isHexCapable && inst.params) {
@@ -122,12 +145,13 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
     romArea.dataset.field = 'contents';
     romArea.rows = 8;
     romArea.value = initialContents;
-    romArea.placeholder = 'DE AD BE EF  // hex bytes; // and # comments OK';
-    form.append(wrapLabel('ROM contents (hex)', romArea));
+    romArea.placeholder = isWordRom ? 'v2.0 raw\n2001\n8802\n// one hex word per address' : 'DE AD BE EF  // hex bytes; // and # comments OK';
+    form.append(wrapLabel(isWordRom ? 'ROM contents (hex words)' : 'ROM contents (hex)', romArea));
+    if (isWordRom) form.append(buildWordRomEditor(romArea, paramsArea));
 
     const binInput = document.createElement('input');
     binInput.type = 'file';
-    binInput.accept = '.bin,application/octet-stream';
+    binInput.accept = isWordRom ? '.hex,.rom,.txt,text/plain' : '.bin,application/octet-stream';
     binInput.dataset.field = 'contents-bin';
     romStatus = document.createElement('div');
     romStatus.className = 'inspector-substatus';
@@ -135,12 +159,12 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
     binInput.addEventListener('change', () => {
       const file = binInput.files?.[0];
       if (!file) return;
-      void file
-        .arrayBuffer()
+      void (isWordRom ? file.text() : file.arrayBuffer())
         .then((buf) => {
-          const bytes = new Uint8Array(buf);
-          romArea!.value = bytesToHex(bytes);
-          if (romStatus) romStatus.textContent = `Loaded ${String(bytes.length)} bytes from ${file.name}`;
+          const bytes = typeof buf === 'string' ? null : new Uint8Array(buf);
+          romArea!.value = typeof buf === 'string' ? buf : bytesToHex(bytes!);
+          romArea!.dispatchEvent(new Event('input'));
+          if (romStatus) romStatus.textContent = isWordRom ? `Loaded word image from ${file.name}` : `Loaded ${String(bytes!.length)} bytes from ${file.name}`;
         })
         .catch((err: unknown) => {
           if (romStatus) {
@@ -151,7 +175,7 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
           binInput.value = '';
         });
     });
-    form.append(wrapLabel('Upload .bin', binInput));
+    form.append(wrapLabel(isWordRom ? 'Open word image' : 'Upload .bin', binInput));
     form.append(romStatus);
   }
 
@@ -169,7 +193,11 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
     const txt = paramsArea.value.trim();
     if (txt.length > 0) {
       try {
-        params = JSON.parse(txt) as Record<string, unknown>;
+        const parsed: unknown = JSON.parse(txt);
+        if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          throw new Error('Params must be a JSON object');
+        }
+        params = parsed as Record<string, unknown>;
       } catch (err) {
         status.textContent = `bad JSON: ${err instanceof Error ? err.message : String(err)}`;
         return;
@@ -186,12 +214,30 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
         if (Object.keys(params).length === 0) params = undefined;
       }
     }
+    if (isWordRom) {
+      try {
+        const romParams = (params ?? {}) as WordRomParams;
+        const { size, dataBits } = wordRomDimensions(romParams);
+        decodeWordContents(romArea!.value, size, dataBits);
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : String(error);
+        return;
+      }
+    }
     const patch: Partial<ComponentInstanceJSON> = {
+      label: labelInput.value.trim() || undefined,
       position: [Number(xInput.input.value) || 0, Number(yInput.input.value) || 0],
       rotation: Number(rotSelect.value) || 0,
       ...(params ? { params } : { params: undefined }),
     };
-    void editor.updateComponent(inst.id, patch);
+    const controls = form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | HTMLButtonElement>('input, textarea, select, button');
+    controls.forEach((control) => { control.disabled = true; });
+    status.textContent = 'Applying…';
+    void editor.updateComponent(inst.id, patch).catch((error: unknown) => {
+      status.textContent = error instanceof Error ? error.message : String(error);
+    }).finally(() => {
+      controls.forEach((control) => { control.disabled = false; });
+    });
   });
 
   const del = document.createElement('button');

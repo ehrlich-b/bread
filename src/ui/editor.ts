@@ -10,8 +10,10 @@
 // Selection is local-only (the worker doesn't care). Selected component IDs
 // referencing instances that disappear after a mutation are pruned silently.
 
-import type { CircuitJSON, ComponentInstanceJSON, NetJSON } from '../engine/ir';
+import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON } from '../engine/ir';
 import type { LoadSnapshot, WorkerBus } from './bus';
+import { chipBody, createChip } from './chips/model';
+import { busPairs, connectSignals } from './signals';
 
 export interface Placement {
   type: string;
@@ -23,29 +25,46 @@ export interface EditorState {
   snapshot: LoadSnapshot;
   selection: ReadonlySet<string>;
   placement: Placement | null;
+  editingChip: string | null;
+  error: string | null;
+  busWiring: boolean;
+}
+
+interface EditorDocument {
+  project: CircuitJSON;
+  draft: CircuitJSON | null;
+  editing: string | null;
 }
 
 const MAX_UNDO_DEPTH = 200;
 
 export class EditorModel {
-  private circuit: CircuitJSON;
+  private document: EditorDocument;
+  private error: string | null = null;
+  private portInputs = new Map<string, NetState>();
+  private get circuit(): CircuitJSON { return this.document.draft ?? this.document.project; }
+  get project(): CircuitJSON { return this.document.project; }
+  // Export after all edits already requested by the user have committed.
+  whenIdle(): Promise<void> { return this.inflight; }
   private snapshot: LoadSnapshot;
   private selection: Set<string> = new Set();
   private placement: Placement | null = null;
+  private busWiring = false;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
+  private pendingComponentIds: Set<string> = new Set();
   // Each entry is the circuit *before* a user-initiated mutation; pop one to
   // undo. redoStack mirrors it for forward replays. Bounded so very long
   // sessions don't grow without bound.
-  private undoStack: CircuitJSON[] = [];
-  private redoStack: CircuitJSON[] = [];
+  private undoStack: EditorDocument[] = [];
+  private redoStack: EditorDocument[] = [];
 
   constructor(
     public readonly bus: WorkerBus,
     circuit: CircuitJSON,
     snapshot: LoadSnapshot,
   ) {
-    this.circuit = circuit;
+    this.document = { project: circuit, draft: null, editing: null };
     this.snapshot = snapshot;
   }
 
@@ -55,6 +74,9 @@ export class EditorModel {
       snapshot: this.snapshot,
       selection: this.selection,
       placement: this.placement,
+      editingChip: this.document.editing,
+      error: this.error,
+      busWiring: this.busWiring,
     };
   }
 
@@ -62,7 +84,7 @@ export class EditorModel {
   // lowercase short name + 1-based counter. e.g. "and1", "and2", "switch1".
   generateId(type: string): string {
     const base = type.split('.').pop()?.toLowerCase() ?? 'comp';
-    const existing = new Set(this.circuit.components.map((c) => c.id));
+    const existing = new Set([...this.pendingComponentIds, ...this.circuit.components.map((c) => c.id)]);
     let i = 1;
     while (existing.has(`${base}${i}`)) i++;
     return `${base}${i}`;
@@ -81,30 +103,21 @@ export class EditorModel {
   //   - pins on different nets: merge the second into the first
   //   - same net or same pin: no-op
   connect(fromEp: string, toEp: string): Promise<void> {
-    if (fromEp === toEp) return Promise.resolve();
-    const fromNet = this.circuit.nets.find((n) => n.endpoints.includes(fromEp));
-    const toNet = this.circuit.nets.find((n) => n.endpoints.includes(toEp));
-    if (fromNet && toNet && fromNet.id === toNet.id) return Promise.resolve();
+    return this.applyMutate((circuit) => connectSignals(circuit, fromEp, toEp));
+  }
 
-    let nets = this.circuit.nets;
-    if (!fromNet && !toNet) {
-      const id = this.generateNetId();
-      nets = [...nets, { id, endpoints: [fromEp, toEp] }];
-    } else if (fromNet && !toNet) {
-      nets = nets.map((n) =>
-        n.id === fromNet.id ? { ...n, endpoints: [...n.endpoints, toEp] } : n,
-      );
-    } else if (!fromNet && toNet) {
-      nets = nets.map((n) =>
-        n.id === toNet.id ? { ...n, endpoints: [...n.endpoints, fromEp] } : n,
-      );
-    } else if (fromNet && toNet) {
-      const merged = [...fromNet.endpoints, ...toNet.endpoints];
-      nets = nets
-        .filter((n) => n.id !== toNet.id)
-        .map((n) => (n.id === fromNet.id ? { ...n, endpoints: merged } : n));
-    }
-    return this.applyMutate({ ...this.circuit, nets });
+  connectBus(from: string, to: string, width: number): Promise<void> {
+    return this.applyMutate((circuit) => {
+      let next = circuit;
+      for (const [source, target] of busPairs(circuit, from, to, width)) next = connectSignals(next, source, target) ?? next;
+      return next === circuit ? null : next;
+    });
+  }
+
+  setBusWiring(enabled: boolean): void {
+    this.busWiring = enabled;
+    if (enabled) this.placement = null;
+    this.notify();
   }
 
   // ---- Placement ---------------------------------------------------------
@@ -135,55 +148,125 @@ export class EditorModel {
   // ---- Mutations ---------------------------------------------------------
 
   addComponent(inst: ComponentInstanceJSON): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      components: [...this.circuit.components, inst],
-    });
+    this.pendingComponentIds.add(inst.id);
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      components: [...circuit.components, inst],
+    })).finally(() => this.pendingComponentIds.delete(inst.id));
   }
 
   removeComponent(id: string): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      components: this.circuit.components.filter((c) => c.id !== id),
-      nets: this.circuit.nets
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      components: circuit.components.filter((c) => c.id !== id),
+      nets: circuit.nets
         .map((n) => ({
           ...n,
           endpoints: n.endpoints.filter((ep) => ep.split('.', 1)[0] !== id),
         }))
         .filter((n) => n.endpoints.length >= 1),
-    });
+    }));
   }
 
   updateComponent(id: string, patch: Partial<ComponentInstanceJSON>): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      components: this.circuit.components.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    });
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      components: circuit.components.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }));
+  }
+
+  rotateComponent(id: string): Promise<void> {
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      components: circuit.components.map((c) => c.id === id
+        ? { ...c, rotation: ((c.rotation ?? 0) + 90) % 360 }
+        : c),
+    }));
   }
 
   addNet(net: NetJSON): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      nets: [...this.circuit.nets, net],
-    });
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      nets: [...circuit.nets, net],
+    }));
   }
 
   removeNet(id: string): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      nets: this.circuit.nets.filter((n) => n.id !== id),
-    });
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      nets: circuit.nets.filter((n) => n.id !== id),
+    }));
   }
 
   updateNet(id: string, patch: Partial<NetJSON>): Promise<void> {
-    return this.applyMutate({
-      ...this.circuit,
-      nets: this.circuit.nets.map((n) => (n.id === id ? { ...n, ...patch } : n)),
-    });
+    return this.applyMutate((circuit) => ({
+      ...circuit,
+      nets: circuit.nets.map((n) => (n.id === id ? { ...n, ...patch } : n)),
+    }));
   }
 
   replaceCircuit(circuit: CircuitJSON): Promise<void> {
-    return this.applyMutate(circuit);
+    return this.applyDocument(() => ({ project: circuit, draft: null, editing: null }));
+  }
+
+  newCircuit(): Promise<void> {
+    return this.applyDocument((doc) => ({ project: { version: 1, kind: 'circuit', name: 'Untitled', components: [], nets: [], definitions: (doc.draft ?? doc.project).definitions ?? [] }, draft: null, editing: null }));
+  }
+
+  createChip(name: string, ports: PortJSON[], selected: ReadonlySet<string> = new Set(this.selection)): Promise<void> {
+    return this.applyMutate((circuit) => createChip(circuit, selected, name, ports));
+  }
+
+  editChip(type: string): Promise<void> {
+    return this.applyDocument((doc) => {
+      if (doc.draft) throw new Error('Save or cancel the open chip before editing another.');
+      const definition = doc.project.definitions?.find((d) => d.name === type);
+      if (!definition) throw new Error(`Unknown user chip ${type}`);
+      return { ...doc, editing: type, draft: chipBody(definition, doc.project.definitions ?? []) };
+    });
+  }
+
+  saveChip(): Promise<void> {
+    return this.applyDocument((doc) => {
+      if (!doc.draft || !doc.editing) return null;
+      const { definitions: library, ...body } = doc.draft;
+      const previous = doc.project.definitions?.find((d) => d.name === doc.editing);
+      const definition: CircuitJSON = { ...body, name: doc.editing, kind: 'composite', metadata: { ...body.metadata, revision: Number(previous?.metadata?.revision ?? 1) + 1 } };
+      const definitions = (library ?? []).map((d) => d.name === doc.editing ? definition : d);
+      return { project: { ...doc.project, definitions }, draft: null, editing: null };
+    });
+  }
+
+  cancelChip(): Promise<void> {
+    return this.applyDocument((doc) => doc.draft ? { ...doc, draft: null, editing: null } : null);
+  }
+
+  updatePorts(ports: PortJSON[]): Promise<void> {
+    return this.applyMutate((circuit) => ({ ...circuit, ports }));
+  }
+
+  exposePin(endpoint: string, name: string, dir: PortJSON['dir']): Promise<void> {
+    return this.applyMutate((circuit) => {
+      let net = circuit.nets.find((n) => n.endpoints.includes(endpoint));
+      const nets = [...circuit.nets];
+      if (!net) { net = { id: this.generateNetId(), endpoints: [endpoint] }; nets.push(net); }
+      if (circuit.ports?.some((p) => p.internalNet === net!.id)) throw new Error('That signal already has a port. Tied pins share one port.');
+      return { ...circuit, nets, ports: [...(circuit.ports ?? []), { name, dir, internalNet: net.id }] };
+    });
+  }
+
+  async setPortInput(netId: string, value: NetState): Promise<void> {
+    await this.inflight;
+    if (!this.document.editing || !this.circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out')) {
+      throw new Error('Only chip input and bidirectional ports can be driven.');
+    }
+    await this.bus.setNetInput(netId, value);
+    this.portInputs.set(netId, value);
+  }
+
+  reportError(error: unknown): void {
+    this.error = error instanceof Error ? error.message : String(error);
+    this.notify();
   }
 
   // ---- Selection ---------------------------------------------------------
@@ -222,9 +305,7 @@ export class EditorModel {
   }
 
   async undo(): Promise<void> {
-    if (this.undoStack.length === 0) return;
-    const target = this.undoStack[this.undoStack.length - 1]!;
-    await this.applyTransition(target, (old) => {
+    await this.applyTransition(() => this.undoStack[this.undoStack.length - 1] ?? null, (old) => {
       // Pop only after the transition commits, so a race-then-failure
       // doesn't drain the stack.
       this.undoStack.pop();
@@ -233,9 +314,7 @@ export class EditorModel {
   }
 
   async redo(): Promise<void> {
-    if (this.redoStack.length === 0) return;
-    const target = this.redoStack[this.redoStack.length - 1]!;
-    await this.applyTransition(target, (old) => {
+    await this.applyTransition(() => this.redoStack[this.redoStack.length - 1] ?? null, (old) => {
       this.redoStack.pop();
       this.undoStack.push(old);
     });
@@ -243,43 +322,58 @@ export class EditorModel {
 
   // ---- Internal ---------------------------------------------------------
 
-  private applyMutate(newCircuit: CircuitJSON): Promise<void> {
-    return this.applyTransition(newCircuit, (old) => {
+  private applyMutate(build: (circuit: CircuitJSON) => CircuitJSON | null): Promise<void> {
+    return this.applyDocument((doc) => {
+      const next = build(doc.draft ?? doc.project);
+      if (next === null) return null;
+      return doc.draft ? { ...doc, draft: next } : { ...doc, project: next };
+    });
+  }
+
+  private applyDocument(build: (doc: EditorDocument) => EditorDocument | null): Promise<void> {
+    return this.applyTransition(build, (old) => {
       this.undoStack.push(old);
       if (this.undoStack.length > MAX_UNDO_DEPTH) this.undoStack.shift();
       this.redoStack = [];
     });
   }
 
-  // Serialized circuit transition. The history callback runs after the worker
-  // confirms the new graph but before we update local state — `old` is the
-  // current circuit at that moment.
+  // Both document changes and history targets resolve after prior RPCs finish.
   private async applyTransition(
-    newCircuit: CircuitJSON,
-    onCommit: (old: CircuitJSON) => void,
+    build: (doc: EditorDocument) => EditorDocument | null,
+    onCommit: (old: EditorDocument) => void,
   ): Promise<void> {
     const prev = this.inflight;
     let release!: () => void;
-    this.inflight = new Promise<void>((res) => {
-      release = res;
-    });
+    this.inflight = new Promise<void>((res) => { release = res; });
     try {
       await prev;
-      const snapshot = await this.bus.mutate(newCircuit);
-      const ids = new Set(newCircuit.components.map((c) => c.id));
-      let pruned = false;
-      const nextSel = new Set<string>();
-      for (const sid of this.selection) {
-        if (ids.has(sid)) nextSel.add(sid);
-        else pruned = true;
+      const next = build(this.document);
+      if (next === null) return;
+      const circuit = next.draft ?? next.project;
+      const snapshot = await this.bus.mutate(circuit);
+      const ids = new Set(circuit.components.map((c) => c.id));
+      this.selection = new Set([...this.selection].filter((id) => ids.has(id)));
+      if (next.editing !== this.document.editing) {
+        this.selection.clear();
+        this.placement = null;
+        this.portInputs.clear();
       }
-      if (pruned) this.selection = nextSel;
-      onCommit(this.circuit);
-      this.circuit = newCircuit;
+      onCommit(this.document);
+      this.document = next;
       this.snapshot = snapshot;
+      // Testing a chip starts with released inputs. Preserve explicit drives
+      // across structural edits, and release ports which became outputs.
+      for (const [netId, value] of this.portInputs) {
+        if (circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out') && snapshot.netIndex.has(netId)) {
+          await this.bus.setNetInput(netId, value);
+        } else this.portInputs.delete(netId);
+      }
+      this.error = null;
       this.notify();
-    } finally {
-      release();
-    }
+    } catch (error) {
+      this.reportError(error);
+      throw error;
+    } finally { release(); }
   }
 }

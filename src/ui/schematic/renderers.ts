@@ -1,3 +1,5 @@
+import type { CircuitJSON } from "../../engine/ir";
+import { getPinsForType } from "../../engine";
 // Per-component-type SVG renderer presets. Each entry knows how to draw the
 // component's body inside a translated <g> and where its pins live (so the
 // wire layer can route to absolute coordinates).
@@ -387,8 +389,19 @@ import { buildGenericRenderer } from './generic_renderer';
 export const resolveRenderer = (
   typeId: string,
   params?: Record<string, unknown>,
+  definitions?: readonly CircuitJSON[],
 ): Renderer | null => {
   const r = renderers[typeId];
-  if (r) return r;
-  return buildGenericRenderer(typeId, params);
+  if (r) {
+    let pins;
+    try { pins = getPinsForType(typeId, params, definitions); }
+    catch { return r; }
+    // Parameterized clear/preset, active-low enables and wider gates must
+    // expose the actual engine pinout rather than the default drawing.
+    if (pins && (pins.length !== Object.keys(r.pins).length || pins.some((p) => !(p.name in r.pins)))) {
+      return buildGenericRenderer(typeId, params, definitions);
+    }
+    return r;
+  }
+  return buildGenericRenderer(typeId, params, definitions);
 };

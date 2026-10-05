@@ -95,6 +95,7 @@ main {
 }
 
 #schematic {
+  position: relative;
   border: 1px solid color-mix(in oklab, var(--fg) 12%, transparent);
   border-radius: 4px;
   background: color-mix(in oklab, var(--bg) 90%, var(--fg) 4%);
@@ -120,6 +121,11 @@ aside {
   flex-wrap: wrap;
   gap: 0.4rem;
 }
+
+#controls label { font-size: .85rem; }
+#controls input { width: 7rem; background: var(--bg); color: var(--fg); border: 1px solid #8888; border-radius: 3px; padding: .25rem; }
+#controls output { width: 100%; font-size: .75rem; line-height: 1.5; }
+#controls [role="alert"] { color: var(--led-on); font-size: .8rem; }
 
 #file {
   display: flex;
@@ -313,3 +319,42 @@ button[aria-pressed='true'] {
 .switch-handle {
   cursor: pointer;
 }
+
+#chips { display: flex; flex-direction: column; gap: .5rem; font-size: .85rem; border: 1px solid #5555; border-radius: 4px; padding: .5rem; }
+#chips small { opacity: .75; }
+.palette-chip { display: flex; gap: .2rem; margin-bottom: .25rem; }
+.palette-chip .palette-entry { flex: 1; min-width: 0; }
+.chip-dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 8px; width: min(600px, 85vw); max-height: 80vh; overflow: auto; }
+.chip-dialog::backdrop { background: #0009; }
+.chip-dialog h2 { margin-top: 0; font-size: 1.2rem; }
+.chip-dialog p { line-height: 1.5; }
+.chip-dialog > button { margin: .5rem .4rem 0 0; }
+.port-row { display: grid; grid-template-columns: 1fr 80px 1fr; gap: .5rem; align-items: center; margin-top: .5rem; }
+.port-editor { display: grid; grid-template-columns: 1fr 70px; gap: .3rem; padding-top: .5rem; border-top: 1px solid #5555; }
+.port-editor output { font-family: monospace; text-align: center; }
+.port-drives { display: flex; gap: .2rem; }
+.port-drives button { padding: .2rem .4rem; }
+.port-editor > button { font-size: .7rem; }
+.chip-actions { display: flex; gap: .3rem; }
+#chips input, #chips select, .chip-dialog input, .chip-dialog select { min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid #8888; border-radius: 3px; padding: .25rem; }
+[role='alert'] { color: #f87171; overflow-wrap: anywhere; }
+button:disabled { opacity: .45; cursor: default; }
+
+aside { max-height: calc(100vh - 100px); overflow: auto; }
+
+.label { pointer-events: none; }
+
+aside > * { flex-shrink: 0; }
+
+.bus-hint { font-size: .8rem; flex-basis: 100%; }
+.signal-readout { grid-column: 1 / -1; padding: .4rem; border: 1px solid #8885; }
+.signal-readout > div { display: grid; grid-template-columns: 1fr 1.4fr; gap: .3rem; margin-top: .3rem; }
+.signal-readout output { white-space: pre-wrap; overflow-wrap: anywhere; font: .8rem ui-monospace, monospace; }
+.inspector-form fieldset { min-width: 0; grid-column: 1 / -1; margin: .3rem 0; }
+.inspector-form fieldset p { font-size: .8rem; line-height: 1.4; }
+.inspector-form fieldset label { display: block; margin: .4rem 0; }
+
+.json-dialog { background: var(--bg); color: var(--fg); border: 1px solid var(--accent); border-radius: 8px; width: min(760px, 85vw); }
+.json-dialog::backdrop { background: #0009; }
+.json-dialog textarea { box-sizing: border-box; width: 100%; height: 60vh; background: var(--bg); color: var(--fg); font: 12px ui-monospace, monospace; border: 1px solid #8888; resize: vertical; }
+.schematic-fit { position: absolute; right: 12px; top: 12px; z-index: 1; }

@@ -1,5 +1,6 @@
 import { getBehavioral } from './behavioral/registry';
 import { getComposite } from './composites/registry';
+import { projectComposites } from './composites/project';
 import type {
   CircuitJSON,
   ComponentInstanceJSON,
@@ -41,8 +42,15 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
     throw new Error(`loadCircuit requires kind="circuit"; got "${json.kind}" (composites register via registerComposite)`);
   }
 
-  const flat = flattenCircuit(json);
+  const definitions = projectComposites(json);
+  // Validate unused chips too: reopening a file must not hide a broken library.
+  for (const def of definitions.values()) {
+    buildRuntime(flatten(def, [def.name], definitions), opts);
+  }
+  return buildRuntime(flatten(json, [], definitions), opts);
+}
 
+function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
   const components: RuntimeComponent[] = [];
   const componentById = new Map<string, number>();
 
@@ -223,10 +231,25 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
 // references in the parent's nets with the prefixed inner-net endpoints, and
 // add unmerged inner nets as composite-internal (prefixed) nets.
 export function flattenCircuit(json: CircuitJSON): CircuitJSON {
-  return flatten(json, []);
+  const definitions = projectComposites(json);
+  for (const def of definitions.values()) flatten(def, [def.name], definitions);
+  return flatten(json, [], definitions);
 }
 
-function flatten(input: CircuitJSON, importChain: string[]): CircuitJSON {
+function flatten(input: CircuitJSON, importChain: string[], definitions: Map<string, CircuitJSON>): CircuitJSON {
+  // IDs must be unique in the authoring graph too: flattening could otherwise
+  // disguise duplicate instance IDs by giving only one of them a prefix.
+  const componentIds = new Set<string>();
+  for (const c of input.components) {
+    if (componentIds.has(c.id)) throw new Error(`duplicate component id: ${c.id} in ${input.name}`);
+    if (!c.id || c.id.includes('.')) throw new Error(`invalid component id: ${c.id}`);
+    componentIds.add(c.id);
+  }
+  const netIds = new Set<string>();
+  for (const n of input.nets) {
+    if (netIds.has(n.id)) throw new Error(`duplicate net id: ${n.id} in ${input.name}`);
+    netIds.add(n.id);
+  }
   const outComponents: ComponentInstanceJSON[] = [];
   const outNets: NetJSON[] = input.nets.map((n) => ({
     id: n.id,
@@ -240,7 +263,7 @@ function flatten(input: CircuitJSON, importChain: string[]): CircuitJSON {
       outComponents.push(inst);
       continue;
     }
-    const composite = getComposite(inst.type);
+    const composite = definitions.get(inst.type) ?? getComposite(inst.type);
     if (!composite) {
       throw new Error(`unknown component type: ${inst.type} (component ${inst.id})`);
     }
@@ -250,7 +273,7 @@ function flatten(input: CircuitJSON, importChain: string[]): CircuitJSON {
       );
     }
 
-    expandComposite(inst, composite, [...importChain, inst.type], outComponents, outNets);
+    expandComposite(inst, composite, [...importChain, inst.type], outComponents, outNets, definitions);
   }
 
   return {
@@ -271,8 +294,9 @@ function expandComposite(
   newImportChain: string[],
   outComponents: ComponentInstanceJSON[],
   outNets: NetJSON[],
+  definitions: Map<string, CircuitJSON>,
 ): void {
-  const inner = flatten(composite, newImportChain);
+  const inner = flatten(composite, newImportChain, definitions);
   const prefix = `${inst.id}__`;
 
   // Inner-component IDs prefixed with the parent instance id.

@@ -10,6 +10,12 @@ Milestones, each independently demonstrable. Ship in order.
 
 M7 in progress.
 
+The NAND-to-CPU ascent now has actual editor evidence through 14 reusable
+modules and an arithmetic/HALT CPU. [CPU_ASCENT.md](CPU_ASCENT.md) records the
+remaining manual load/store and branch checks, separate headless ISA tests,
+and current measured performance. Historical 88 kHz reference figures below
+are not measurements of this new CPU or the interactive UI.
+
 ## M0 — Engine kernel  ✅ done
 
 No UI. No worker. Plain Node module.
@@ -66,7 +72,7 @@ No UI. No worker. Plain Node module.
 - `ttl.74LS107`, `74LS138`, `74LS139`, `74LS157`, `74LS161`, `74LS245`, `74LS273` composites. ✅
 - Eight `eater.*` SAP-1 composites — `register_8bit`, `alu_8bit`, `ram_module`, `program_counter`, `instruction_register`, `flags_register`, `output_display`, `control_unit`. The control unit's microcode is authored in `src/stdlib/eater.microcode.ts` and stamped into the two onboard 28C16s at registration time. ✅
 - Pre-built `examples/ben_eater_8bit.json` reference circuit, registered in the Examples dropdown. ✅
-- **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
+- **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
 
 ## M6 — Performance  (partial — paused at 88 kHz)
 
@@ -79,7 +85,12 @@ No UI. No worker. Plain Node module.
 
 ## M7 — Polish
 
+- Visual reusable chip authoring: select a fragment, name ports, place nested chips, edit/test/save definitions with the project. ✅ Implementation, independent review, automated regressions, and manual gates-to-CPU arithmetic validation. Broader manual CPU validation remains open. See [CHIP_AUTHORING.md](CHIP_AUTHORING.md).
+
 - Bus-grouped wires (visual: multiple bits as one fat line).
+- Atomic bus wiring with an explicit scalar-bit mapping preview is available;
+  wires remain separate electrical signals. Configurable word ROMs and live
+  binary/hex inspector readouts support the [original Digital CPU port](ORIGINAL_CPU_PORT.md).
 - Probes + waveform viewer (read `io.pin_output` history, render as VCD-style traces).
 - Testbench format (`*.test.json`): drive inputs, assert outputs over time, run headless via `npm test`.
 - Verilog export, best-effort: primitives + composites only; behavioral chips emit `/* not synthesizable */` stubs.

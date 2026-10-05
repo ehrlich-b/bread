@@ -8,6 +8,7 @@ import {
   NET_STATE_FROM_BYTE,
   type EventNotif,
   type LoadRes,
+  type MetricsNotif,
   type WorkerReq,
   type WorkerRes,
 } from '../worker/protocol';
@@ -26,7 +27,9 @@ export interface WorkerBus {
   pause(): Promise<void>;
   step(): Promise<void>;
   setInput(component: string, pin: string, value: NetState): Promise<void>;
+  setNetInput(net: string, value: NetState): Promise<void>;
   on(event: 'event', handler: (e: EventNotif) => void): () => void;
+  on(event: 'metrics', handler: (e: MetricsNotif) => void): () => void;
   readNet(netId: string): NetState;
   netIds: string[];
   componentIds: string[];
@@ -45,6 +48,7 @@ export const createWorkerBus = (): WorkerBus => {
   let nextId = 1;
   const pending = new Map<number, Pending>();
   const eventHandlers = new Set<(e: EventNotif) => void>();
+  const metricsHandlers = new Set<(e: MetricsNotif) => void>();
 
   let snapshot: LoadSnapshot | null = null;
 
@@ -70,6 +74,10 @@ export const createWorkerBus = (): WorkerBus => {
     const msg = e.data;
     if (msg.type === 'event') {
       for (const h of eventHandlers) h(msg);
+      return;
+    }
+    if (msg.type === 'metrics') {
+      for (const h of metricsHandlers) h(msg);
       return;
     }
     const slot = pending.get(msg.id);
@@ -128,9 +136,18 @@ export const createWorkerBus = (): WorkerBus => {
       await send<void>({ type: 'set_input', id, component, pin, value });
     },
 
-    on(_event, handler) {
-      eventHandlers.add(handler);
-      return () => eventHandlers.delete(handler);
+    async setNetInput(net, value) {
+      const id = nextId++;
+      await send<void>({ type: 'set_net_input', id, net, value });
+    },
+
+    on(event, handler) {
+      if (event === 'metrics') {
+        const h = handler as (e: MetricsNotif) => void;
+        metricsHandlers.add(h); return () => { metricsHandlers.delete(h); };
+      }
+      const h = handler as (e: EventNotif) => void;
+      eventHandlers.add(h); return () => { eventHandlers.delete(h); };
     },
 
     readNet(netId) {

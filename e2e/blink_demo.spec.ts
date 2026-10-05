@@ -7,8 +7,8 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('svg')).toBeVisible();
-  await expect(page.locator('#iso-status')).toHaveText(/crossOriginIsolated: true/);
+  await expect(page.locator('svg[data-role="canvas"]')).toBeVisible();
+  expect(await page.evaluate(() => self.crossOriginIsolated)).toBe(true);
 });
 
 test('schematic renders four components and three wires', async ({ page }) => {
@@ -35,6 +35,28 @@ test('switch click toggles label and handle color', async ({ page }) => {
   await sw.click();
   await expect(label).toHaveText('0');
   await expect(handle).toHaveAttribute('fill', /led-off/);
+});
+
+test('a manual switch keeps its drive across selection and bus modes, then resets on structural edits', async ({ page }) => {
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const sw = page.locator('[data-comp-id="sw"]');
+  const label = sw.locator('[data-role="switch-label"]');
+  const output = page.locator('[data-net-id="sw_out"]');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-1');
+  await page.getByRole('button', { name: 'Connect bus', exact: true }).click();
+  await expect(label).toHaveText('1');
+  await page.getByRole('button', { name: 'Connect bus', exact: true }).click();
+  await sw.click({ modifiers: ['Shift'] });
+  await expect(label).toHaveText('1');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-0');
+  await sw.locator('[data-role="switch-handle"]').click();
+  await expect(output).toHaveClass('wire wire-1');
+  await page.locator('[data-comp-id="and"] .gate-body').click();
+  await page.keyboard.press('r');
+  await expect(output).toHaveClass('wire wire-0');
+  await expect(label).toHaveText('0');
 });
 
 test('LED stays off while switch=0 and blinks when switch=1', async ({ page }) => {
@@ -70,4 +92,24 @@ test('Pause stops LED updates', async ({ page }) => {
   const frozen = await led.getAttribute('fill');
   await page.waitForTimeout(1500);
   expect(await led.getAttribute('fill')).toBe(frozen);
+});
+
+test('tick-rate control reports achieved throughput and rejects an invalid rate', async ({ page }) => {
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  const throughput = page.getByLabel('Simulation throughput');
+  await expect(throughput).toContainText('Paused');
+  const rate = page.getByRole('spinbutton', { name: 'Simulation ticks per second' });
+  await rate.fill('20000');
+  await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await expect(throughput).toContainText('requested 20,000 ticks/s');
+  await expect.poll(async () => Number((await throughput.textContent())?.match(/measured ([\d,]+) ticks\/s/)?.[1]?.replaceAll(',', ''))).toBeGreaterThan(1000);
+  await page.getByRole('button', { name: 'Pause', exact: true }).click();
+  await expect(throughput).toContainText('measured 0 ticks/s');
+  const ticks = async (): Promise<number> => Number((await throughput.textContent())?.match(/· ([\d,]+) ticks$/)?.[1]?.replaceAll(',', ''));
+  const before = await ticks();
+  await page.getByRole('button', { name: 'Step', exact: true }).click();
+  await expect.poll(ticks).toBe(before + 1);
+  await rate.fill('0'); await page.getByRole('button', { name: 'Run', exact: true }).click();
+  await expect(page.locator('#controls [role="alert"]')).toContainText('integer from 1');
+  await expect(throughput).toContainText('Paused');
 });

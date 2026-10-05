@@ -43,6 +43,8 @@ export class Simulator {
   // Reusable result struct for resolveNetInto — avoids per-call allocation.
   private readonly resolveResult: ResolveResult = { value: 'Z', contention: false };
 
+  private initialResolution = true;
+
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
@@ -50,10 +52,8 @@ export class Simulator {
     this.inDirty = new Uint8Array(graph.components.length);
     this.netChanged = new Uint8Array(graph.nets.length);
     // Initial state per SIMULATION.md: every component dirty, every net X.
-    // We deliberately skip pre-resolving nets — the loader already set every
-    // net.value to 'X' and outputBuf to 'Z'. The first settle reconciles
-    // them, and any listener cascade only fires for drivers that actually
-    // change off 'X'.
+    // Keep the initial X snapshot until the first READ phase. Its COMMIT
+    // resolves every net, including drivers which remain at their initial Z.
     for (let i = 0; i < graph.components.length; i++) {
       this.dirtyA.push(i);
       this.inDirty[i] = 1;
@@ -155,6 +155,10 @@ export class Simulator {
       const netChanged = this.netChanged;
       const changedQueue = this.changedNetsQueue;
       changedQueue.length = 0;
+      if (this.initialResolution) {
+        for (let n = 0; n < nets.length; n++) { netChanged[n] = 1; changedQueue.push(n); }
+        this.initialResolution = false;
+      }
       for (let i = 0; i < now.length; i++) {
         const compIdx = now[i]!;
         const comp = components[compIdx]!;
