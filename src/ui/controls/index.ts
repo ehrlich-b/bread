@@ -30,14 +30,14 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
     try {
       const rate = validateRateHz(Number(rateInput.value));
       error.textContent = '';
-      void editor.bus.run(rate).catch((e: unknown) => { error.textContent = e instanceof Error ? e.message : String(e); });
+      void editor.run(rate).catch((e: unknown) => { error.textContent = e instanceof Error ? e.message : String(e); });
     } catch (e) { error.textContent = e instanceof Error ? e.message : String(e); }
   });
   const pauseBtn = button('Pause', () => {
-    void editor.bus.pause();
+    void editor.pause().catch(() => {});
   });
   const stepBtn = button('Step', () => {
-    void editor.bus.step();
+    void editor.step().catch(() => {});
   });
   const undoBtn = button('Undo', () => {
     void editor.undo();

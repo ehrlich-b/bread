@@ -258,13 +258,26 @@ export class EditorModel {
     });
   }
 
-  async setPortInput(netId: string, value: NetState): Promise<void> {
-    await this.inflight;
-    if (!this.document.editing || !this.circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out')) {
-      throw new Error('Only chip input and bidirectional ports can be driven.');
-    }
-    await this.bus.setNetInput(netId, value);
-    this.portInputs.set(netId, value);
+  run(rateHz: number): Promise<void> {
+    return this.enqueue(() => this.bus.run(rateHz));
+  }
+
+  pause(): Promise<void> {
+    return this.enqueue(() => this.bus.pause());
+  }
+
+  step(): Promise<void> {
+    return this.enqueue(() => this.bus.step());
+  }
+
+  setPortInput(netId: string, value: NetState): Promise<void> {
+    return this.enqueue(async () => {
+      if (!this.document.editing || !this.circuit.ports?.some((p) => p.internalNet === netId && p.dir !== 'out')) {
+        throw new Error('Only chip input and bidirectional ports can be driven.');
+      }
+      await this.bus.setNetInput(netId, value);
+      this.portInputs.set(netId, value);
+    });
   }
 
   toggleSwitch(id: string): Promise<void> {
@@ -386,7 +399,7 @@ export class EditorModel {
     });
   }
 
-  // Structural reloads and switch drives commit in user action order.
+  // Worker commands commit in user action order.
   private async enqueue(action: () => Promise<void>): Promise<void> {
     const prev = this.inflight;
     let release!: () => void;
