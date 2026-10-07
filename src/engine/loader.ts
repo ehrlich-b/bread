@@ -11,6 +11,7 @@ import type {
   RuntimeNet,
 } from './ir';
 import { getPrimitive } from './primitives/index';
+import { getEvalKind } from './primitives/dispatch';
 import { NET_STATES, netStateByte } from './nets';
 
 // Resolve a component type to its leaf evaluator (primitive or behavioral).
@@ -86,6 +87,7 @@ function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
       id: inst.id,
       typeId: inst.type,
       primitive: prim,
+      evalKind: getEvalKind(prim),
       params,
       state,
       pins,

@@ -20,7 +20,7 @@ const tristatePins = (params: TristateParams): PinSpec[] => {
   return pins;
 };
 
-const tristate: PrimitiveDef<undefined, TristateParams> = {
+export const tristate: PrimitiveDef<undefined, TristateParams> = {
   pins: tristatePins,
   evaluate(inputs, outputs, _state, params) {
     const a = inputs[0]!;

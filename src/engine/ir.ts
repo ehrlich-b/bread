@@ -98,6 +98,8 @@ export interface RuntimeComponent {
   id: string;
   typeId: string;
   primitive: PrimitiveDef<unknown, unknown>;
+  // Built-in dispatch tag, selected once by the loader; 0 = registry fallback.
+  evalKind: number;
   params: unknown;
   state: unknown;
   pins: PinSpec[];

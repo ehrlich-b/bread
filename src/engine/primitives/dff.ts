@@ -35,7 +35,7 @@ const invert = (q: NetState): NetState => {
   return 'X';
 };
 
-const dff: PrimitiveDef<DffState, DffParams> = {
+export const dff: PrimitiveDef<DffState, DffParams> = {
   pins: dffPins,
   init: (params) => {
     dffPins(params);

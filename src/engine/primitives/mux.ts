@@ -30,7 +30,7 @@ const muxPins = (params: WidthParams): PinSpec[] => {
   return pins;
 };
 
-const mux2: PrimitiveDef<undefined, WidthParams> = {
+export const mux2: PrimitiveDef<undefined, WidthParams> = {
   pins: muxPins,
   evaluate(inputs, outputs, _state, params) {
     const w = params.width;
@@ -58,7 +58,7 @@ const demuxPins = (params: WidthParams): PinSpec[] => {
   return pins;
 };
 
-const demux2: PrimitiveDef<undefined, WidthParams> = {
+export const demux2: PrimitiveDef<undefined, WidthParams> = {
   pins: demuxPins,
   evaluate(inputs, outputs, _state, params) {
     const w = params.width;

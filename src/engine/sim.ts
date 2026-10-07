@@ -1,5 +1,10 @@
 import type { DriverValue, EvalCtx, NetState, RuntimeGraph, RuntimeNet } from './ir';
 import { LOGIC_NET_STATES, NET_STATES, netStateByte, resolveNetInto, type ResolveResult } from './nets';
+import {
+  evaluateAnd, evaluateOr, evaluateNand, evaluateNor, evaluateXor, evaluateXnor,
+  evaluateNot, evaluateBuf, evaluateDff, evaluateLatch, evaluateTristate, evaluateMux2,
+  evaluateDemux2, evaluateDecoder, evaluateAdder, evaluateConst0, evaluateConst1, evaluatePullup, evaluatePulldown,
+} from './primitives/dispatch';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
@@ -141,7 +146,30 @@ export class Simulator {
           // Pure 'in' pins translate Z → X. 'inout' pins see Z directly.
           inputBuf[j] = (inputIsLogic[j] === 1 ? LOGIC_NET_STATES : NET_STATES)[netVal]!;
         }
-        const ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx);
+        let ns: unknown;
+        // Literal EvalKind tags give a jump table and stable call targets.
+        switch (comp.evalKind) {
+          case 1: ns = evaluateAnd(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 2: ns = evaluateOr(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 3: ns = evaluateNand(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 4: ns = evaluateNor(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 5: ns = evaluateXor(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 6: ns = evaluateXnor(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 7: ns = evaluateNot(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 8: ns = evaluateBuf(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 9: ns = evaluateDff(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 10: ns = evaluateLatch(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 11: ns = evaluateTristate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 12: ns = evaluateMux2(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 13: ns = evaluateDemux2(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 14: ns = evaluateDecoder(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 15: ns = evaluateAdder(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 16: ns = evaluateConst0(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 17: ns = evaluateConst1(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 18: ns = evaluatePullup(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          case 19: ns = evaluatePulldown(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+          default: ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx); break;
+        }
         // State updates are local to each component's evaluate(); no peer
         // reads them from outside, so we apply immediately rather than
         // deferring through a parallel array.

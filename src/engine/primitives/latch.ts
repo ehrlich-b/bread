@@ -20,7 +20,7 @@ const invert = (q: NetState): NetState => {
   return 'X';
 };
 
-const latch: PrimitiveDef<LatchState, undefined> = {
+export const latch: PrimitiveDef<LatchState, undefined> = {
   pins: latchPins,
   init: () => ({ q: 'X' }),
   evaluate(inputs, outputs, state) {

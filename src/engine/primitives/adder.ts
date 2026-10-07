@@ -43,7 +43,7 @@ const xor2 = (a: NetState, b: NetState): NetState => {
   return a === b ? 0 : 1;
 };
 
-const adder: PrimitiveDef<undefined, AdderParams> = {
+export const adder: PrimitiveDef<undefined, AdderParams> = {
   pins: adderPins,
   evaluate(inputs, outputs, _state, params) {
     const w = params.width;

@@ -30,7 +30,7 @@ const decoderPins = (params: DecoderParams): PinSpec[] => {
   return pins;
 };
 
-const decoder: PrimitiveDef<undefined, DecoderParams> = {
+export const decoder: PrimitiveDef<undefined, DecoderParams> = {
   pins: decoderPins,
   evaluate(inputs, outputs, _state, params) {
     const outs = 1 << params.bits;

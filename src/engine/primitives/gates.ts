@@ -67,7 +67,7 @@ const naryGate = (
   },
 });
 
-const not: PrimitiveDef<undefined, undefined> = {
+export const not: PrimitiveDef<undefined, undefined> = {
   pins: () => [
     { name: 'A', dir: 'in' },
     { name: 'Y', dir: 'out' },
@@ -78,7 +78,7 @@ const not: PrimitiveDef<undefined, undefined> = {
   },
 };
 
-const buf: PrimitiveDef<undefined, undefined> = {
+export const buf: PrimitiveDef<undefined, undefined> = {
   pins: () => [
     { name: 'A', dir: 'in' },
     { name: 'Y', dir: 'out' },
@@ -90,12 +90,19 @@ const buf: PrimitiveDef<undefined, undefined> = {
   },
 };
 
-registerPrimitive('prim.AND', naryGate(and2, false));
-registerPrimitive('prim.OR', naryGate(or2, false));
-registerPrimitive('prim.NAND', naryGate(and2, true));
-registerPrimitive('prim.NOR', naryGate(or2, true));
-registerPrimitive('prim.XOR', naryGate(xor2, false));
-registerPrimitive('prim.XNOR', naryGate(xor2, true));
+export const and = naryGate(and2, false);
+export const or = naryGate(or2, false);
+export const nand = naryGate(and2, true);
+export const nor = naryGate(or2, true);
+export const xor = naryGate(xor2, false);
+export const xnor = naryGate(xor2, true);
+
+registerPrimitive('prim.AND', and);
+registerPrimitive('prim.OR', or);
+registerPrimitive('prim.NAND', nand);
+registerPrimitive('prim.NOR', nor);
+registerPrimitive('prim.XOR', xor);
+registerPrimitive('prim.XNOR', xnor);
 registerPrimitive('prim.NOT', not);
 registerPrimitive('prim.BUF', buf);
 

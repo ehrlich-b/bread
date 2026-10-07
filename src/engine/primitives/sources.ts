@@ -12,7 +12,12 @@ const constantSource = (driverValue: DriverValue): PrimitiveDef<undefined, undef
   },
 });
 
-registerPrimitive('prim.CONST_0', constantSource(0));
-registerPrimitive('prim.CONST_1', constantSource(1));
-registerPrimitive('prim.PULLUP', constantSource('H'));
-registerPrimitive('prim.PULLDOWN', constantSource('L'));
+export const const0 = constantSource(0);
+export const const1 = constantSource(1);
+export const pullup = constantSource('H');
+export const pulldown = constantSource('L');
+
+registerPrimitive('prim.CONST_0', const0);
+registerPrimitive('prim.CONST_1', const1);
+registerPrimitive('prim.PULLUP', pullup);
+registerPrimitive('prim.PULLDOWN', pulldown);
