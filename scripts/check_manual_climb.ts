@@ -13,7 +13,7 @@ const results: Array<{ chip: string; checks: number; runtimeLeaves: number }> = 
 function harness(name: string) {
   const def = saved.definitions?.find((d) => d.name === `user.${name}`); if (!def) return null;
   const json: CircuitJSON = { version: 1, kind: 'circuit', name: 'headless_oracle_harness', definitions: saved.definitions, components: [{ id: 'dut', type: def.name }], nets: def.ports!.map((p) => ({ id: p.name, endpoints: [`dut.${p.name}`] })) };
-  const graph = loadCircuit(json); const sim = new Simulator(graph); sim.settle();
+  const graph = loadCircuit(json); const sim = new Simulator(graph, { onEvent: event => { if (event.kind === 'oscillation') throw new Error(`${name}: oscillation`); } }); sim.settle();
   let checks = 0;
   const force = (inputs: Record<string, NetState>): void => { for (const [p, v] of Object.entries(inputs)) sim.setInput(p, v); sim.settle(); };
   const assert = (p: string, expected: NetState): void => {

@@ -14,7 +14,8 @@ const ticks = Number(process.argv[2] ?? 200_000);
 assert(Number.isSafeInteger(ticks) && ticks > 0, 'ticks must be a positive integer');
 const warmup = 20_000;
 const circuit = JSON.parse(readFileSync(fileURLToPath(new URL('../examples/ben_eater_8bit.json', import.meta.url)), 'utf8')) as CircuitJSON;
-const sim = new Simulator(loadCircuit(circuit));
+let oscillations = 0;
+const sim = new Simulator(loadCircuit(circuit), { onEvent: event => { if (event.kind === 'oscillation') oscillations++; } });
 sim.settle();
 sim.setComponentInput('sw_reset', 'Y', 1);
 sim.settle();
@@ -77,7 +78,7 @@ const eventsBefore = sim.eventsEmitted;
 const started = performance.now();
 for (let tick = 0; tick < ticks; tick++) tickAndObserve();
 const elapsedMs = performance.now() - started;
-assert(sim.events.every((event) => event.kind !== 'oscillation'), 'reference machine oscillated');
+assert(oscillations === 0, 'reference machine oscillated');
 console.log(JSON.stringify({
   fixture: 'bundled SAP-1 reference; not manual editor evidence',
   node: process.version, platform: process.platform, arch: process.arch,
@@ -90,6 +91,6 @@ console.log(JSON.stringify({
   instructionsPerSecond: instructions * 1000 / elapsedMs,
   checkedOutputsDuringTiming: checkedOutputs - outputsBefore,
   diagnosticsDuringTiming: sim.eventsEmitted - eventsBefore,
-  oscillations: 0,
+  oscillations,
   observationCostIncluded: true,
 }, null, 2));

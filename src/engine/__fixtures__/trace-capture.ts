@@ -5,7 +5,7 @@ import adder from '../../../examples/full_adder.json';
 import '../index';
 import type { CircuitJSON, NetState } from '../ir';
 import { loadCircuit } from '../loader';
-import { Simulator } from '../sim';
+import { Simulator, type SimEvent } from '../sim';
 
 export const EATER_CYCLES = 2048;
 export const ADDER_CYCLES = 64;
@@ -16,7 +16,8 @@ export function captureTrace(example: 'eater' | 'adder'): {
   bytes: Buffer;
   events: Simulator['events'];
 } {
-  const sim = new Simulator(loadCircuit((example === 'eater' ? eater : adder) as CircuitJSON));
+  const events: SimEvent[] = [];
+  const sim = new Simulator(loadCircuit((example === 'eater' ? eater : adder) as CircuitJSON), { onEvent: event => events.push(event) });
   const netIds = sim.graph.nets.map((net) => net.id);
   const bytes: number[] = [];
   let frames = 0;
@@ -53,5 +54,5 @@ export function captureTrace(example: 'eater' | 'adder'): {
       snapshot();
     }
   }
-  return { netIds, frames, bytes: Buffer.from(bytes), events: sim.events };
+  return { netIds, frames, bytes: Buffer.from(bytes), events };
 }

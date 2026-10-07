@@ -23,7 +23,7 @@ describe('CPU4 independent headless ISA checks (separate from manual UI results)
     const actual = mode.startsWith('actual');
     const circuit = actual ? structuredClone(cpuCheckpoint) as unknown as CircuitJSON : mode.startsWith('exact') ? cpu4ManualModulePlan(example.program, (editorCheckpoint as unknown as CircuitJSON).definitions!) : cpu4Plan(example.program);
     if (actual) circuit.components.find((c) => c.type === 'mem.28C16')!.params = { contents: example.program.map((b) => b.toString(16).padStart(2, '0')).join(' ') };
-    const graph = loadCircuit(circuit); const sim = new Simulator(graph);
+    const graph = loadCircuit(circuit); const sim = new Simulator(graph, { onEvent: event => expect(event.kind).not.toBe('oscillation') });
     const clock = actual ? 'switch1' : 'clock'; const reset = actual ? 'switch2' : 'reset'; const ramId = actual ? '61161' : 'ram';
     const netAt = (endpoint: string): string => circuit.nets.find((n) => n.endpoints.includes(endpoint))!.id;
     const signal = (prefix: string): number => {
