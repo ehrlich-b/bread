@@ -11,6 +11,7 @@ import type {
   RuntimeNet,
 } from './ir';
 import { getPrimitive } from './primitives/index';
+import { NET_STATES, netStateByte } from './nets';
 
 // Resolve a component type to its leaf evaluator (primitive or behavioral).
 // Composites are flattened away before this is called.
@@ -219,7 +220,18 @@ function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
     }
   }
 
-  return { components, nets, componentById, netById };
+  const netValues = new Uint8Array(nets.length).fill(3);
+  // Keep the existing graph-inspection API without maintaining a second
+  // copy of each value. These accessors are outside the scheduler hot path.
+  for (let i = 0; i < nets.length; i++) {
+    Object.defineProperty(nets[i]!, 'value', {
+      enumerable: true,
+      get: () => NET_STATES[netValues[i]!]!,
+      set: (value: RuntimeNet['value']) => { netValues[i] = netStateByte(value); },
+    });
+  }
+
+  return { components, nets, netValues, componentById, netById };
 }
 
 // Recursively expand composite instances into a flat CircuitJSON whose

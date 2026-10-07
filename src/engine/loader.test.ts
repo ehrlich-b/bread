@@ -63,6 +63,20 @@ describe('loadCircuit (happy path)', () => {
     expect(g.nets.every((n) => n.value === 'X')).toBe(true);
     expect(g.nets.every((n) => n.forced === 'Z')).toBe(true);
   });
+
+  it('keeps the public net values and byte storage as a single four-state view', () => {
+    const g = loadCircuit(nandLatch);
+    expect(g.netValues).toBeInstanceOf(Uint8Array);
+    expect([...g.netValues]).toEqual([3, 3, 3, 3]);
+    const net = g.nets[0]!;
+    const values = [0, 1, 'Z', 'X'] as const;
+    for (let byte = 0; byte < values.length; byte++) {
+      net.value = values[byte]!;
+      expect(g.netValues[0]).toBe(byte);
+      g.netValues[0] = (byte + 1) % values.length;
+      expect(net.value).toBe(values[(byte + 1) % values.length]);
+    }
+  });
 });
 
 describe('loadCircuit (errors)', () => {

@@ -6,7 +6,7 @@ Milestones, each independently demonstrable. Ship in order.
 
 **M5a — UI playability** ✅ shipped. The engine exposes a public surface (`getPinsForType`, `listAllTypes`) so the schematic can introspect any chip without instantiating a Simulator. A generic IC renderer falls back for chips without a hand-crafted SVG, the palette covers every primitive / behavioral / TTL composite (~39 entries across 7 groups), and a bundled-examples dropdown switches between the canned circuits in `examples/`. The `io.7seg` display and `gen.555` timer have hand-crafted renderers; `io.7seg` segments update live from the SAB so a 28C16-driven hex display shows the digit on screen.
 
-**M6 — Performance** partially done. `scripts/bench_eater.ts` measures sim tick throughput on the bundled SAP-1; baseline 70 kHz, current **88 kHz simulated clock**. Wins came from a buffer-passing `evaluate()` API (no per-call output array / wrapper allocation), per-component pre-allocated `inputBuf` / `proposedBuf`, flattened input/output net-index sidecars (`Uint32Array`), pre-computed input direction bits (`Uint8Array`), and pooling `resolveNet`'s result struct on the simulator. Ben Eater's machine runs ~8800× faster than its real-world 10 Hz clock; that's well past the architecture-doc budget (50 kHz) but still 12% short of this roadmap's 100 kHz target. Closing the gap needs the SoA conversion and/or WASM dispatch loop — deferred.
+**M6 — Performance** in progress. `scripts/bench_eater.ts` measures simulated clock throughput on the bundled SAP-1. The historical unrestricted result was **88 kHz**. The 2026-10-07 efficiency-core baseline at `93655c0` is **15.204 kHz**; byte-packed resolved net storage raises it to **16.732 kHz (+10.1%)** under the same low-priority conditions. Previous wins include buffer-passing `evaluate()`, reusable per-component buffers, typed pin-index sidecars, cached input directions, and pooled net-resolution scratch. See M6 below for comparable measurements and the remaining targets.
 
 M7 in progress.
 
@@ -85,14 +85,32 @@ No UI. No worker. Plain Node module.
 - Pre-built `examples/ben_eater_8bit.json` reference circuit, registered in the Examples dropdown. ✅
 - **Demo:** load the bundled "Ben Eater 8-bit (Fibonacci)" example, click the RESET switch to release reset, and the machine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on overflow and the loop restarts.
 
-## M6 — Performance  (partial — paused at 88 kHz)
+## M6 — Performance  (in progress)
 
 - Profile: identify hot paths in the engine on Eater's machine. ✅ baseline bench at `scripts/bench_eater.ts`.
 - Convert per-event closures to monomorphic dispatch. ⏳ deferred — ICs are megamorphic across 19 primitive types; not yet refactored.
-- Pack net state in `Uint8Array`; component records in `Uint32Array` (SoA). 〰️ partial — `inputNetIdx` / `outputNetIdx` are typed-array sidecars and `inputIsLogic` / `netChanged` / `inDirty` are `Uint8Array`. Net values themselves are still `NetState` strings on `RuntimeNet`.
+- Pack net state in `Uint8Array`; component records in `Uint32Array` (SoA). 〰️ partial — resolved net values now live only in `RuntimeGraph.netValues` (0/1/Z/X encoded as 0/1/2/3). The scheduler accesses bytes directly; `RuntimeNet.value` is a compatibility accessor. `inputNetIdx` / `outputNetIdx` are typed-array sidecars and `inputIsLogic` / `netChanged` / `inDirty` are `Uint8Array`. Component records and evaluator buffers remain objects/arrays.
 - Object-pool the dirty queue. ✅ for the changed-nets queue (replaced `Set<number>` with `Uint8Array` mark + commit-order `number[]`); the dirty queues themselves are stable arrays from construction.
 - Optional: implement WASM dispatch loop in Rust or AssemblyScript. A/B test against JS. ⏳ not started.
-- **Goal:** 100+ kHz JS / 1+ MHz WASM. Current: **88 kHz JS** on `examples/ben_eater_8bit.json` via `npm run bench:eater`. The remaining 12% on JS would come from full SoA + monomorphic dispatch; the WASM target needs the dispatch loop.
+- **Goal:** 100+ kHz JS / 1+ MHz WASM. Historical unrestricted JS result: **88 kHz**. Current efficiency-core JS median: **16.732 kHz**; these execution conditions are not comparable to the historical result. WASM is not implemented.
+
+2026-10-07 measurements on Bryan's Mac, Node 25.6.1, always prefixed with
+`taskpolicy -b nice -n 15`, one process at a time. Each sample uses 20,000
+warmup ticks followed by 200,000 measured ticks on the bundled Fibonacci
+circuit (307 components, 344 nets). Rates below are simulated clock Hz
+(ticks/s divided by two); all runs emit the same 33,652 events.
+`tsx` CLI IPC is denied in this execution environment, so every sample runs
+the unchanged benchmark via `node --import tsx scripts/bench_eater.ts`.
+
+| Step | Three clock samples (Hz) | Median (Hz) | Change from baseline |
+|---|---|---|---|
+| `93655c0` baseline | 14,816 / 15,204 / 16,225 | 15,204 | — |
+| Resolved-net byte storage | 15,663 / 17,158 / 16,732 | 16,732 | +10.1% |
+
+Golden regression traces captured before optimization at `93655c0` compare
+every net byte over 2,048 Fibonacci cycles and all 64 four-state full-adder
+input combinations (two frames each), including initial and reset states.
+They also compare the complete contention/oscillation event sequence.
 
 ## M7 — Polish
 

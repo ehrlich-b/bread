@@ -136,13 +136,16 @@ export interface RuntimeNet {
   listenerComps: number[];
   // Externally-forced driver value (from setInput). 'Z' means not forced.
   forced: DriverValue;
-  // Resolved value. Initial 'X' per SIMULATION.md.
+  // Compatibility view of RuntimeGraph.netValues. Initial 'X' per
+  // SIMULATION.md; the scheduler reads/writes the byte storage directly.
   value: NetState;
 }
 
 export interface RuntimeGraph {
   components: RuntimeComponent[];
   nets: RuntimeNet[];
+  // Resolved values: 0=low, 1=high, 2=Z, 3=X. The only net-state storage.
+  netValues: Uint8Array;
   componentById: Map<string, number>;
   netById: Map<string, number>;
 }

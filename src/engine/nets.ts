@@ -1,5 +1,14 @@
 import type { DriverValue, NetState } from './ir';
 
+// Same encoding as the worker's shared net buffer. Decode only at the
+// evaluator/public API boundary; resolved values live in a Uint8Array.
+export const NET_STATES: readonly NetState[] = [0, 1, 'Z', 'X'];
+export const LOGIC_NET_STATES: readonly NetState[] = [0, 1, 'X', 'X'];
+
+export function netStateByte(value: NetState): number {
+  return value === 'Z' ? 2 : value === 'X' ? 3 : value;
+}
+
 export interface ResolveResult {
   value: NetState;
   // True only when multiple *strong* drivers conflict. X-poison from a single

@@ -1,5 +1,5 @@
 import type { DriverValue, EvalCtx, NetState, RuntimeGraph, RuntimeNet } from './ir';
-import { resolveNetInto, type ResolveResult } from './nets';
+import { LOGIC_NET_STATES, NET_STATES, netStateByte, resolveNetInto, type ResolveResult } from './nets';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
@@ -69,16 +69,16 @@ export class Simulator {
     const net = this.graph.nets[idx]!;
     if (net.forced === value) return;
     net.forced = value;
-    const newValue = this.computeNetValue(net, idx);
-    if (newValue === net.value) return;
-    net.value = newValue;
+    const newValue = netStateByte(this.computeNetValue(net, idx));
+    if (newValue === this.graph.netValues[idx]) return;
+    this.graph.netValues[idx] = newValue;
     for (const comp of net.listenerComps) this.markDirty(comp);
   }
 
   readNet(netId: string): NetState {
     const idx = this.graph.netById.get(netId);
     if (idx === undefined) throw new Error(`unknown net: ${netId}`);
-    return this.graph.nets[idx]!.value;
+    return NET_STATES[this.graph.netValues[idx]!]!;
   }
 
   // Update a behavioral component's pin-keyed state slot. Used for io.switch
@@ -128,6 +128,7 @@ export class Simulator {
       // COMMIT, so no peer sees this iteration's outputs while it evaluates.
       const components = this.graph.components;
       const nets = this.graph.nets;
+      const netValues = this.graph.netValues;
       for (let i = 0; i < now.length; i++) {
         const compIdx = now[i]!;
         const comp = components[compIdx]!;
@@ -136,9 +137,9 @@ export class Simulator {
         const inputIsLogic = comp.inputIsLogic;
         const inputCount = inputBuf.length;
         for (let j = 0; j < inputCount; j++) {
-          const netVal = nets[inputNetIdx[j]!]!.value;
+          const netVal = netValues[inputNetIdx[j]!]!;
           // Pure 'in' pins translate Z → X. 'inout' pins see Z directly.
-          inputBuf[j] = inputIsLogic[j] === 1 ? (netVal === 'Z' ? 'X' : netVal) : netVal;
+          inputBuf[j] = (inputIsLogic[j] === 1 ? LOGIC_NET_STATES : NET_STATES)[netVal]!;
         }
         const ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx);
         // State updates are local to each component's evaluate(); no peer
@@ -186,9 +187,9 @@ export class Simulator {
         const netIdx = changedQueue[q]!;
         netChanged[netIdx] = 0;
         const net = nets[netIdx]!;
-        const newValue = this.computeNetValue(net, netIdx);
-        if (newValue === net.value) continue;
-        net.value = newValue;
+        const newValue = netStateByte(this.computeNetValue(net, netIdx));
+        if (newValue === netValues[netIdx]) continue;
+        netValues[netIdx] = newValue;
         const listeners = net.listenerComps;
         for (let k = 0; k < listeners.length; k++) {
           const comp = listeners[k]!;
