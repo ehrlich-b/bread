@@ -94,6 +94,9 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
 
   form.appendChild(ro('ID', inst.id));
   form.appendChild(ro('Type', inst.type));
+  const labelInput = document.createElement('input');
+  labelInput.value = inst.label ?? ''; labelInput.dataset.field = 'label';
+  form.append(wrapLabel('Label', labelInput));
 
   const pos = inst.position ?? [0, 0];
 
@@ -222,6 +225,7 @@ const buildForm = (editor: EditorModel, inst: ComponentInstanceJSON): HTMLElemen
       }
     }
     const patch: Partial<ComponentInstanceJSON> = {
+      label: labelInput.value.trim() || undefined,
       position: [Number(xInput.input.value) || 0, Number(yInput.input.value) || 0],
       rotation: Number(rotSelect.value) || 0,
       ...(params ? { params } : { params: undefined }),

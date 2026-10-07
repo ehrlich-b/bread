@@ -10,6 +10,17 @@ Milestones, each independently demonstrable. Ship in order.
 
 M7 in progress.
 
+**Original CPU port (2026-10-07):** Bryan's 2022 Digital machine now loads
+from Examples and runs its original CALLRET, countdown, Fibonacci and
+PUSH/POP programs. The committed converter preserves nine source modules
+and adds 16 inspectable equivalents built from Bread primitives. Independent
+ISA tests compare ordered outputs, PC, A/B, output, SP, flags, all RAM and
+HALT after every instruction, with retained oscillators and controlled clocks.
+Browser coverage checks the bundled CALLRET output and save/reopen. The
+source loader copies 31 bytes; this source quirk is retained and tested.
+See [ORIGINAL_CPU_PORT.md](ORIGINAL_CPU_PORT.md) for reproduction and limits.
+This generated port is separate from the editor-built CPU ascent.
+
 The NAND-to-CPU ascent now has actual editor evidence through 14 reusable
 modules and an arithmetic/HALT CPU. [CPU_ASCENT.md](CPU_ASCENT.md) records the
 remaining manual load/store and branch checks, separate headless ISA tests,
@@ -90,7 +101,9 @@ No UI. No worker. Plain Node module.
 - Bus-grouped wires (visual: multiple bits as one fat line).
 - Atomic bus wiring with an explicit scalar-bit mapping preview is available;
   wires remain separate electrical signals. Configurable word ROMs and live
-  binary/hex inspector readouts support the [original Digital CPU port](ORIGINAL_CPU_PORT.md).
+  binary/hex inspector readouts support the completed [original Digital CPU port](ORIGINAL_CPU_PORT.md).
+- Fit circuit and editable component labels make large imported circuits
+  navigable; labels persist through save/reopen.
 - Probes + waveform viewer (read `io.pin_output` history, render as VCD-style traces).
 - Testbench format (`*.test.json`): drive inputs, assert outputs over time, run headless via `npm test`.
 - Verilog export, best-effort: primitives + composites only; behavioral chips emit `/* not synthesizable */` stubs.

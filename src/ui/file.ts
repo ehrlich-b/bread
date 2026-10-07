@@ -14,6 +14,7 @@ import blinkDemo from '../../examples/blink_demo.json';
 import fullAdder from '../../examples/full_adder.json';
 import hexDisplay28C16 from '../../examples/hex_display_28c16.json';
 import nandLatch from '../../examples/nand_latch.json';
+import originalDigitalCpu from '../../examples/original_digital_cpu_generated.json';
 import registerBus from '../../examples/register_bus_4bit.json';
 import rippleAdder from '../../examples/ripple_adder_4bit.json';
 import type { CircuitJSON } from '../engine/ir';
@@ -33,6 +34,7 @@ const EXAMPLES: BundledExample[] = [
   { key: 'ripple_adder_4bit', label: '4-bit ripple adder', circuit: rippleAdder as CircuitJSON },
   { key: 'hex_display_28c16', label: 'Hex display (28C16)', circuit: hexDisplay28C16 as CircuitJSON },
   { key: 'ben_eater_8bit',    label: 'Ben Eater 8-bit (Fibonacci)', circuit: benEater8bit as CircuitJSON },
+  { key: 'original_digital_cpu_generated', label: 'Bryan\'s Digital CPU (generated port)', circuit: originalDigitalCpu as unknown as CircuitJSON },
 ];
 
 // Minimal subset of the File System Access API types we actually use. The

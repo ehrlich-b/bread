@@ -7,13 +7,14 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5187',
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
+    // Own the test server; port 5173 may belong to another local project.
+    command: 'npm run dev -- --host 127.0.0.1 --port 5187 --strictPort',
+    url: 'http://127.0.0.1:5187',
+    reuseExistingServer: false,
     timeout: 60_000,
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

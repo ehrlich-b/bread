@@ -14,16 +14,18 @@ Alpha. Milestones M0–M5 from [docs/ROADMAP.md](docs/ROADMAP.md) are shipped:
 - Behavioral chip set: `gen.555`, `io.7seg` (with live segment fills), `mem.6116` SRAM, `mem.74LS189` RAM, and `mem.28C16` EEPROM. The EEPROM has a hand-crafted DIP renderer plus a paste-hex / upload-`.bin` affordance in the property inspector; `mem.6116` and `mem.28C16` both round-trip `params.contents` through circuit JSON.
 - Eater SAP-1 module library: eight `eater.*` composites (`register_8bit`, `alu_8bit`, `ram_module`, `program_counter`, `instruction_register`, `flags_register`, `output_display`, `control_unit`). The control unit's microcode is generated in TypeScript and injected into the two onboard 28C16 EEPROMs at composite-registration time so the source stays human-readable.
 - Bundled `examples/ben_eater_8bit.json` — a fully-wired SAP-1 with a Fibonacci program preloaded into the 6116. Click the RESET switch to release reset and the engine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on the overflow and restarts the loop.
+- Bryan's original 2022 Digital CPU, converted from the pinned `.dig` sources by rerunnable Python scripts. Its Examples entry boots the original CALLRET program and counts from 1 through 10. The four source programs (CALLRET, countdown, Fibonacci and PUSH/POP) run against an independent integer ISA interpreter with architectural comparisons after every instruction.
 
-367 vitest cases green; 44 Playwright e2e tests cover the editor, blink demo, save/load + bundled-examples menu, full-adder truth table, ROM words, bus mapping and live signals, the generic-renderer / palette surface, the 28C16 hex-display example, and the Ben Eater 8-bit reference. The full stdlib (every primitive, every TTL composite, every behavioral) is clickable from the palette via a generic IC renderer that builds itself from the engine's pin spec.
+Vitest covers the engine, editor and both reference CPUs. Playwright covers the editor, blink demo, save/load + bundled-examples menu, full-adder truth table, ROM words, bus mapping and live signals, the generic-renderer / palette surface, the 28C16 hex-display example, and the original CPU's program output. The full stdlib (every primitive, every TTL composite, every behavioral) is clickable from the palette via a generic IC renderer that builds itself from the engine's pin spec.
 
 The [NAND-to-CPU checkpoint](docs/CPU_CLIMB_CHECKPOINT.md) records the initial capability investigation, editor queue regressions, independent reference-program checks, and measured performance. The supported local manual browser route produced 14 reusable modules and a CPU running arithmetic/HALT through actual editor actions. [Current ascent evidence](docs/CPU_ASCENT.md) separates those manual results from headless program checks and measured performance. [Chip authoring](docs/CHIP_AUTHORING.md) documents the workflow.
 
-[Original Digital CPU port](docs/ORIGINAL_CPU_PORT.md) identifies Bryan's
-actual eight-bit machine, its ROM/microcode interfaces, and the remaining
-full-build acceptance gates. New editor tools provide a configurable word
-ROM, explicit bus-mapping connections and live four-state byte readouts.
-Generated port fixtures remain separate from manual assembly evidence.
+[Original Digital CPU port](docs/ORIGINAL_CPU_PORT.md) documents conversion,
+programming, tested behavior and source quirks, including the loader's
+31-byte limit. Select **Bryan's Digital CPU (generated port)** in Examples,
+click **Fit circuit**, then **Run**. Select the output register to read its
+live hexadecimal/binary value. The port preserves the source hierarchy;
+manual construction of this original CPU through the editor remains pending.
 
 ## What it is
 
