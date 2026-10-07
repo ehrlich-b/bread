@@ -61,6 +61,8 @@ export class Simulator {
   readonly graph: RuntimeGraph;
   readonly events: SimEvent[] = [];
   step = 0;
+  // Clock time advances only on tick(), independently of input settling.
+  private tickStep = 0;
   // Worker-controlled tick rate handed to evaluate() via EvalCtx. Defaults to
   // 1 Hz so unit tests that never set it get sensible numbers.
   rateHz: number;
@@ -267,6 +269,8 @@ export class Simulator {
   // and settle. Workers call this at their target rate; pure combinational
   // tests can use settle() directly without advancing tickActive components.
   tick(): void {
+    // A fresh graph's first tick also resolves its power-on state at time 0.
+    if (!this.initialResolution) this.tickStep++;
     for (const compIdx of this.tickActive) this.markDirty(compIdx);
     this.settle();
   }
@@ -278,9 +282,9 @@ export class Simulator {
     let now = this.dirtyA;
     let next = this.dirtyB;
     this.contendedThisSettle.clear();
-    // Stable for the duration of this settle; reused as the ctx arg to every
-    // (slow-path) evaluate(). step reflects the value being settled.
-    const ctx: EvalCtx = { step: this.step, rateHz: this.rateHz };
+    // Stable for this settle. Diagnostic step numbers count all settlements;
+    // evaluator time counts only simulation ticks.
+    const ctx: EvalCtx = { step: this.tickStep, rateHz: this.rateHz };
 
     const components = this.graph.components;
     const nets = this.graph.nets;
