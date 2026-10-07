@@ -54,14 +54,20 @@ const dff: PrimitiveDef<DffState, DffParams> = {
     let q = state.q;
     if (clr === 0) {
       q = 0;
-    } else if (pre === 0) {
-      q = 1;
     } else {
-      const rose = state.prevClk === 0 && clk === 1;
-      if (rose) {
-        if (en === 1) q = d;
-        else if (en !== 0 && d !== q) q = 'X';
+      if (pre === 0) {
+        q = 1;
+      } else {
+        const rose = state.prevClk === 0 && clk === 1;
+        if (rose) {
+          if (en === 1) q = d;
+          else if (en !== 0 && d !== q) q = 'X';
+        }
+        // An unknown async pin may be asserted or released. Keep a known
+        // value only when both possibilities produce the same result.
+        if ((pre === 'X' || pre === 'Z') && q !== 1) q = 'X';
       }
+      if ((clr === 'X' || clr === 'Z') && q !== 0) q = 'X';
     }
 
     outputs[0] = q;
