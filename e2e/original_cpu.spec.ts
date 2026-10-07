@@ -1,5 +1,6 @@
 // Ordinary imported-fixture regression; this is not manual construction.
 import { expect, test } from '@playwright/test';
+import originalCpu from '../examples/original_digital_cpu_generated.json';
 
 test('original CALLRET program boots, outputs 1 through 10 and halts in the browser', async ({ page }) => {
   test.setTimeout(60_000);
@@ -11,13 +12,37 @@ test('original CALLRET program boots, outputs 1 through 10 and halts in the brow
   await page.getByRole('button', { name: 'Fit circuit', exact: true }).click();
   await page.locator('[data-comp-id="v34"] .gate-body').click();
   const output = page.getByLabel('Live Q[7:0]', { exact: true });
-  await expect(output).toHaveText('00\n00000000');
+  const expectedOutput = Array.from({ length: 11 }, (_, value) =>
+    `${value.toString(16).toUpperCase().padStart(2, '0')}\n${value.toString(2).padStart(8, '0')}`);
+  await expect(output).toHaveText(expectedOutput[0]!);
+  const outputHistory = await output.evaluateHandle((element) => {
+    const values = [element.textContent ?? ''];
+    const record = (mutations: MutationRecord[]): void => {
+      for (const mutation of mutations) {
+        // The inspector replaces textContent. Read each replacement node so
+        // even several changes in one observer delivery retain their order.
+        const value = Array.from(mutation.addedNodes, (node) => node.textContent ?? '').join('');
+        if (value !== values.at(-1)) values.push(value);
+      }
+    };
+    const observer = new MutationObserver(record);
+    observer.observe(element, { childList: true });
+    return { values, observer, record };
+  });
   await page.getByRole('button', { name: 'Run', exact: true }).click();
-  for (let value = 1; value <= 10; value++) {
-    await expect(output).toHaveText(`${value.toString(16).toUpperCase().padStart(2, '0')}\n${value.toString(2).padStart(8, '0')}`, { timeout: 15_000 });
-  }
+  // Keep the output inspector selected until Hlt goes high on the schematic.
+  const haltNet = originalCpu.nets.find((net) => net.endpoints.includes('v68.Hlt'))!.id;
+  await expect(page.locator(`polyline.wire[data-net-id="${haltNet}"]`)).toHaveClass('wire wire-1', { timeout: 45_000 });
+  await expect(output).toHaveText(expectedOutput.at(-1)!);
   await page.locator('[data-comp-id="v68"] .gate-body').click();
   await expect(page.getByLabel('Live Hlt', { exact: true })).toHaveText('1');
+  const values = await outputHistory.evaluate(({ values, observer, record }) => {
+    record(observer.takeRecords());
+    observer.disconnect();
+    return values;
+  });
+  await outputHistory.dispose();
+  expect(values).toEqual(expectedOutput);
   expect(errors).toEqual([]);
 });
 
