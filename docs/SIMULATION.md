@@ -31,7 +31,7 @@ A net with **multiple drivers** resolves as follows:
 | Multiple strong, conflicting | `X` (contention) |
 | Strong vs weak (pull-up/down) | strong wins |
 
-The engine flags contention as a runtime warning. It does not halt the sim — Ben Eater's bus is *meant* to have multiple drivers, with only one enabled at a time, and a momentary contention during enable transitions is normal. Persistent contention is a circuit bug.
+The engine flags contention as a runtime warning. It retains the latest 1024 diagnostics; the worker forwards every emitted event to the UI. It does not halt the sim — Ben Eater's bus is *meant* to have multiple drivers, with only one enabled at a time, and a momentary contention during enable transitions is normal. Persistent contention is a circuit bug.
 
 ## Two-phase event-driven scheduler
 

@@ -91,3 +91,24 @@ it('yields an overloaded high-rate batch within its time budget and keeps pause 
   expect(messages.at(-1)).toMatchObject({ type: 'ack', id: 3 });
   timers.shift()!(); expect(timers).toHaveLength(0);
 });
+
+it('delivers each diagnostic once after the retained history fills', async () => {
+  let receive!: (e: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (m: WorkerRes) => messages.push(m) });
+  await import('./worker');
+  const circuit: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'diagnostics',
+    components: [{ id: 'low', type: 'prim.CONST_0' }],
+    nets: [{ id: 'signal', endpoints: ['low.Y'] }],
+  };
+  receive({ data: { type: 'load', id: 1, circuit } });
+  for (let i = 0; i < 1200; i++) {
+    receive({ data: { type: 'set_net_input', id: 2 + i * 2, net: 'signal', value: 1 } });
+    receive({ data: { type: 'set_net_input', id: 3 + i * 2, net: 'signal', value: 'Z' } });
+  }
+  const events = messages.filter(m => m.type === 'event');
+  expect(events).toHaveLength(1200);
+  expect(events.map(event => event.step)).toEqual(Array.from({ length: 1200 }, (_, i) => 1 + i * 2));
+  expect(events.every(event => event.kind === 'contention')).toBe(true);
+});

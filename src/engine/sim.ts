@@ -9,6 +9,7 @@ import {
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
 export const DEFAULT_MAX_ITERATIONS = 10_000;
+const MAX_RETAINED_EVENTS = 1024;
 
 export interface SimEvent {
   kind: 'oscillation' | 'contention';
@@ -19,11 +20,14 @@ export interface SimEvent {
 export interface SimulatorOptions {
   maxIterations?: number;
   rateHz?: number;
+  onEvent?: (event: SimEvent) => void;
 }
 
 export class Simulator {
   readonly graph: RuntimeGraph;
+  // Recent diagnostic history. Observers receive every emitted event.
   readonly events: SimEvent[] = [];
+  eventsEmitted = 0;
   step = 0;
   // Clock time advances only on tick(), independently of input settling.
   private tickStep = 0;
@@ -32,6 +36,7 @@ export class Simulator {
   rateHz: number;
 
   private readonly maxIterations: number;
+  private readonly onEvent?: (event: SimEvent) => void;
   // Two dirty queues, swapped per iteration. Insertion order is iteration order.
   private dirtyA: number[] = [];
   private dirtyB: number[] = [];
@@ -55,6 +60,7 @@ export class Simulator {
   constructor(graph: RuntimeGraph, opts: SimulatorOptions = {}) {
     this.graph = graph;
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.onEvent = opts.onEvent;
     this.rateHz = opts.rateHz ?? 1;
     this.inDirty = new Uint8Array(graph.components.length);
     this.netChanged = new Uint8Array(graph.nets.length);
@@ -272,7 +278,7 @@ export class Simulator {
     resolveNetInto(scratch, result);
     if (result.contention && !this.contendedThisSettle.has(netIdx)) {
       this.contendedThisSettle.add(netIdx);
-      this.events.push({
+      this.recordEvent({
         kind: 'contention',
         detail: `net "${net.id}" driven by conflicting strong values`,
         step: this.step,
@@ -283,7 +289,7 @@ export class Simulator {
 
   private recordOscillation(now: number[], next: number[]): void {
     const sample = now.slice(0, 8).map((i) => this.graph.components[i]!.id);
-    this.events.push({
+    this.recordEvent({
       kind: 'oscillation',
       detail: `MAX_ITERATIONS=${this.maxIterations} exceeded; ${now.length} components still dirty (sample: ${sample.join(', ')})`,
       step: this.step,
@@ -292,5 +298,12 @@ export class Simulator {
     for (const c of next) this.inDirty[c] = 0;
     now.length = 0;
     next.length = 0;
+  }
+
+  private recordEvent(event: SimEvent): void {
+    this.eventsEmitted++;
+    this.events.push(event);
+    if (this.events.length > MAX_RETAINED_EVENTS) this.events.shift();
+    this.onEvent?.(event);
   }
 }

@@ -73,7 +73,7 @@ assert(checkedOutputs >= fibonacci.length * 3, 'warmup did not validate three Fi
 cycles = 0;
 instructions = 0;
 const outputsBefore = checkedOutputs;
-const eventsBefore = sim.events.length;
+const eventsBefore = sim.eventsEmitted;
 const started = performance.now();
 for (let tick = 0; tick < ticks; tick++) tickAndObserve();
 const elapsedMs = performance.now() - started;
@@ -89,7 +89,7 @@ console.log(JSON.stringify({
   clockCyclesPerSecond: cycles * 1000 / elapsedMs,
   instructionsPerSecond: instructions * 1000 / elapsedMs,
   checkedOutputsDuringTiming: checkedOutputs - outputsBefore,
-  diagnosticsDuringTiming: sim.events.length - eventsBefore,
+  diagnosticsDuringTiming: sim.eventsEmitted - eventsBefore,
   oscillations: 0,
   observationCostIncluded: true,
 }, null, 2));

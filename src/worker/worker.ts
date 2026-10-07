@@ -10,12 +10,11 @@ import '../engine/behavioral/index';
 import type { NetState, RuntimeGraph } from '../engine/ir';
 import { loadCircuit } from '../engine/loader';
 import '../engine/primitives/index';
-import { Simulator } from '../engine/sim';
+import { Simulator, type SimEvent } from '../engine/sim';
 import '../stdlib/index';
 import {
   NET_STATE_BYTE,
   validateRateHz,
-  type EventNotif,
   type WorkerReq,
   type WorkerRes,
 } from './protocol';
@@ -24,7 +23,6 @@ let sim: Simulator | null = null;
 let graph: RuntimeGraph | null = null;
 let netsBuffer: SharedArrayBuffer | null = null;
 let netsView: Uint8Array | null = null;
-let eventsCursor = 0;
 
 let running = false;
 let loopGeneration = 0;
@@ -60,25 +58,15 @@ const writeNets = (): void => {
   }
 };
 
-const drainEvents = (): void => {
-  if (!sim) return;
-  while (eventsCursor < sim.events.length) {
-    const ev = sim.events[eventsCursor++]!;
-    const notif: EventNotif = {
-      type: 'event',
-      kind: ev.kind,
-      detail: ev.detail,
-      step: ev.step,
-    };
-    post(notif);
-  }
+const reportEvent = (event: SimEvent): void => {
+  post({ type: 'event', kind: event.kind, detail: event.detail, step: event.step });
 };
 
 const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
   // Prepare the whole candidate before changing the live simulator.
   const nextRate = validateRateHz(req.rateHz ?? targetRateHz);
   const nextGraph = loadCircuit(req.circuit);
-  const nextSim = new Simulator(nextGraph, { rateHz: nextRate });
+  const nextSim = new Simulator(nextGraph, { rateHz: nextRate, onEvent: reportEvent });
   nextSim.settle();
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
@@ -90,8 +78,6 @@ const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
   // Initial settle so the first frame doesn't show all-X.
   netsView = new Uint8Array(netsBuffer);
   writeNets();
-  eventsCursor = 0;
-  drainEvents();
   resetMetrics();
 
   post({
@@ -134,7 +120,6 @@ const handleStep = (req: Extract<WorkerReq, { type: 'step' }>): void => {
   sim.tick();
   ticksTotal++;
   writeNets();
-  drainEvents();
   reportMetrics(true);
   post({ type: 'ack', id: req.id });
 };
@@ -145,14 +130,13 @@ const handleSetInput = (req: Extract<WorkerReq, { type: 'set_input' }>): void =>
   // Settle right away so the change is visible to the UI even when paused.
   sim.settle();
   writeNets();
-  drainEvents();
   post({ type: 'ack', id: req.id });
 };
 
 const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
   // A rejected candidate leaves both the old graph and its run loop intact.
   const nextGraph = loadCircuit(req.circuit);
-  const nextSim = new Simulator(nextGraph, { rateHz: targetRateHz });
+  const nextSim = new Simulator(nextGraph, { rateHz: targetRateHz, onEvent: reportEvent });
   nextSim.settle();
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
@@ -162,8 +146,6 @@ const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
   stepBudget = 0;
   lastLoopTimeMs = performance.now();
   writeNets();
-  eventsCursor = 0;
-  drainEvents();
   resetMetrics();
   post({ type: 'load_res', id: req.id, netIds: graph.nets.map((n) => n.id), componentIds: graph.components.map((c) => c.id), netsBuffer });
   // A running worker already has a scheduled loop. Scheduling another here
@@ -175,7 +157,6 @@ const handleSetNetInput = (req: Extract<WorkerReq, { type: 'set_net_input' }>): 
   sim.setInput(req.net, req.value);
   sim.settle();
   writeNets();
-  drainEvents();
   post({ type: 'ack', id: req.id });
 };
 
@@ -198,7 +179,6 @@ const loop = (generation: number): void => {
   ticksTotal += ticks;
   stepBudget -= ticks;
   writeNets();
-  drainEvents();
   reportMetrics();
   // setTimeout(0) yields ~4ms in browsers, which gives plenty of room for
   // even 1 kHz tick rates and keeps message handling responsive.
