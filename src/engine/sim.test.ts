@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CircuitJSON, NetState } from './ir';
 import { loadCircuit } from './loader';
 import './primitives/index';
-import { Simulator } from './sim';
+import { Simulator, type SimEvent } from './sim';
 
 const nandLatch: CircuitJSON = {
   version: 1,
@@ -165,4 +165,26 @@ describe('Simulator: determinism', () => {
       expect(runOnce()).toEqual(reference);
     }
   });
+});
+
+it('bounds recent diagnostics while delivering every event to its observer', () => {
+  const circuit: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'repeated-contention',
+    components: [{ id: 'low', type: 'prim.CONST_0' }],
+    nets: [{ id: 'signal', endpoints: ['low.Y'] }],
+  };
+  const delivered: SimEvent[] = [];
+  const sim = new Simulator(loadCircuit(circuit), { onEvent: (event: SimEvent) => delivered.push(event) });
+  sim.settle();
+  for (let i = 0; i < 2048; i++) {
+    sim.setInput('signal', 1); sim.settle();
+    sim.setInput('signal', 'Z'); sim.settle();
+  }
+  expect(sim.events).toHaveLength(1024);
+  expect(delivered).toHaveLength(2048);
+  expect(sim.eventsEmitted).toBe(delivered.length);
+  expect(delivered.every(event => event.kind === 'contention')).toBe(true);
+  expect(delivered[0]!.step).toBe(1);
+  expect(delivered.at(-1)!.step).toBe(4095);
+  expect(sim.events).toEqual(delivered.slice(-1024));
 });

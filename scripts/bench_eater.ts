@@ -46,4 +46,4 @@ console.log(`wall:  ${dt.toFixed(2)} ms`);
 console.log(`rate:  ${tickRate.toFixed(0).padStart(8)} ticks/s`);
 console.log(`cost:  ${usPerTick.toFixed(2).padStart(8)} us/tick`);
 console.log(`clock: ${simulatedClockHz.toFixed(0).padStart(8)} simulated Hz (target: 100_000)`);
-console.log(`events emitted: ${String(sim.events.length)}`);
+console.log(`events emitted: ${String(sim.eventsEmitted)}`);
