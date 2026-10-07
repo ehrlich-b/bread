@@ -184,3 +184,27 @@ describe('mem.6116', () => {
     expect(readData(sim)).toEqual(['X', 'X', 'X', 'X', 'X', 'X', 'X', 'X']);
   });
 });
+
+it('tracks DQ while the write pulse is low and holds the final byte after either control rises', () => {
+  for (const endWith of ['we', 'ce'] as const) {
+    const sim = new Simulator(loadCircuit(ramCircuit()));
+    driveAddr(sim, 0x123);
+    driveData(sim, 0x55);
+    setMode(sim, 0, 1, 0);
+    sim.settle();
+    expect(ramState(sim).data[0x123]).toBe(0x55);
+    driveData(sim, 0xa5);
+    sim.settle();
+    expect(ramState(sim).data[0x123]).toBe(0xa5);
+    sim.setInput(endWith, 1);
+    sim.settle();
+    driveData(sim, 0x33);
+    sim.settle();
+    expect(ramState(sim).data[0x123]).toBe(0xa5);
+    setMode(sim, 1, 1, 1);
+    releaseData(sim);
+    setMode(sim, 0, 0, 1);
+    sim.settle();
+    expect(dataAsByte(readData(sim))).toBe(0xa5);
+  }
+});
