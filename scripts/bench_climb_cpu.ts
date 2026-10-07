@@ -23,7 +23,8 @@ const clock = actual ? 'switch1' : 'clock'; const reset = actual ? 'switch2' : '
 const names = (role: 'pc' | 'acc'): string[] => Array.from({ length: 4 }, (_, bit) => actual ? circuit.nets.find((n) => n.endpoints.includes(`${role === 'pc' ? 'pc41' : 'register41'}.Q${bit}`))!.id : `${role}${bit}`);
 const pcNets = names('pc'); const accNets = names('acc');
 const clockNet = actual ? circuit.nets.find((n) => n.endpoints.includes('and1.Y'))!.id : 'clock';
-const sim = new Simulator(graph);
+let oscillations = 0;
+const sim = new Simulator(graph, { onEvent: event => { if (event.kind === 'oscillation') oscillations++; } });
 const signal = (nets: string[]): number => {
   let value = 0;
   for (let bit = 0; bit < 4; bit++) {
@@ -55,6 +56,5 @@ for (let i = 0; i < instructions; i++) {
   if (lastClock !== 0) throw new Error(`CPU clock did not fall at instruction ${i}`);
 }
 const elapsedMs = performance.now() - start;
-const oscillations = sim.events.filter((e) => e.kind === 'oscillation').length;
 if (oscillations) throw new Error(`Oscillations: ${oscillations}`);
-console.log(JSON.stringify({ provenance: actual ? 'Actual editor-built CPU checkpoint, derived headless loop ROM only, every instruction independently checked; not an interactive UI speed measurement' : 'Generated headless CPU integration plan, exact manually authored library, every instruction checked; not manual CPU proof', source: path, sha256: createHash('sha256').update(exact).digest('hex'), host: { cpu: cpus()[0]?.model, platform: platform(), arch: arch(), node: process.version }, runtimeLeaves: graph.components.length, runtimeNets: graph.nets.length, programHex: program.map((b) => b.toString(16).padStart(2, '0')).join(' '), completedInstructions, observedRisingEdges, elapsedMs, instructionsPerSecond: completedInstructions / (elapsedMs / 1000), observedCyclesPerSecond: observedRisingEdges / (elapsedMs / 1000), diagnosticEvents: sim.events.length, oscillations }, null, 2));
+console.log(JSON.stringify({ provenance: actual ? 'Actual editor-built CPU checkpoint, derived headless loop ROM only, every instruction independently checked; not an interactive UI speed measurement' : 'Generated headless CPU integration plan, exact manually authored library, every instruction checked; not manual CPU proof', source: path, sha256: createHash('sha256').update(exact).digest('hex'), host: { cpu: cpus()[0]?.model, platform: platform(), arch: arch(), node: process.version }, runtimeLeaves: graph.components.length, runtimeNets: graph.nets.length, programHex: program.map((b) => b.toString(16).padStart(2, '0')).join(' '), completedInstructions, observedRisingEdges, elapsedMs, instructionsPerSecond: completedInstructions / (elapsedMs / 1000), observedCyclesPerSecond: observedRisingEdges / (elapsedMs / 1000), diagnosticEvents: sim.eventsEmitted, oscillations }, null, 2));

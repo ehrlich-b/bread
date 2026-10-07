@@ -38,7 +38,7 @@ function wrap(name: string): Simulator {
   }
   add(name);
   const obj: CircuitJSON = { version: 1, kind: 'circuit', name: 'Generated test harness for ' + name, components: [{ id: 'U', type: name }], nets: d.ports!.map(p => ({ id: p.name, endpoints: [`U.${p.name}`] })), definitions: [...closure.values()] };
-  const sim = new Simulator(loadCircuit(obj));
+  const sim = new Simulator(loadCircuit(obj), { onEvent: event => assert.notEqual(event.kind, 'oscillation', 'Oscillation emitted') });
   for (const p of d.ports!)
     if (p.dir === 'in')
       sim.setInput(p.name, 0);
@@ -447,7 +447,7 @@ function runProgram(program: ExpectedProgram, resetBeforeBoot = false) {
   const fixture = structuredClone(manual);
   const rom = fixture.components.find(c => c.id === 'v82')!;
   rom.params!.contents = 'v2.0 raw\n' + program.program_bytes.map(v => v.toString(16)).join('\n');
-  const s = new Simulator(loadCircuit(fixture));
+  const s = new Simulator(loadCircuit(fixture), { onEvent: event => assert.notEqual(event.kind, 'oscillation', 'Oscillation emitted') });
   s.settle();
   const initial = { ...architecture(s), stable: stable(s) };
   if (resetBeforeBoot) {
@@ -637,7 +637,7 @@ for (const name of ['callret', 'countdown', 'fib', 'pushpop'])
     const oracle = programs[name]!;
     const circuit = structuredClone(faithful);
     circuit.components.find((component) => component.id === 'v82')!.params!.contents = oracle.program_bytes.map((value) => value.toString(16)).join(' ');
-    const sim = new Simulator(loadCircuit(circuit), { rateHz: 1000 });
+    const sim = new Simulator(loadCircuit(circuit), { rateHz: 1000, onEvent: event => assert.notEqual(event.kind, 'oscillation', 'Oscillation emitted') });
     sim.settle();
     const outputs: Array<number | string> = [];
     const boundaries: Array<ReturnType<typeof architecture>> = [];

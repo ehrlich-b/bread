@@ -78,7 +78,7 @@ describe('SAP-1 reference programs against an independent ISA oracle', () => {
     circuit.components.find((component) => component.id === 'ram_chip')!.params = {
       contents: image.map((byte) => byte.toString(16).padStart(2, '0')).join(' '),
     };
-    const sim = new Simulator(loadCircuit(circuit));
+    const sim = new Simulator(loadCircuit(circuit), { onEvent: event => expect(event.kind).not.toBe('oscillation') });
     sim.settle();
     sim.setComponentInput('sw_reset', 'Y', 1);
     sim.settle();
