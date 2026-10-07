@@ -7,6 +7,7 @@ interface DffParams {
   // Explicit simulator power-on value, useful when porting a circuit whose
   // source simulator initializes storage. Unspecified still starts unknown.
   initialQ?: 0 | 1;
+  enable?: boolean;
 }
 
 interface DffState {
@@ -22,6 +23,7 @@ const dffPins = (params: DffParams): PinSpec[] => {
     { name: 'D', dir: 'in' },
     { name: 'CLK', dir: 'in' },
   ];
+  if (params.enable) pins.push({ name: 'EN', dir: 'in' });
   if (params.clrActiveLow) pins.push({ name: '/CLR', dir: 'in', activeLow: true });
   if (params.preActiveLow) pins.push({ name: '/PRE', dir: 'in', activeLow: true });
   pins.push({ name: 'Q', dir: 'out' });
@@ -45,6 +47,7 @@ const dff: PrimitiveDef<DffState, DffParams> = {
     let i = 0;
     const d = inputs[i++]!;
     const clk = inputs[i++]!;
+    const en = params.enable ? inputs[i++]! : 1;
     const clr = params.clrActiveLow ? inputs[i++]! : undefined;
     const pre = params.preActiveLow ? inputs[i++]! : undefined;
 
@@ -55,7 +58,10 @@ const dff: PrimitiveDef<DffState, DffParams> = {
       q = 1;
     } else {
       const rose = state.prevClk === 0 && clk === 1;
-      if (rose) q = d;
+      if (rose) {
+        if (en === 1) q = d;
+        else if (en !== 0 && d !== q) q = 'X';
+      }
     }
 
     outputs[0] = q;

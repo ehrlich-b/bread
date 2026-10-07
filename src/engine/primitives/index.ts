@@ -3,6 +3,7 @@
 
 import './gates';
 import './dff';
+import './counter';
 import './sources';
 import './tristate';
 import './latch';
