@@ -23,6 +23,7 @@ export interface Placement {
 export interface EditorState {
   circuit: CircuitJSON;
   snapshot: LoadSnapshot;
+  switchValues: ReadonlyMap<string, NetState>;
   selection: ReadonlySet<string>;
   placement: Placement | null;
   editingChip: string | null;
@@ -42,6 +43,7 @@ export class EditorModel {
   private document: EditorDocument;
   private error: string | null = null;
   private portInputs = new Map<string, NetState>();
+  private switchValues = new Map<string, NetState>();
   private get circuit(): CircuitJSON { return this.document.draft ?? this.document.project; }
   get project(): CircuitJSON { return this.document.project; }
   // Export after all edits already requested by the user have committed.
@@ -72,6 +74,7 @@ export class EditorModel {
     return {
       circuit: this.circuit,
       snapshot: this.snapshot,
+      switchValues: this.switchValues,
       selection: this.selection,
       placement: this.placement,
       editingChip: this.document.editing,
@@ -264,6 +267,18 @@ export class EditorModel {
     this.portInputs.set(netId, value);
   }
 
+  toggleSwitch(id: string): Promise<void> {
+    return this.enqueue(async () => {
+      if (!this.circuit.components.some(c => c.id === id && c.type === 'io.switch')) {
+        throw new Error(`Unknown switch ${id}`);
+      }
+      const value = this.switchValues.get(id) === 1 ? 0 : 1;
+      await this.bus.setInput(id, 'Y', value);
+      this.switchValues.set(id, value);
+      this.notify();
+    });
+  }
+
   reportError(error: unknown): void {
     this.error = error instanceof Error ? error.message : String(error);
     this.notify();
@@ -339,15 +354,11 @@ export class EditorModel {
   }
 
   // Both document changes and history targets resolve after prior RPCs finish.
-  private async applyTransition(
+  private applyTransition(
     build: (doc: EditorDocument) => EditorDocument | null,
     onCommit: (old: EditorDocument) => void,
   ): Promise<void> {
-    const prev = this.inflight;
-    let release!: () => void;
-    this.inflight = new Promise<void>((res) => { release = res; });
-    try {
-      await prev;
+    return this.enqueue(async () => {
       const next = build(this.document);
       if (next === null) return;
       const circuit = next.draft ?? next.project;
@@ -362,6 +373,7 @@ export class EditorModel {
       onCommit(this.document);
       this.document = next;
       this.snapshot = snapshot;
+      this.switchValues.clear();
       // Testing a chip starts with released inputs. Preserve explicit drives
       // across structural edits, and release ports which became outputs.
       for (const [netId, value] of this.portInputs) {
@@ -371,6 +383,17 @@ export class EditorModel {
       }
       this.error = null;
       this.notify();
+    });
+  }
+
+  // Structural reloads and switch drives commit in user action order.
+  private async enqueue(action: () => Promise<void>): Promise<void> {
+    const prev = this.inflight;
+    let release!: () => void;
+    this.inflight = new Promise<void>((res) => { release = res; });
+    try {
+      await prev;
+      await action();
     } catch (error) {
       this.reportError(error);
       throw error;

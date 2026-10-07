@@ -181,18 +181,10 @@ const transformFor = (inst: ComponentInstanceJSON, sz: { w: number; h: number })
 };
 
 export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => void) => {
-  // Switch drive requests survive local selection/mode changes. A new worker
-  // snapshot means a structural reload, which resets io.switch to LOW.
-  let switchValues = new Map<string, NetState>();
-  let snapshot = editor.state.snapshot;
-  let dispose = renderOnce(host, editor, switchValues);
+  let dispose = renderOnce(host, editor);
   const unsub = editor.subscribe(() => {
-    if (snapshot !== editor.state.snapshot) {
-      switchValues = new Map();
-      snapshot = editor.state.snapshot;
-    }
     dispose();
-    dispose = renderOnce(host, editor, switchValues);
+    dispose = renderOnce(host, editor);
   });
   return () => {
     dispose();
@@ -200,8 +192,8 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
   };
 };
 
-const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<string, NetState>): (() => void) => {
-  const { circuit, snapshot, placement, selection } = editor.state;
+const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
+  const { circuit, snapshot, switchValues, placement, selection } = editor.state;
   host.innerHTML = '';
   host.classList.toggle('placing', placement !== null);
 
@@ -495,15 +487,12 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<st
     g.setAttribute('transform', transformFor(inst, renderer.size));
     renderer.draw(g, inst.label || inst.id, inst.params);
 
-    let refreshSwitch: ((v: NetState) => void) | null = null;
     if (inst.type === 'io.switch') {
       const handle = g.querySelector('[data-role="switch-handle"]') as SVGRectElement;
       const label = g.querySelector('[data-role="switch-label"]') as SVGTextElement;
-      refreshSwitch = (v: NetState): void => {
-        handle.setAttribute('fill', v === 1 ? 'var(--led-on)' : 'var(--led-off)');
-        label.textContent = String(v);
-      };
-      refreshSwitch(switchValues.get(inst.id) ?? 0);
+      const value = switchValues.get(inst.id) ?? 0;
+      handle.setAttribute('fill', value === 1 ? 'var(--led-on)' : 'var(--led-off)');
+      label.textContent = String(value);
     }
 
     // Pin handles
@@ -582,15 +571,9 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<st
       e.stopPropagation();
       // Switches preserve their M3 contract: a plain click toggles. Hold
       // Shift/Cmd to fall through to selection so they're still editable.
-      if (inst.type === 'io.switch' && refreshSwitch && !e.shiftKey && !e.metaKey) {
-        const previous = switchValues.get(inst.id) ?? 0;
-        const switchVal = previous === 1 ? 0 : 1;
-        switchValues.set(inst.id, switchVal);
-        refreshSwitch(switchVal);
-        void editor.bus.setInput(inst.id, 'Y', switchVal).catch((error: unknown) => {
-          if (switchValues.get(inst.id) === switchVal) switchValues.set(inst.id, previous);
-          editor.reportError(error);
-        });
+      if (inst.type === 'io.switch' && !e.shiftKey && !e.metaKey) {
+        // The model reports failures and orders the toggle with pending reloads.
+        void editor.toggleSwitch(inst.id).catch(() => {});
         return;
       }
       const additive = e.shiftKey || e.metaKey;
