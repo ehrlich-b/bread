@@ -1,0 +1,2584 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "Untitled",
+  "components": [
+    {
+      "id": "pc41",
+      "type": "user.PC4",
+      "position": [
+        -670,
+        -290
+      ]
+    },
+    {
+      "id": "register41",
+      "type": "user.Register4",
+      "position": [
+        -430,
+        -290
+      ]
+    },
+    {
+      "id": "adder41",
+      "type": "user.Adder4",
+      "position": [
+        -190,
+        -300
+      ]
+    },
+    {
+      "id": "mux41",
+      "type": "user.Mux4",
+      "position": [
+        50,
+        -300
+      ]
+    },
+    {
+      "id": "mux42",
+      "type": "user.Mux4",
+      "position": [
+        290,
+        -300
+      ]
+    },
+    {
+      "id": "28c161",
+      "type": "mem.28C16",
+      "position": [
+        510,
+        -330
+      ],
+      "rotation": 0,
+      "params": {
+        "contents": "05 13 19 60"
+      }
+    },
+    {
+      "id": "61161",
+      "type": "mem.6116",
+      "position": [
+        770,
+        -330
+      ]
+    },
+    {
+      "id": "decoder1",
+      "type": "prim.DECODER",
+      "position": [
+        1010,
+        -290
+      ],
+      "params": {
+        "bits": 3,
+        "activeLow": false
+      },
+      "rotation": 0
+    },
+    {
+      "id": "not1",
+      "type": "user.Not",
+      "position": [
+        -670,
+        30
+      ]
+    },
+    {
+      "id": "not2",
+      "type": "user.Not",
+      "position": [
+        -430,
+        30
+      ]
+    },
+    {
+      "id": "not3",
+      "type": "user.Not",
+      "position": [
+        -190,
+        30
+      ]
+    },
+    {
+      "id": "not4",
+      "type": "user.Not",
+      "position": [
+        50,
+        30
+      ]
+    },
+    {
+      "id": "not5",
+      "type": "user.Not",
+      "position": [
+        290,
+        30
+      ]
+    },
+    {
+      "id": "and1",
+      "type": "user.And",
+      "position": [
+        530,
+        20
+      ]
+    },
+    {
+      "id": "and2",
+      "type": "user.And",
+      "position": [
+        770,
+        20
+      ]
+    },
+    {
+      "id": "and3",
+      "type": "user.And",
+      "position": [
+        1010,
+        20
+      ]
+    },
+    {
+      "id": "or1",
+      "type": "user.Or",
+      "position": [
+        -670,
+        250
+      ]
+    },
+    {
+      "id": "or2",
+      "type": "user.Or",
+      "position": [
+        -430,
+        250
+      ]
+    },
+    {
+      "id": "or3",
+      "type": "user.Or",
+      "position": [
+        -190,
+        250
+      ]
+    },
+    {
+      "id": "or4",
+      "type": "user.Or",
+      "position": [
+        50,
+        250
+      ]
+    },
+    {
+      "id": "or5",
+      "type": "user.Or",
+      "position": [
+        290,
+        250
+      ]
+    },
+    {
+      "id": "or6",
+      "type": "user.Or",
+      "position": [
+        530,
+        250
+      ]
+    },
+    {
+      "id": "nand1",
+      "type": "user.Nand",
+      "position": [
+        770,
+        250
+      ]
+    },
+    {
+      "id": "tristate1",
+      "type": "prim.TRISTATE",
+      "position": [
+        1010,
+        250
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate2",
+      "type": "prim.TRISTATE",
+      "position": [
+        -670,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate3",
+      "type": "prim.TRISTATE",
+      "position": [
+        -430,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate4",
+      "type": "prim.TRISTATE",
+      "position": [
+        -190,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate5",
+      "type": "prim.TRISTATE",
+      "position": [
+        50,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate6",
+      "type": "prim.TRISTATE",
+      "position": [
+        290,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate7",
+      "type": "prim.TRISTATE",
+      "position": [
+        530,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "tristate8",
+      "type": "prim.TRISTATE",
+      "position": [
+        770,
+        480
+      ],
+      "params": {
+        "oeActiveLow": false
+      }
+    },
+    {
+      "id": "const_01",
+      "type": "prim.CONST_0",
+      "position": [
+        1010,
+        490
+      ]
+    },
+    {
+      "id": "const_11",
+      "type": "prim.CONST_1",
+      "position": [
+        -670,
+        650
+      ]
+    },
+    {
+      "id": "switch1",
+      "type": "io.switch",
+      "position": [
+        -410,
+        650
+      ]
+    },
+    {
+      "id": "switch2",
+      "type": "io.switch",
+      "position": [
+        -170,
+        650
+      ]
+    },
+    {
+      "id": "led1",
+      "type": "io.led",
+      "position": [
+        80,
+        650
+      ]
+    },
+    {
+      "id": "led2",
+      "type": "io.led",
+      "position": [
+        230,
+        650
+      ]
+    },
+    {
+      "id": "led3",
+      "type": "io.led",
+      "position": [
+        380,
+        650
+      ]
+    },
+    {
+      "id": "led4",
+      "type": "io.led",
+      "position": [
+        530,
+        650
+      ]
+    },
+    {
+      "id": "led5",
+      "type": "io.led",
+      "position": [
+        680,
+        650
+      ]
+    },
+    {
+      "id": "led6",
+      "type": "io.led",
+      "position": [
+        830,
+        650
+      ]
+    },
+    {
+      "id": "led7",
+      "type": "io.led",
+      "position": [
+        980,
+        650
+      ]
+    },
+    {
+      "id": "led8",
+      "type": "io.led",
+      "position": [
+        1130,
+        650
+      ]
+    }
+  ],
+  "nets": [
+    {
+      "id": "n1",
+      "endpoints": [
+        "const_01.Y",
+        "28c161./CE",
+        "28c161./OE",
+        "61161./CE",
+        "adder41.Cin",
+        "28c161.A4",
+        "61161.A4",
+        "28c161.A5",
+        "61161.A5",
+        "28c161.A6",
+        "61161.A6",
+        "28c161.A7",
+        "61161.A7",
+        "28c161.A8",
+        "61161.A8",
+        "28c161.A9",
+        "61161.A9",
+        "28c161.A10",
+        "61161.A10",
+        "tristate5.A",
+        "tristate6.A",
+        "tristate7.A",
+        "tristate8.A"
+      ]
+    },
+    {
+      "id": "n2",
+      "endpoints": [
+        "const_11.Y",
+        "28c161./WE",
+        "pc41.EN"
+      ]
+    },
+    {
+      "id": "n3",
+      "endpoints": [
+        "switch1.Y",
+        "and1.A",
+        "not3.A"
+      ]
+    },
+    {
+      "id": "n4",
+      "endpoints": [
+        "switch2.Y",
+        "not1.A"
+      ]
+    },
+    {
+      "id": "n5",
+      "endpoints": [
+        "not1.Y",
+        "pc41.CLR",
+        "register41.CLR",
+        "nand1.B"
+      ]
+    },
+    {
+      "id": "n6",
+      "endpoints": [
+        "not2.Y",
+        "and1.B"
+      ]
+    },
+    {
+      "id": "n7",
+      "endpoints": [
+        "decoder1.Y6",
+        "not2.A"
+      ]
+    },
+    {
+      "id": "n8",
+      "endpoints": [
+        "and1.Y",
+        "pc41.CLK",
+        "register41.CLK"
+      ]
+    },
+    {
+      "id": "n9",
+      "endpoints": [
+        "not3.Y",
+        "and3.B"
+      ]
+    },
+    {
+      "id": "n10",
+      "endpoints": [
+        "decoder1.Y3",
+        "and3.A",
+        "tristate1.OE",
+        "tristate2.OE",
+        "tristate3.OE",
+        "tristate4.OE",
+        "tristate5.OE",
+        "tristate6.OE",
+        "tristate7.OE",
+        "tristate8.OE"
+      ]
+    },
+    {
+      "id": "n11",
+      "endpoints": [
+        "and3.Y",
+        "nand1.A"
+      ]
+    },
+    {
+      "id": "n12",
+      "endpoints": [
+        "nand1.Y",
+        "61161./WE"
+      ]
+    },
+    {
+      "id": "n13",
+      "endpoints": [
+        "decoder1.Y2",
+        "mux41.S",
+        "not4.A",
+        "or3.B"
+      ]
+    },
+    {
+      "id": "n14",
+      "endpoints": [
+        "not4.Y",
+        "61161./OE"
+      ]
+    },
+    {
+      "id": "n15",
+      "endpoints": [
+        "decoder1.Y0",
+        "or2.A"
+      ]
+    },
+    {
+      "id": "n16",
+      "endpoints": [
+        "decoder1.Y1",
+        "or2.B",
+        "mux42.S"
+      ]
+    },
+    {
+      "id": "n17",
+      "endpoints": [
+        "or2.Y",
+        "or3.A"
+      ]
+    },
+    {
+      "id": "n18",
+      "endpoints": [
+        "or3.Y",
+        "register41.EN"
+      ]
+    },
+    {
+      "id": "n19",
+      "endpoints": [
+        "not5.Y",
+        "and2.B"
+      ]
+    },
+    {
+      "id": "n20",
+      "endpoints": [
+        "decoder1.Y4",
+        "and2.A"
+      ]
+    },
+    {
+      "id": "n21",
+      "endpoints": [
+        "and2.Y",
+        "or1.B"
+      ]
+    },
+    {
+      "id": "n22",
+      "endpoints": [
+        "decoder1.Y5",
+        "or1.A"
+      ]
+    },
+    {
+      "id": "n23",
+      "endpoints": [
+        "or1.Y",
+        "pc41.LOAD"
+      ]
+    },
+    {
+      "id": "n24",
+      "endpoints": [
+        "or4.Y",
+        "or6.A"
+      ]
+    },
+    {
+      "id": "n25",
+      "endpoints": [
+        "or5.Y",
+        "or6.B"
+      ]
+    },
+    {
+      "id": "n26",
+      "endpoints": [
+        "or6.Y",
+        "not5.A"
+      ]
+    },
+    {
+      "id": "n27",
+      "endpoints": [
+        "28c161.IO4",
+        "decoder1.A0"
+      ]
+    },
+    {
+      "id": "n28",
+      "endpoints": [
+        "28c161.IO5",
+        "decoder1.A1"
+      ]
+    },
+    {
+      "id": "n29",
+      "endpoints": [
+        "28c161.IO6",
+        "decoder1.A2"
+      ]
+    },
+    {
+      "id": "n30",
+      "endpoints": [
+        "pc41.Q0",
+        "28c161.A0",
+        "led1.A"
+      ]
+    },
+    {
+      "id": "n31",
+      "endpoints": [
+        "28c161.IO0",
+        "61161.A0",
+        "pc41.D0",
+        "adder41.B0",
+        "mux41.A0"
+      ]
+    },
+    {
+      "id": "n32",
+      "endpoints": [
+        "register41.Q0",
+        "adder41.A0",
+        "tristate1.A",
+        "or4.A",
+        "led5.A"
+      ]
+    },
+    {
+      "id": "n33",
+      "endpoints": [
+        "61161.DQ0",
+        "tristate1.Y",
+        "mux41.B0"
+      ]
+    },
+    {
+      "id": "n34",
+      "endpoints": [
+        "mux41.Y0",
+        "mux42.A0"
+      ]
+    },
+    {
+      "id": "n35",
+      "endpoints": [
+        "adder41.S0",
+        "mux42.B0"
+      ]
+    },
+    {
+      "id": "n36",
+      "endpoints": [
+        "mux42.Y0",
+        "register41.D0"
+      ]
+    },
+    {
+      "id": "n37",
+      "endpoints": [
+        "pc41.Q1",
+        "28c161.A1",
+        "led2.A"
+      ]
+    },
+    {
+      "id": "n38",
+      "endpoints": [
+        "28c161.IO1",
+        "61161.A1",
+        "pc41.D1",
+        "adder41.B1",
+        "mux41.A1"
+      ]
+    },
+    {
+      "id": "n39",
+      "endpoints": [
+        "register41.Q1",
+        "adder41.A1",
+        "tristate2.A",
+        "or4.B",
+        "led6.A"
+      ]
+    },
+    {
+      "id": "n40",
+      "endpoints": [
+        "61161.DQ1",
+        "tristate2.Y",
+        "mux41.B1"
+      ]
+    },
+    {
+      "id": "n41",
+      "endpoints": [
+        "mux41.Y1",
+        "mux42.A1"
+      ]
+    },
+    {
+      "id": "n42",
+      "endpoints": [
+        "adder41.S1",
+        "mux42.B1"
+      ]
+    },
+    {
+      "id": "n43",
+      "endpoints": [
+        "mux42.Y1",
+        "register41.D1"
+      ]
+    },
+    {
+      "id": "n44",
+      "endpoints": [
+        "pc41.Q2",
+        "28c161.A2",
+        "led3.A"
+      ]
+    },
+    {
+      "id": "n45",
+      "endpoints": [
+        "28c161.IO2",
+        "61161.A2",
+        "pc41.D2",
+        "adder41.B2",
+        "mux41.A2"
+      ]
+    },
+    {
+      "id": "n46",
+      "endpoints": [
+        "register41.Q2",
+        "adder41.A2",
+        "tristate3.A",
+        "or5.A",
+        "led7.A"
+      ]
+    },
+    {
+      "id": "n47",
+      "endpoints": [
+        "61161.DQ2",
+        "tristate3.Y",
+        "mux41.B2"
+      ]
+    },
+    {
+      "id": "n48",
+      "endpoints": [
+        "mux41.Y2",
+        "mux42.A2"
+      ]
+    },
+    {
+      "id": "n49",
+      "endpoints": [
+        "adder41.S2",
+        "mux42.B2"
+      ]
+    },
+    {
+      "id": "n50",
+      "endpoints": [
+        "mux42.Y2",
+        "register41.D2"
+      ]
+    },
+    {
+      "id": "n51",
+      "endpoints": [
+        "pc41.Q3",
+        "28c161.A3",
+        "led4.A"
+      ]
+    },
+    {
+      "id": "n52",
+      "endpoints": [
+        "28c161.IO3",
+        "61161.A3",
+        "pc41.D3",
+        "adder41.B3",
+        "mux41.A3"
+      ]
+    },
+    {
+      "id": "n53",
+      "endpoints": [
+        "register41.Q3",
+        "adder41.A3",
+        "tristate4.A",
+        "or5.B",
+        "led8.A"
+      ]
+    },
+    {
+      "id": "n54",
+      "endpoints": [
+        "61161.DQ3",
+        "tristate4.Y",
+        "mux41.B3"
+      ]
+    },
+    {
+      "id": "n55",
+      "endpoints": [
+        "mux41.Y3",
+        "mux42.A3"
+      ]
+    },
+    {
+      "id": "n56",
+      "endpoints": [
+        "adder41.S3",
+        "mux42.B3"
+      ]
+    },
+    {
+      "id": "n57",
+      "endpoints": [
+        "mux42.Y3",
+        "register41.D3"
+      ]
+    },
+    {
+      "id": "n58",
+      "endpoints": [
+        "61161.DQ4",
+        "tristate5.Y"
+      ]
+    },
+    {
+      "id": "n59",
+      "endpoints": [
+        "61161.DQ5",
+        "tristate6.Y"
+      ]
+    },
+    {
+      "id": "n60",
+      "endpoints": [
+        "61161.DQ6",
+        "tristate7.Y"
+      ]
+    },
+    {
+      "id": "n61",
+      "endpoints": [
+        "61161.DQ7",
+        "tristate8.Y"
+      ]
+    }
+  ],
+  "definitions": [
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Nand",
+      "components": [
+        {
+          "id": "nand1",
+          "type": "prim.NAND",
+          "position": [
+            60,
+            60
+          ],
+          "params": {
+            "inputs": 2
+          }
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "nand1.A"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "nand1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "n2"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "n3"
+        }
+      ],
+      "metadata": {
+        "revision": 1
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Not",
+      "components": [
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            60,
+            60
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "nand1.A",
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "nand1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "port1"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.And",
+      "components": [
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "not1",
+          "type": "user.Not",
+          "position": [
+            250,
+            60
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "nand1.Y",
+            "not1.A"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "nand1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "not1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "port3"
+        }
+      ],
+      "metadata": {
+        "revision": 3
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Or",
+      "components": [
+        {
+          "id": "not1",
+          "type": "user.Not",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "not2",
+          "type": "user.Not",
+          "position": [
+            60,
+            220
+          ]
+        },
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            300,
+            140
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "not1.Y",
+            "nand1.A"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "not2.Y",
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "not1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "not2.A"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "nand1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "port3"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Xor",
+      "components": [
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            60,
+            160
+          ]
+        },
+        {
+          "id": "nand2",
+          "type": "user.Nand",
+          "position": [
+            230,
+            60
+          ]
+        },
+        {
+          "id": "nand3",
+          "type": "user.Nand",
+          "position": [
+            230,
+            240
+          ]
+        },
+        {
+          "id": "nand4",
+          "type": "user.Nand",
+          "position": [
+            430,
+            160
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "nand1.A",
+            "nand2.A"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "nand1.B",
+            "nand3.A"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "nand1.Y",
+            "nand2.B",
+            "nand3.B"
+          ]
+        },
+        {
+          "id": "n4",
+          "endpoints": [
+            "nand2.Y",
+            "nand4.A"
+          ]
+        },
+        {
+          "id": "n5",
+          "endpoints": [
+            "nand3.Y",
+            "nand4.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "nand4.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "n2"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "port1"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Mux",
+      "components": [
+        {
+          "id": "not1",
+          "type": "user.Not",
+          "position": [
+            60,
+            220
+          ]
+        },
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            220,
+            60
+          ]
+        },
+        {
+          "id": "nand2",
+          "type": "user.Nand",
+          "position": [
+            220,
+            210
+          ]
+        },
+        {
+          "id": "nand3",
+          "type": "user.Nand",
+          "position": [
+            430,
+            140
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "not1.Y",
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "not1.A",
+            "nand2.B"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "nand1.Y",
+            "nand3.A"
+          ]
+        },
+        {
+          "id": "n4",
+          "endpoints": [
+            "nand2.Y",
+            "nand3.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "nand1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "nand2.A"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "nand3.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "S",
+          "dir": "in",
+          "internalNet": "n2"
+        },
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Y",
+          "dir": "out",
+          "internalNet": "port3"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.HalfAdder",
+      "components": [
+        {
+          "id": "xor1",
+          "type": "user.Xor",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "and1",
+          "type": "user.And",
+          "position": [
+            60,
+            210
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "xor1.A",
+            "and1.A"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "xor1.B",
+            "and1.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "xor1.Y"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "and1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "n2"
+        },
+        {
+          "name": "Sum",
+          "dir": "out",
+          "internalNet": "port1"
+        },
+        {
+          "name": "Carry",
+          "dir": "out",
+          "internalNet": "port2"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.FullAdder",
+      "components": [
+        {
+          "id": "halfadder1",
+          "type": "user.HalfAdder",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "halfadder2",
+          "type": "user.HalfAdder",
+          "position": [
+            260,
+            60
+          ]
+        },
+        {
+          "id": "or1",
+          "type": "user.Or",
+          "position": [
+            420,
+            210
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "halfadder1.Sum",
+            "halfadder2.A"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "halfadder1.Carry",
+            "or1.A"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "halfadder2.Carry",
+            "or1.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "halfadder1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "halfadder1.B"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "halfadder2.B"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "halfadder2.Sum"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "or1.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Cin",
+          "dir": "in",
+          "internalNet": "port3"
+        },
+        {
+          "name": "Sum",
+          "dir": "out",
+          "internalNet": "port4"
+        },
+        {
+          "name": "Cout",
+          "dir": "out",
+          "internalNet": "port5"
+        }
+      ],
+      "metadata": {
+        "revision": 3
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.SRLatch",
+      "components": [
+        {
+          "id": "nand1",
+          "type": "user.Nand",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "nand2",
+          "type": "user.Nand",
+          "position": [
+            260,
+            210
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "nand1.Y",
+            "nand2.B"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "nand2.Y",
+            "nand1.B"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "nand1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "nand2.A"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "S",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "R",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Q",
+          "dir": "out",
+          "internalNet": "n1"
+        },
+        {
+          "name": "Qn",
+          "dir": "out",
+          "internalNet": "n2"
+        }
+      ],
+      "metadata": {
+        "revision": 3
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.RegisterBit",
+      "components": [
+        {
+          "id": "mux1",
+          "type": "user.Mux",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "dff1",
+          "type": "prim.DFF",
+          "position": [
+            290,
+            70
+          ],
+          "rotation": 0,
+          "params": {
+            "clrActiveLow": true
+          }
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "mux1.Y",
+            "dff1.D"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "dff1.Q",
+            "mux1.A"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "mux1.S"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "mux1.B"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "dff1.CLK"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "dff1./CLR"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "dff1.Qn"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "EN",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "D",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "CLK",
+          "dir": "in",
+          "internalNet": "port3"
+        },
+        {
+          "name": "CLR",
+          "dir": "in",
+          "internalNet": "port4"
+        },
+        {
+          "name": "Q",
+          "dir": "out",
+          "internalNet": "n2"
+        }
+      ],
+      "metadata": {
+        "revision": 3
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Register4",
+      "components": [
+        {
+          "id": "registerbit1",
+          "type": "user.RegisterBit",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "registerbit2",
+          "type": "user.RegisterBit",
+          "position": [
+            320,
+            60
+          ]
+        },
+        {
+          "id": "registerbit3",
+          "type": "user.RegisterBit",
+          "position": [
+            60,
+            240
+          ]
+        },
+        {
+          "id": "registerbit4",
+          "type": "user.RegisterBit",
+          "position": [
+            320,
+            240
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "registerbit1.EN",
+            "registerbit2.EN",
+            "registerbit3.EN",
+            "registerbit4.EN"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "registerbit1.CLK",
+            "registerbit2.CLK",
+            "registerbit3.CLK",
+            "registerbit4.CLK"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "registerbit1.CLR",
+            "registerbit2.CLR",
+            "registerbit3.CLR",
+            "registerbit4.CLR"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "registerbit1.D"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "registerbit1.Q"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "registerbit2.D"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "registerbit2.Q"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "registerbit3.D"
+          ]
+        },
+        {
+          "id": "port6",
+          "endpoints": [
+            "registerbit3.Q"
+          ]
+        },
+        {
+          "id": "port7",
+          "endpoints": [
+            "registerbit4.D"
+          ]
+        },
+        {
+          "id": "port8",
+          "endpoints": [
+            "registerbit4.Q"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "EN",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "CLK",
+          "dir": "in",
+          "internalNet": "n2"
+        },
+        {
+          "name": "CLR",
+          "dir": "in",
+          "internalNet": "n3"
+        },
+        {
+          "name": "D0",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "Q0",
+          "dir": "out",
+          "internalNet": "port2"
+        },
+        {
+          "name": "D1",
+          "dir": "in",
+          "internalNet": "port3"
+        },
+        {
+          "name": "Q1",
+          "dir": "out",
+          "internalNet": "port4"
+        },
+        {
+          "name": "D2",
+          "dir": "in",
+          "internalNet": "port5"
+        },
+        {
+          "name": "Q2",
+          "dir": "out",
+          "internalNet": "port6"
+        },
+        {
+          "name": "D3",
+          "dir": "in",
+          "internalNet": "port7"
+        },
+        {
+          "name": "Q3",
+          "dir": "out",
+          "internalNet": "port8"
+        }
+      ],
+      "metadata": {
+        "revision": 3
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Mux4",
+      "components": [
+        {
+          "id": "mux1",
+          "type": "user.Mux",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "mux2",
+          "type": "user.Mux",
+          "position": [
+            320,
+            60
+          ]
+        },
+        {
+          "id": "mux3",
+          "type": "user.Mux",
+          "position": [
+            60,
+            240
+          ]
+        },
+        {
+          "id": "mux4",
+          "type": "user.Mux",
+          "position": [
+            320,
+            240
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "mux1.S",
+            "mux2.S",
+            "mux3.S",
+            "mux4.S"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "mux1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "mux1.B"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "mux1.Y"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "mux2.A"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "mux2.B"
+          ]
+        },
+        {
+          "id": "port6",
+          "endpoints": [
+            "mux2.Y"
+          ]
+        },
+        {
+          "id": "port7",
+          "endpoints": [
+            "mux3.A"
+          ]
+        },
+        {
+          "id": "port8",
+          "endpoints": [
+            "mux3.B"
+          ]
+        },
+        {
+          "id": "port9",
+          "endpoints": [
+            "mux3.Y"
+          ]
+        },
+        {
+          "id": "port10",
+          "endpoints": [
+            "mux4.A"
+          ]
+        },
+        {
+          "id": "port11",
+          "endpoints": [
+            "mux4.B"
+          ]
+        },
+        {
+          "id": "port12",
+          "endpoints": [
+            "mux4.Y"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "S",
+          "dir": "in",
+          "internalNet": "n1"
+        },
+        {
+          "name": "A0",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B0",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Y0",
+          "dir": "out",
+          "internalNet": "port3"
+        },
+        {
+          "name": "A1",
+          "dir": "in",
+          "internalNet": "port4"
+        },
+        {
+          "name": "B1",
+          "dir": "in",
+          "internalNet": "port5"
+        },
+        {
+          "name": "Y1",
+          "dir": "out",
+          "internalNet": "port6"
+        },
+        {
+          "name": "A2",
+          "dir": "in",
+          "internalNet": "port7"
+        },
+        {
+          "name": "B2",
+          "dir": "in",
+          "internalNet": "port8"
+        },
+        {
+          "name": "Y2",
+          "dir": "out",
+          "internalNet": "port9"
+        },
+        {
+          "name": "A3",
+          "dir": "in",
+          "internalNet": "port10"
+        },
+        {
+          "name": "B3",
+          "dir": "in",
+          "internalNet": "port11"
+        },
+        {
+          "name": "Y3",
+          "dir": "out",
+          "internalNet": "port12"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.Adder4",
+      "components": [
+        {
+          "id": "fulladder1",
+          "type": "user.FullAdder",
+          "position": [
+            60,
+            60
+          ]
+        },
+        {
+          "id": "fulladder2",
+          "type": "user.FullAdder",
+          "position": [
+            320,
+            60
+          ]
+        },
+        {
+          "id": "fulladder3",
+          "type": "user.FullAdder",
+          "position": [
+            60,
+            240
+          ]
+        },
+        {
+          "id": "fulladder4",
+          "type": "user.FullAdder",
+          "position": [
+            320,
+            240
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "fulladder1.Cout",
+            "fulladder2.Cin"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "fulladder2.Cout",
+            "fulladder3.Cin"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "fulladder3.Cout",
+            "fulladder4.Cin"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "fulladder1.A"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "fulladder1.B"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "fulladder1.Cin"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "fulladder1.Sum"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "fulladder2.A"
+          ]
+        },
+        {
+          "id": "port6",
+          "endpoints": [
+            "fulladder2.B"
+          ]
+        },
+        {
+          "id": "port7",
+          "endpoints": [
+            "fulladder2.Sum"
+          ]
+        },
+        {
+          "id": "port8",
+          "endpoints": [
+            "fulladder3.A"
+          ]
+        },
+        {
+          "id": "port9",
+          "endpoints": [
+            "fulladder3.B"
+          ]
+        },
+        {
+          "id": "port10",
+          "endpoints": [
+            "fulladder3.Sum"
+          ]
+        },
+        {
+          "id": "port11",
+          "endpoints": [
+            "fulladder4.A"
+          ]
+        },
+        {
+          "id": "port12",
+          "endpoints": [
+            "fulladder4.B"
+          ]
+        },
+        {
+          "id": "port13",
+          "endpoints": [
+            "fulladder4.Sum"
+          ]
+        },
+        {
+          "id": "port14",
+          "endpoints": [
+            "fulladder4.Cout"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "A0",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "B0",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "Cin",
+          "dir": "in",
+          "internalNet": "port3"
+        },
+        {
+          "name": "S0",
+          "dir": "out",
+          "internalNet": "port4"
+        },
+        {
+          "name": "A1",
+          "dir": "in",
+          "internalNet": "port5"
+        },
+        {
+          "name": "B1",
+          "dir": "in",
+          "internalNet": "port6"
+        },
+        {
+          "name": "S1",
+          "dir": "out",
+          "internalNet": "port7"
+        },
+        {
+          "name": "A2",
+          "dir": "in",
+          "internalNet": "port8"
+        },
+        {
+          "name": "B2",
+          "dir": "in",
+          "internalNet": "port9"
+        },
+        {
+          "name": "S2",
+          "dir": "out",
+          "internalNet": "port10"
+        },
+        {
+          "name": "A3",
+          "dir": "in",
+          "internalNet": "port11"
+        },
+        {
+          "name": "B3",
+          "dir": "in",
+          "internalNet": "port12"
+        },
+        {
+          "name": "S3",
+          "dir": "out",
+          "internalNet": "port13"
+        },
+        {
+          "name": "Cout",
+          "dir": "out",
+          "internalNet": "port14"
+        }
+      ],
+      "metadata": {
+        "revision": 2
+      }
+    },
+    {
+      "version": 1,
+      "kind": "composite",
+      "name": "user.PC4",
+      "components": [
+        {
+          "id": "register41",
+          "type": "user.Register4",
+          "position": [
+            60,
+            70
+          ]
+        },
+        {
+          "id": "adder41",
+          "type": "user.Adder4",
+          "position": [
+            250,
+            60
+          ]
+        },
+        {
+          "id": "mux41",
+          "type": "user.Mux4",
+          "position": [
+            430,
+            60
+          ]
+        },
+        {
+          "id": "const_11",
+          "type": "prim.CONST_1",
+          "position": [
+            230,
+            320
+          ]
+        },
+        {
+          "id": "const_01",
+          "type": "prim.CONST_0",
+          "position": [
+            340,
+            320
+          ]
+        }
+      ],
+      "nets": [
+        {
+          "id": "n1",
+          "endpoints": [
+            "register41.Q0",
+            "adder41.A0"
+          ]
+        },
+        {
+          "id": "n2",
+          "endpoints": [
+            "adder41.S0",
+            "mux41.A0"
+          ]
+        },
+        {
+          "id": "n3",
+          "endpoints": [
+            "mux41.Y0",
+            "register41.D0"
+          ]
+        },
+        {
+          "id": "n4",
+          "endpoints": [
+            "register41.Q1",
+            "adder41.A1"
+          ]
+        },
+        {
+          "id": "n5",
+          "endpoints": [
+            "adder41.S1",
+            "mux41.A1"
+          ]
+        },
+        {
+          "id": "n6",
+          "endpoints": [
+            "mux41.Y1",
+            "register41.D1"
+          ]
+        },
+        {
+          "id": "n7",
+          "endpoints": [
+            "register41.Q2",
+            "adder41.A2"
+          ]
+        },
+        {
+          "id": "n8",
+          "endpoints": [
+            "adder41.S2",
+            "mux41.A2"
+          ]
+        },
+        {
+          "id": "n9",
+          "endpoints": [
+            "mux41.Y2",
+            "register41.D2"
+          ]
+        },
+        {
+          "id": "n10",
+          "endpoints": [
+            "register41.Q3",
+            "adder41.A3"
+          ]
+        },
+        {
+          "id": "n11",
+          "endpoints": [
+            "adder41.S3",
+            "mux41.A3"
+          ]
+        },
+        {
+          "id": "n12",
+          "endpoints": [
+            "mux41.Y3",
+            "register41.D3"
+          ]
+        },
+        {
+          "id": "n13",
+          "endpoints": [
+            "const_11.Y",
+            "adder41.B0"
+          ]
+        },
+        {
+          "id": "n14",
+          "endpoints": [
+            "const_01.Y",
+            "adder41.B1",
+            "adder41.B2",
+            "adder41.B3",
+            "adder41.Cin"
+          ]
+        },
+        {
+          "id": "port1",
+          "endpoints": [
+            "register41.EN"
+          ]
+        },
+        {
+          "id": "port2",
+          "endpoints": [
+            "register41.CLK"
+          ]
+        },
+        {
+          "id": "port3",
+          "endpoints": [
+            "register41.CLR"
+          ]
+        },
+        {
+          "id": "port4",
+          "endpoints": [
+            "adder41.Cout"
+          ]
+        },
+        {
+          "id": "port5",
+          "endpoints": [
+            "mux41.S"
+          ]
+        },
+        {
+          "id": "port6",
+          "endpoints": [
+            "mux41.B0"
+          ]
+        },
+        {
+          "id": "port7",
+          "endpoints": [
+            "mux41.B1"
+          ]
+        },
+        {
+          "id": "port8",
+          "endpoints": [
+            "mux41.B2"
+          ]
+        },
+        {
+          "id": "port9",
+          "endpoints": [
+            "mux41.B3"
+          ]
+        }
+      ],
+      "ports": [
+        {
+          "name": "EN",
+          "dir": "in",
+          "internalNet": "port1"
+        },
+        {
+          "name": "CLK",
+          "dir": "in",
+          "internalNet": "port2"
+        },
+        {
+          "name": "CLR",
+          "dir": "in",
+          "internalNet": "port3"
+        },
+        {
+          "name": "LOAD",
+          "dir": "in",
+          "internalNet": "port5"
+        },
+        {
+          "name": "D0",
+          "dir": "in",
+          "internalNet": "port6"
+        },
+        {
+          "name": "D1",
+          "dir": "in",
+          "internalNet": "port7"
+        },
+        {
+          "name": "D2",
+          "dir": "in",
+          "internalNet": "port8"
+        },
+        {
+          "name": "D3",
+          "dir": "in",
+          "internalNet": "port9"
+        },
+        {
+          "name": "Q0",
+          "dir": "out",
+          "internalNet": "n1"
+        },
+        {
+          "name": "Q1",
+          "dir": "out",
+          "internalNet": "n4"
+        },
+        {
+          "name": "Q2",
+          "dir": "out",
+          "internalNet": "n7"
+        },
+        {
+          "name": "Q3",
+          "dir": "out",
+          "internalNet": "n10"
+        }
+      ],
+      "metadata": {
+        "revision": 4
+      }
+    }
+  ]
+}

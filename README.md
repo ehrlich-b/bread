@@ -1,66 +1,35 @@
 # bread
 
-Browser-based digital circuit simulator. Goal: run Ben Eater's 8-bit computer at full speed in a tab — and anything else built from TTL-class digital logic.
+Browser-based digital circuit simulator. Goal: run Ben Eater's 8-bit computer at full speed in a tab, along with other TTL-class digital circuits.
 
 ## Status
 
-Alpha. Milestones M0–M5 from [docs/ROADMAP.md](docs/ROADMAP.md) are shipped:
+Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 
-- Engine kernel — two-phase event-driven scheduler, four-state logic, tristate resolution, oscillation detection, determinism regression.
-- All 18 primitives (`prim.AND`, `OR`, `NAND`, `NOR`, `XOR`, `XNOR`, `NOT`, `BUF`, `TRISTATE`, `DFF`, `LATCH`, `MUX2`, `DEMUX2`, `DECODER`, `ADDER`, `CONST_0`, `CONST_1`, `PULLUP`, `PULLDOWN`).
-- Composite loader with cycle detection; 15 TTL composites in the stdlib (`ttl.74LS00/02/04/08/32/86/107/138/139/157/161/173/245/273/283`) — every TTL part on Ben Eater's 8-bit bench.
-- Web Worker engine + `SharedArrayBuffer` net-state read path; blink demo runs in-browser.
-- Schematic editor: place / move / rotate / delete, orthogonal wire drawing, property inspector, save/load via File System Access API (with download fallback and explicit Download/Open/Circuit JSON actions), undo/redo with Cmd-Z, selected subcircuit creation and project-local reusable chips. Built-from-gates 1-bit full adder verified end-to-end via Playwright.
-- Behavioral chip set: `gen.555`, `io.7seg` (with live segment fills), `mem.6116` SRAM, `mem.74LS189` RAM, and `mem.28C16` EEPROM. The EEPROM has a hand-crafted DIP renderer plus a paste-hex / upload-`.bin` affordance in the property inspector; `mem.6116` and `mem.28C16` both round-trip `params.contents` through circuit JSON.
-- Eater SAP-1 module library: eight `eater.*` composites (`register_8bit`, `alu_8bit`, `ram_module`, `program_counter`, `instruction_register`, `flags_register`, `output_display`, `control_unit`). The control unit's microcode is generated in TypeScript and injected into the two onboard 28C16 EEPROMs at composite-registration time so the source stays human-readable.
-- Bundled `examples/ben_eater_8bit.json` — a fully-wired SAP-1 with a Fibonacci program preloaded into the 6116. Click the RESET switch to release reset and the engine streams 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233 onto the two-digit hex display before JC fires on the overflow and restarts the loop.
-- Bryan's original 2022 Digital CPU, converted from the pinned `.dig` sources by rerunnable Python scripts. Its Examples entry boots the original CALLRET program and counts from 1 through 10. The four source programs (CALLRET, countdown, Fibonacci and PUSH/POP) run against an independent integer ISA interpreter with architectural comparisons after every instruction.
+- Event-driven, two-phase engine with four-state logic, tristate resolution, oscillation detection and deterministic traces.
+- Primitive gates and storage, 15 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
+- SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files or copy/paste Circuit JSON, including memory images and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
+- Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
+- Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.
+- [Bryan's original 2022 Digital CPU](docs/ORIGINAL_CPU_PORT.md), converted from pinned sources by rerunnable Python scripts. Select **Bryan's Digital CPU (generated port)** in Examples, click **Fit circuit**, then **Run** to output 1 through 10. Its CALLRET, countdown, Fibonacci and PUSH/POP programs pass instruction-by-instruction comparisons against an independent ISA interpreter. The source loader's 31-byte limit is preserved.
 
-Vitest covers the engine, editor and both reference CPUs. Playwright covers the editor, blink demo, save/load + bundled-examples menu, full-adder truth table, ROM words, bus mapping and live signals, the generic-renderer / palette surface, the 28C16 hex-display example, and the original CPU's program output. The full stdlib (every primitive, every TTL composite, every behavioral) is clickable from the palette via a generic IC renderer that builds itself from the engine's pin spec.
+The [editor-built four-bit CPU](docs/CPU_ASCENT.md) uses 14 reusable modules. Arithmetic and HALT work in the editor; automated ISA tests also cover load/store and conditional loops. UI checks for those programs and high-speed responsiveness remain open.
 
-The [NAND-to-CPU checkpoint](docs/CPU_CLIMB_CHECKPOINT.md) records the initial capability investigation, editor queue regressions, independent reference-program checks, and measured performance. The supported local manual browser route produced 14 reusable modules and a CPU running arithmetic/HALT through actual editor actions. [Current ascent evidence](docs/CPU_ASCENT.md) separates those manual results from headless program checks and measured performance. [Chip authoring](docs/CHIP_AUTHORING.md) documents the workflow.
+Vitest covers engine semantics, queued editor actions, library edits, save/load and all three CPU designs. Playwright covers editor workflows, full-adder truth tables, ROMs, bus wiring, live displays and bundled examples. See the [roadmap](docs/ROADMAP.md) for benchmark methods and remaining performance targets.
 
-[Original Digital CPU port](docs/ORIGINAL_CPU_PORT.md) documents conversion,
-programming, tested behavior and source quirks, including the loader's
-31-byte limit. Select **Bryan's Digital CPU (generated port)** in Examples,
-click **Fit circuit**, then **Run**. Select the output register to read its
-live hexadecimal/binary value. The port preserves the source hierarchy;
-manual construction of this original CPU through the editor remains pending.
+## Design and scope
 
-## What it is
+TypeScript in strict mode, Vite, SVG schematics and Web Worker simulation. Circuits and reusable chip definitions use versioned JSON. Composites flatten into primitive and behavioral evaluators at load time; packaging gates improves reuse without changing execution cost.
 
-A schematic-style digital simulator with:
+Bread models digital `0`, `1`, `Z` and `X`. Analog effects, breadboard physics, FPGA synthesis and hardware programming are out of scope. Best-effort Verilog export is planned. A WASM engine remains a profiling-driven option.
 
-- A TTL chip library (74xx series, EEPROMs, SRAMs — the parts on Eater's bench).
-- An event-driven, two-phase simulation engine.
-- Persistent circuits in a versioned JSON format.
-- Visual subcircuit authoring: select gates, name ports, reuse and edit nested chips, and save the library with your circuit. See [the chip authoring guide](docs/CHIP_AUTHORING.md).
-- A web UI that runs simulation in a Web Worker so the schematic stays responsive.
+## Documentation
 
-Built in TypeScript. Engine has a path to WASM if profiling demands it.
-
-## Non-goals
-
-- **Analog simulation.** No SPICE, no transistors, no RC networks. Four-state digital logic (`0`, `1`, `Z`, `X`) only.
-- **FPGA toolchain replacement.** Verilog *export* is on the roadmap; synthesis, place-and-route, and bitstreams are out of scope.
-- **Faithful breadboard physics.** Schematic view is canonical. A breadboard skin may come later but won't model contact resistance, lead inductance, or any analog effect.
-- **A textual HDL.** Components are written in TypeScript; circuits are composed in a JSON IR. We do not invent a hardware description language. See [docs/COMPONENTS.md](docs/COMPONENTS.md) for the rationale.
-
-## Stack
-
-- TypeScript (strict mode).
-- Vite for dev server and production build.
-- SVG for schematic rendering. Canvas only if profiling forces it.
-- `Web Worker` for the simulation engine; `SharedArrayBuffer` for zero-copy net state reads from the UI thread.
-- Optional WASM hot path (Rust or AssemblyScript) for the event-dispatch loop. Only when JS profiling demands it.
-
-## Anchor docs
-
-| Doc | What's in it |
-|---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Layer split, threading, data flow, module boundaries, message protocol. |
-| [docs/SIMULATION.md](docs/SIMULATION.md) | Event-driven semantics, two-phase propagation, four-state logic, tristate resolution, oscillation, timing. |
-| [docs/COMPONENTS.md](docs/COMPONENTS.md) | The three component tiers (primitive / composite / behavioral) and why we don't ship an HDL. |
-| [docs/CIRCUIT_FORMAT.md](docs/CIRCUIT_FORMAT.md) | JSON schema for saved circuits and composite chip definitions. |
-| [docs/STDLIB.md](docs/STDLIB.md) | TTL chip catalog with implementation strategy per chip. |
-| [docs/ROADMAP.md](docs/ROADMAP.md) | Milestones from "blink an LED" to "boot Eater's machine." |
+| Doc | Contents |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Threading, data flow, module boundaries and worker protocol. |
+| [Simulation](docs/SIMULATION.md) | Scheduling, four-state logic, tristates, oscillation and timing. |
+| [Components](docs/COMPONENTS.md) | Primitive, composite and behavioral tiers. |
+| [Circuit format](docs/CIRCUIT_FORMAT.md) | Saved circuits and chip definitions. |
+| [Standard library](docs/STDLIB.md) | Chip catalog and implementation strategy. |
+| [Roadmap](docs/ROADMAP.md) | Milestones, performance measurements and planned features. |

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { loadCircuit } from '../engine/loader';
 import { Simulator } from '../engine/sim';
 import { cpu4Instruction, cpu4Plan, cpu4ManualModulePlan, type Cpu4State } from './cpu4.plan';
-import editorCheckpoint from '../../docs/evidence/manual-ascent/pc4-editor-checkpoint.json';
-import cpuCheckpoint from '../../docs/evidence/manual-ascent/cpu4-editor-checkpoint.json';
+import editorCheckpoint from './fixtures/pc4-editor-checkpoint.json';
+import cpuCheckpoint from './fixtures/cpu4-editor-checkpoint.json';
 import type { CircuitJSON } from '../engine/ir';
 
 const cases: Array<{ name: string; program: number[]; instructions: number; acc: number; ram?: [number, number] }> = [
