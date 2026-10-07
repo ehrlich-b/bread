@@ -7,7 +7,7 @@ Browser-based digital circuit simulator. Goal: run Ben Eater's 8-bit computer at
 Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 
 - Event-driven, two-phase engine with four-state logic, tristate resolution, oscillation detection and deterministic traces.
-- Primitive gates and storage, 15 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
+- Primitive gates and storage, 16 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
 - SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files or copy/paste Circuit JSON, including memory images and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
 - Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
 - Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.

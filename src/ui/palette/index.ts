@@ -31,6 +31,7 @@ export const PALETTE: PaletteEntry[] = [
 
   { group: 'Storage', type: 'prim.DFF', label: 'DFF' },
   { group: 'Storage', type: 'prim.LATCH', label: 'D Latch' },
+  { group: 'Storage', type: 'prim.COUNTER', label: 'Counter ×4', params: { width: 4 } },
 
   { group: 'Sources', type: 'prim.CONST_0', label: 'GND' },
   { group: 'Sources', type: 'prim.CONST_1', label: 'Vcc' },
@@ -57,11 +58,21 @@ export const PALETTE: PaletteEntry[] = [
   { group: 'TTL', type: 'ttl.74LS245', label: '74LS245' },
   { group: 'TTL', type: 'ttl.74LS273', label: '74LS273' },
   { group: 'TTL', type: 'ttl.74LS283', label: '74LS283' },
+  { group: 'TTL', type: 'ttl.74LS374', label: '74LS374' },
 
   { group: 'Memory', type: 'mem.6116', label: '6116 SRAM' },
   { group: 'Memory', type: 'mem.28C16', label: '28C16 EEPROM' },
   { group: 'Memory', type: 'mem.ROM', label: 'ROM (words)', params: { addressBits: 5, dataBits: 8 } },
   { group: 'Memory', type: 'mem.74LS189', label: '74LS189 RAM' },
+
+  { group: 'Eater', type: 'eater.register_8bit', label: '8-bit register' },
+  { group: 'Eater', type: 'eater.alu_8bit', label: '8-bit ALU' },
+  { group: 'Eater', type: 'eater.ram_module', label: 'RAM module' },
+  { group: 'Eater', type: 'eater.program_counter', label: 'Program counter' },
+  { group: 'Eater', type: 'eater.instruction_register', label: 'Instruction register' },
+  { group: 'Eater', type: 'eater.flags_register', label: 'Flags register' },
+  { group: 'Eater', type: 'eater.output_display', label: 'Output display' },
+  { group: 'Eater', type: 'eater.control_unit', label: 'Control unit' },
 ];
 
 export const mountPalette = (host: HTMLElement, editor: EditorModel): (() => void) => {
