@@ -112,7 +112,7 @@ if (pre === 0) return { Q: 1, Qn: 0 };
 // ... clocked behavior using rose/fell
 ```
 
-Async pins beat clock edges. This matches every datasheet.
+Async pins beat clock edges. The DFF model gives clear priority over preset. An `X` or `Z` async input represents both asserted and released possibilities; Q remains known only when both produce the same value.
 
 ## Memory
 

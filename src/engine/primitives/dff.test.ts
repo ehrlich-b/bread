@@ -107,6 +107,37 @@ describe('prim.DFF (/CLR beats /PRE)', () => {
   });
 });
 
+describe('prim.DFF (unknown async inputs)', () => {
+  it.each(['X', 'Z'] as const)('merges asserted and released /CLR=%s with the held value', (unknown) => {
+    for (const initialQ of [0, 1] as const) {
+      const f = dff({ initialQ, enable: true, clrActiveLow: true, preActiveLow: true });
+      expect(f.tick([1, 0, 0, unknown, 1])).toEqual(initialQ === 0 ? [0, 1] : ['X', 'X']);
+    }
+  });
+
+  it.each(['X', 'Z'] as const)('merges asserted and released /PRE=%s with the held value', (unknown) => {
+    for (const initialQ of [0, 1] as const) {
+      const f = dff({ initialQ, enable: true, clrActiveLow: true, preActiveLow: true });
+      expect(f.tick([0, 0, 0, 1, unknown])).toEqual(initialQ === 1 ? [1, 0] : ['X', 'X']);
+    }
+  });
+
+  it.each(['X', 'Z'] as const)('keeps clear priority and merges both async possibilities for %s', (unknown) => {
+    const params = { initialQ: 1 as const, clrActiveLow: true, preActiveLow: true };
+    expect(dff(params).tick([1, 0, 0, unknown])).toEqual([0, 1]);
+    expect(dff(params).tick([1, 0, unknown, 0])).toEqual(['X', 'X']);
+    expect(dff(params).tick([1, 0, unknown, unknown])).toEqual(['X', 'X']);
+  });
+
+  it.each(['X', 'Z'] as const)('merges an unknown async input with the clocked value for %s', (unknown) => {
+    const params = { clrActiveLow: true, preActiveLow: true };
+    expect(dff({ ...params, initialQ: 1 }).tick([0, 1, unknown, 1])).toEqual([0, 1]);
+    expect(dff({ ...params, initialQ: 0 }).tick([1, 1, 1, unknown])).toEqual([1, 0]);
+    expect(dff({ ...params, initialQ: 0 }).tick([1, 1, unknown, 1])).toEqual(['X', 'X']);
+    expect(dff({ ...params, initialQ: 1 }).tick([0, 1, 1, unknown])).toEqual(['X', 'X']);
+  });
+});
+
 describe('prim.DFF (clock enable)', () => {
   it('samples enable and data together at the edge, holding when disabled', () => {
     const f = dff({ initialQ: 0, enable: true });
