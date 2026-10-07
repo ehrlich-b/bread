@@ -7,7 +7,7 @@ interface DffState {
   prevClk: NetState;
 }
 
-const dff = (params: { clrActiveLow?: boolean; preActiveLow?: boolean; initialQ?: 0 | 1 } = {}) => {
+const dff = (params: { clrActiveLow?: boolean; preActiveLow?: boolean; initialQ?: 0 | 1; enable?: boolean } = {}) => {
   const prim = getPrimitive('prim.DFF')!;
   let state = prim.init!(params) as DffState;
   return {
@@ -104,5 +104,26 @@ describe('prim.DFF (/CLR beats /PRE)', () => {
     // [D, CLK, /CLR, /PRE]
     const out = f.tick([1, 0, 0, 0]);
     expect(out).toEqual([0, 1]);
+  });
+});
+
+describe('prim.DFF (clock enable)', () => {
+  it('samples enable and data together at the edge, holding when disabled', () => {
+    const f = dff({ initialQ: 0, enable: true });
+    expect(f.pins.map(p => p.name)).toEqual(['D', 'CLK', 'EN', 'Q', 'Qn']);
+    expect(f.tick([1, 1, 1])).toEqual([1, 0]);
+    expect(f.tick([0, 1, 1])).toEqual([1, 0]);
+    f.tick([0, 0, 1]);
+    expect(f.tick([0, 1, 0])).toEqual([1, 0]);
+    expect(f.tick([0, 1, 1])).toEqual([1, 0]);
+    f.tick([0, 0, 1]);
+    expect(f.tick([0, 1, 1])).toEqual([0, 1]);
+  });
+  it('merges hold and load for an unknown enable and retains async clear priority', () => {
+    const f = dff({ initialQ: 0, enable: true, clrActiveLow: true });
+    expect(f.tick([0, 1, 'X', 1])).toEqual([0, 1]);
+    f.tick([1, 0, 'X', 1]);
+    expect(f.tick([1, 1, 'X', 1])).toEqual(['X', 'X']);
+    expect(f.tick([1, 1, 0, 0])).toEqual([0, 1]);
   });
 });

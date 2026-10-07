@@ -104,26 +104,20 @@ def helper(kind,width=1,selector=1):
             id=f'buffer{i}';b.comp('prim.TRISTATE',id);b.wire(data[i],id+'.A');b.wire(sel,id+'.OE');b.wire(out[i],id+'.Y')
     elif kind=='Register':
         data=b.bankports('D','in',width);clock=b.port('C','in','clock');en=b.port('en','in','enable');q=b.bankports('Q','out',width)
-        d=b.mux('load_mux',q,data,en)
         for i in range(width):
-            id=f'bit{i}';b.comp('prim.DFF',id,{'initialQ':0});b.wire(d[i],id+'.D');b.wire(clock,id+'.CLK');b.wire(q[i],id+'.Q');b.wire(f'qnot{i}',id+'.Qn')
+            id=f'bit{i}';b.comp('prim.DFF',id,{'initialQ':0,'enable':True});b.wire(data[i],id+'.D');b.wire(clock,id+'.CLK');b.wire(en,id+'.EN');b.wire(q[i],id+'.Q');b.wire(f'qnot{i}',id+'.Qn')
     elif kind in ('Counter','CounterPreset'):
         en=b.port('en','in','en');clock=b.port('C','in','clock')
         direction=b.port('dir','in','dir') if kind=='CounterPreset' else b.const(0)
         data=b.bankports('in','in',width) if kind=='CounterPreset' else None
         ld=b.port('ld','in','ld') if kind=='CounterPreset' else None
         clear=b.port('clr','in','clear');q=b.bankports('out','out',width);ovf=b.port('ovf','out','ovf')
-        zero=b.const(0);one=b.const(1)
-        plus,_=b.adder('increment',q,[zero]*width,one)
+        id='counter';b.comp('prim.COUNTER',id,{'width':width,'preset':kind=='CounterPreset'})
+        b.wire(en,id+'.EN');b.wire(clock,id+'.CLK');b.wire(clear,id+'.CLR')
         if kind=='CounterPreset':
-            minus,_=b.adder('decrement',q,[one]*width,zero)
-            counted=b.mux('direction_mux',plus,minus,direction)
-        else:counted=plus
-        enabled=b.mux('enable_mux',q,counted,en)
-        loaded=b.mux('load_mux',enabled,data,ld) if kind=='CounterPreset' else enabled
-        d=b.mux('clear_mux',loaded,[zero]*width,clear)
-        for i in range(width):
-            id=f'bit{i}';b.comp('prim.DFF',id,{'initialQ':0});b.wire(d[i],id+'.D');b.wire(clock,id+'.CLK');b.wire(q[i],id+'.Q');b.wire(f'qnot{i}',id+'.Qn')
+            b.wire(direction,id+'.DIR');b.wire(ld,id+'.LD')
+            for i in range(width):b.wire(data[i],f'{id}.D{i}')
+        for i in range(width):b.wire(q[i],f'{id}.Q{i}')
         maximum=b.gate('AND','maximum',q)
         terminal=maximum
         if kind=='CounterPreset':
