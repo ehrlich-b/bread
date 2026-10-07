@@ -8,7 +8,7 @@ import { loadCircuit } from '../src/engine/loader';
 import { Simulator } from '../src/engine/sim';
 import type { CircuitJSON } from '../src/engine/ir';
 
-const path = process.argv[2] ?? 'docs/evidence/manual-ascent/cpu4-editor-checkpoint.json';
+const path = process.argv[2] ?? 'src/climb/fixtures/cpu4-editor-checkpoint.json';
 const instructions = Number(process.argv[3] ?? 100_000);
 if (!Number.isSafeInteger(instructions) || instructions < 1) throw new Error('Positive integer instruction count required');
 const exact = readFileSync(path, 'utf8');
@@ -18,7 +18,7 @@ const actual = checkpoint.components.some((c) => c.type === 'mem.6116');
 const circuit = actual ? structuredClone(checkpoint) : cpu4ManualModulePlan(program, checkpoint.definitions!);
 if (actual) circuit.components.find((c) => c.type === 'mem.28C16')!.params = { contents: program.map((b) => b.toString(16).padStart(2, '0')).join(' ') };
 const graph = loadCircuit(circuit);
-// These actual IDs are recorded by the manual action log's cpuRoleMap.
+// Component IDs below identify the clock, reset and registers in the saved CPU fixture.
 const clock = actual ? 'switch1' : 'clock'; const reset = actual ? 'switch2' : 'reset';
 const names = (role: 'pc' | 'acc'): string[] => Array.from({ length: 4 }, (_, bit) => actual ? circuit.nets.find((n) => n.endpoints.includes(`${role === 'pc' ? 'pc41' : 'register41'}.Q${bit}`))!.id : `${role}${bit}`);
 const pcNets = names('pc'); const accNets = names('acc');
