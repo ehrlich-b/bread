@@ -25,7 +25,8 @@ export interface PinSpec {
 
 // Deterministic context handed to every evaluate(). Behavioral components that
 // model real-world time (clock generators, 555 timers, EEPROM access delays)
-// derive their cadence from `step` and `rateHz`. Primitives ignore it.
+// derive their cadence from `step` and `rateHz`. `step` advances only on a
+// simulation tick, not on paused input settling. Primitives ignore it.
 export interface EvalCtx {
   step: number;
   rateHz: number;

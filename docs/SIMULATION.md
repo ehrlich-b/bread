@@ -64,17 +64,18 @@ A combinational chain of depth `d` settles in `d` iterations. At zero-delay, all
 ## Steps, ticks, and time
 
 - **Iteration** — one read + commit pass. Internal to `settle`.
-- **Step** — one call to `settle` from the worker loop. Quiescent at the end (or oscillation reported).
-- **Cycle** — *user-visible* clock period. Equals one or more steps depending on what changed.
+- **Step** — one call to `settle`, including paused input changes. Diagnostics count these settlements. Quiescent at the end (or oscillation reported).
+- **Tick** — one call to `tick`, advancing simulated time and scheduling time-dependent components before settling. Initial power-on resolution occurs at time zero.
+- **Cycle** — *user-visible* clock period. Equals one or more ticks depending on the clock frequency and simulation rate.
 
 The engine does not know wall-clock time. The worker paces it:
 
-- **Free-run** — `settle` in a tight loop, yielding periodically to handle messages.
-- **Paced** — `settle` `N` times per ms based on a target rate (Hz).
-- **Single-step** — one `settle` per user click.
-- **Edge-step** — `settle` until a designated net (typically `CLK`) transitions.
+- **Free-run** — `tick` in a tight loop, yielding periodically to handle messages.
+- **Paced** — `tick` `N` times per ms based on a target rate (Hz).
+- **Single-step** — one `tick` per user click.
+- **Edge-step** — `tick` until a designated net (typically `CLK`) transitions.
 
-Components that need real-world delay (a 555 timer's pulse width, an EEPROM's access time) count steps relative to a rate the worker hands them. They do not call `Date.now()`.
+Clock generators and 555 timers count simulated ticks relative to the rate the worker hands them. Paused input changes settle without advancing clock phase. Evaluators do not call `Date.now()`.
 
 ## Edges
 

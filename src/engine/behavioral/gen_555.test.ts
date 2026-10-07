@@ -51,4 +51,13 @@ describe('gen.555', () => {
     for (let i = 0; i < 100; i++) sim.settle();
     expect(sim.readNet('out')).toBe(1);
   });
+
+  it('ignores paused settling when counting the next half-period', () => {
+    const sim = new Simulator(loadCircuit(wrap(1)), { rateHz: 1000 });
+    sim.settle();
+    for (let i = 0; i < 500; i++) sim.settle();
+    expect(collect(sim, 499).every(value => value === 0)).toBe(true);
+    sim.tick();
+    expect(sim.readNet('out')).toBe(1);
+  });
 });
