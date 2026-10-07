@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import '../../engine/index';
 import type { CircuitJSON } from '../../engine/ir';
 import { loadCircuit } from '../../engine/loader';
@@ -99,4 +99,24 @@ describe('chip authoring document history and edit propagation', () => {
     await editor.setPortInput(editor.state.circuit.ports!.find((p) => p.name === 'Extra')!.internalNet, 'X');
     await expect(editor.exposePin('buf.A', 'Again', 'in')).rejects.toThrow('already has a port');
   });
+});
+
+it('commits a chip input drive before a following reload preserves it', async () => {
+  const { editor, bus } = setup();
+  await makeNand(editor);
+  await editor.editChip('user.Nand');
+  let finish!: () => void;
+  const setNetInput = bus.setNetInput;
+  vi.spyOn(bus, 'setNetInput').mockImplementationOnce((net, value) => new Promise<void>(resolve => {
+    finish = () => { void setNetInput(net, value).then(resolve); };
+  }));
+  const mutate = vi.spyOn(bus, 'mutate');
+  const drive = editor.setPortInput('a', 1);
+  const rename = editor.updateComponent('g', { label: 'renamed' });
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(mutate).not.toHaveBeenCalled();
+  finish();
+  await Promise.all([drive, rename]);
+  expect(bus.readNet('a')).toBe(1);
 });

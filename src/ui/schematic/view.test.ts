@@ -5,6 +5,7 @@ import { loadCircuit } from '../../engine/loader';
 import { Simulator } from '../../engine/sim';
 import type { LoadSnapshot, WorkerBus } from '../bus';
 import { EditorModel } from '../editor';
+import { mountControls } from '../controls';
 import { chipSelection, createChip } from '../chips/model';
 import { mountSchematic } from './view';
 
@@ -56,7 +57,7 @@ const mount = (circuit: CircuitJSON) => {
     snapshot.netsView.set(sim.graph.netValues);
   };
   const load = (next: CircuitJSON): LoadSnapshot => {
-    sim = new Simulator(loadCircuit(next));
+    sim = new Simulator(loadCircuit(next), { rateHz: 1000 });
     sim.settle();
     const netIds = sim.graph.nets.map(net => net.id);
     snapshot = {
@@ -79,7 +80,7 @@ const mount = (circuit: CircuitJSON) => {
       return new Promise(resolve => { reply = () => resolve(loaded); });
     },
     setInput, setNetInput: async () => {},
-    run: async () => {}, pause: async () => {}, step: async () => {},
+    run: async () => {}, pause: async () => {}, step: async () => { sim.tick(); sync(); },
     on: () => () => {}, readNet: id => sim.readNet(id), netIds: [], componentIds: [],
   };
   const editor = new EditorModel(bus, circuit, load(circuit));
@@ -217,4 +218,78 @@ it('renders a wiring handle for a __proto__ input when a NOT chip is created and
       expect(h.bus.readNet('output')).toBe(0);
     } finally { h.unmount(); }
   }
+});
+
+describe('simulation controls waiting for editor actions', () => {
+  it('samples a queued enable toggle before Step after a delayed rename', async () => {
+    const circuit: CircuitJSON = {
+      version: 1, kind: 'circuit', name: 'enabled clock',
+      components: [
+        { id: 'switch1', type: 'io.switch' },
+        { id: 'data', type: 'prim.CONST_1' },
+        { id: 'clk', type: 'gen.clock', params: { freqHz: 500 } },
+        { id: 'ff', type: 'prim.DFF', params: { initialQ: 0, enable: true } },
+      ],
+      nets: [
+        { id: 'enable', endpoints: ['switch1.Y', 'ff.EN'] },
+        { id: 'data', endpoints: ['data.Y', 'ff.D'] },
+        { id: 'clk', endpoints: ['clk.Y', 'ff.CLK'] },
+        { id: 'q', endpoints: ['ff.Q'] },
+      ],
+    };
+    const h = mount(circuit);
+    const controls = new TestElement();
+    const unmountControls = mountControls(controls as unknown as HTMLElement, h.editor);
+    const calls: string[] = [];
+    const mutate = h.bus.mutate;
+    const step = h.bus.step;
+    vi.spyOn(h.bus, 'mutate').mockImplementation(next => { calls.push('mutate'); return mutate(next); });
+    const setInput = h.setInput.getMockImplementation()!;
+    h.setInput.mockImplementation(async (...args) => { calls.push('set_input'); await setInput(...args); });
+    vi.spyOn(h.bus, 'step').mockImplementation(async () => { calls.push('step'); await step(); });
+    try {
+      const rename = h.editor.updateComponent('switch1', { label: 'renamed' });
+      await Promise.resolve();
+      clickSwitch(h.host);
+      controls.children.find(child => child.textContent === 'Step')!.click();
+      h.reply();
+      await rename;
+      await h.flush();
+      expect(calls).toEqual(['mutate', 'set_input', 'step']);
+      expect(h.bus.readNet('q')).toBe(1);
+    } finally { unmountControls(); h.unmount(); }
+  });
+
+  it.each(['Run', 'Pause'] as const)('orders %s after a toggle and before a later edit', async (label) => {
+    const h = mount(switches);
+    const controls = new TestElement();
+    const unmountControls = mountControls(controls as unknown as HTMLElement, h.editor);
+    const calls: string[] = [];
+    const mutate = h.bus.mutate;
+    let loaded = 0;
+    let secondLoaded!: () => void;
+    const secondLoad = new Promise<void>(resolve => { secondLoaded = resolve; });
+    vi.spyOn(h.bus, 'mutate').mockImplementation(next => {
+      calls.push('mutate');
+      const pending = mutate(next);
+      if (++loaded === 2) secondLoaded();
+      return pending;
+    });
+    h.setInput.mockImplementation(async () => { calls.push('set_input'); });
+    vi.spyOn(h.bus, label === 'Run' ? 'run' : 'pause').mockImplementation(async () => { calls.push(label.toLowerCase()); });
+    try {
+      const rename = h.editor.updateComponent('switch1', { label: 'first' });
+      await Promise.resolve();
+      clickSwitch(h.host);
+      controls.children.find(child => child.textContent === label)!.click();
+      const later = h.editor.updateComponent('switch1', { label: 'second' });
+      h.reply();
+      await rename;
+      await secondLoad;
+      expect(calls).toEqual(['mutate', 'set_input', label.toLowerCase(), 'mutate']);
+      h.reply();
+      await later;
+      await h.flush();
+    } finally { unmountControls(); h.unmount(); }
+  });
 });
