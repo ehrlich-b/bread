@@ -35,7 +35,7 @@ const DRAG_THRESHOLD_PX = 3;
 // UI-only and don't belong on the editor state.
 const BASE_VIEW_W = 600;
 const BASE_VIEW_H = 320;
-const MIN_ZOOM = 0.25;
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 4;
 let viewZoom = 1;
 let viewPanX = 0;
@@ -246,6 +246,17 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<st
   svg.appendChild(compLayer);
   const overlayLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(overlayLayer);
+  const fit = document.createElement('button'); fit.type = 'button';
+  fit.textContent = 'Fit circuit'; fit.className = 'schematic-fit';
+  fit.addEventListener('click', () => {
+    if (circuit.components.length === 0) return;
+    const bounds = compLayer.getBBox();
+    viewZoom = clamp(Math.min(BASE_VIEW_W / (bounds.width + 80), BASE_VIEW_H / (bounds.height + 80)), MIN_ZOOM, MAX_ZOOM);
+    viewPanX = bounds.x - (BASE_VIEW_W / viewZoom - bounds.width) / 2;
+    viewPanY = bounds.y - (BASE_VIEW_H / viewZoom - bounds.height) / 2;
+    applyViewBox(svg);
+  });
+  host.append(fit);
 
   const pinAbs = buildPinLookup(circuit);
 
@@ -482,7 +493,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, switchValues: Map<st
       continue;
     }
     g.setAttribute('transform', transformFor(inst, renderer.size));
-    renderer.draw(g, inst.id, inst.params);
+    renderer.draw(g, inst.label || inst.id, inst.params);
 
     let refreshSwitch: ((v: NetState) => void) | null = null;
     if (inst.type === 'io.switch') {

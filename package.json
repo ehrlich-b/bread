@@ -15,6 +15,7 @@
     "demo:bus": "tsx scripts/register_bus_demo.ts",
     "demo:blink": "tsx scripts/blink_demo.ts",
     "bench:eater": "tsx scripts/bench_eater.ts",
+    "check:original": "vitest run src/stdlib/original.programs.test.ts --maxWorkers=2",
     "typecheck": "tsc --noEmit",
     "e2e": "playwright test"
   },
