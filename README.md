@@ -17,6 +17,12 @@ The [editor-built four-bit CPU](docs/CPU_ASCENT.md) uses 14 reusable modules. Ar
 
 Vitest covers engine semantics, queued editor actions, library edits, save/load and all three CPU designs. Playwright covers editor workflows, full-adder truth tables, ROMs, bus wiring, live displays and bundled examples. See the [roadmap](docs/ROADMAP.md) for benchmark methods and remaining performance targets.
 
+## Quick start
+
+Requires Node.js 20+ and npm. Install dependencies with `npm ci`, then start Vite with `npm run dev` and open the URL it prints. Use a current browser with `SharedArrayBuffer` support; Vite supplies the required isolation headers.
+
+Run `npm run typecheck`, `npm test -- --maxWorkers=2 --minWorkers=1` and `npm run build` for local checks. For browser tests, install Chromium once with `npx playwright install chromium`, then run `npm run e2e`.
+
 ## Design and scope
 
 TypeScript in strict mode, Vite, SVG schematics and Web Worker simulation. Circuits and reusable chip definitions use versioned JSON. Composites flatten into primitive and behavioral evaluators at load time; packaging gates improves reuse without changing execution cost.

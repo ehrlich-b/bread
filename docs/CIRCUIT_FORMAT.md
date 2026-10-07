@@ -37,7 +37,7 @@ The canonical IR for both saved circuits and composite chip definitions. Version
 - `params` is type-specific. The engine validates against the type's parameter schema. Examples:
   - `prim.NAND`: `{ "inputs": 4 }`.
   - `prim.MUX2`: `{ "width": 8 }`.
-  - `gen.555`: `{ "frequencyHz": 1 }`.
+  - `gen.555`: `{ "freqHz": 1 }`.
 
 ## Nets
 

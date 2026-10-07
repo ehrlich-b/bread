@@ -116,7 +116,11 @@ Async pins beat clock edges. The DFF model gives clear priority over preset. An 
 
 ## Memory
 
-EEPROMs and SRAMs are behavioral components carrying internal `Uint8Array` storage. Reads are combinational on `(addr, /CE, /OE)`; writes are clocked on `/WE` falling edge (SRAM) or are programmed out-of-band (EEPROM, with a UI affordance for loading hex/binary contents).
+EEPROMs and SRAMs are behavioral components carrying internal `Uint8Array` storage. Reads are combinational on `(addr, /CE, /OE, /WE)`.
+
+The 6116 SRAM writes while both `/CE` and `/WE` are low, with its data outputs at `Z`. Data changes during this interval update the selected byte. The real part accepts data during the write pulse and retains the final value when `/WE` or `/CE` rises; it does not sample on the falling edge. See the [6116 datasheet's write timing](https://www.renesas.com/us/en/document/dst/6116sala-data-sheet). Bread models this as zero-delay, level-sensitive storage, without setup/hold times or minimum pulse widths; keep the address stable through the pulse.
+
+The 28C16 EEPROM supports initial hex contents through the inspector and simplified level-sensitive writes through `/WE`. It omits the real part's write-cycle delay and data-protection sequences.
 
 The 74LS189 RAM has open-collector inverted outputs — both behaviors are part of its behavioral model. Ben Eater wraps it in 74LS04 inverters in his RAM module; we represent that wrapping in the schematic, not by hiding the inversion.
 
