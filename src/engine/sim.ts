@@ -247,10 +247,19 @@ export class Simulator {
   }
 
   private computeNetValue(net: RuntimeNet, netIdx: number): NetState {
-    const scratch = this.resolveScratch;
-    scratch.length = 0;
     const drivers = net.drivers;
     const components = this.graph.components;
+    // Most nets have one driver and no external force. No scratch copy or
+    // resolution pass is needed: a lone weak pull collapses to its strong
+    // value, and 0/1/Z/X already are resolved. Contention needs two drivers.
+    if (net.forced === 'Z' && drivers.length <= 1) {
+      if (drivers.length === 0) return 'Z';
+      const driver = drivers[0]!;
+      const value = components[driver.comp]!.outputBuf[driver.outIdx]!;
+      return value === 'H' ? 1 : value === 'L' ? 0 : value;
+    }
+    const scratch = this.resolveScratch;
+    scratch.length = 0;
     for (let i = 0; i < drivers.length; i++) {
       const d = drivers[i]!;
       scratch.push(components[d.comp]!.outputBuf[d.outIdx]!);
