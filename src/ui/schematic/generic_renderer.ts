@@ -89,7 +89,7 @@ export const buildGenericRenderer = (
   const { left, right } = splitPins(pinSpec);
   const { slots, height } = layoutPins(left, right);
 
-  const pinOffsets: Record<string, PinOffset> = {};
+  const pinOffsets: Record<string, PinOffset> = Object.create(null);
   for (const s of slots) pinOffsets[s.name] = { x: s.x, y: s.y };
 
   const label = shortLabel(typeId);

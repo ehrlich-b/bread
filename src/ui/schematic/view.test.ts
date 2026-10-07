@@ -5,6 +5,7 @@ import { loadCircuit } from '../../engine/loader';
 import { Simulator } from '../../engine/sim';
 import type { LoadSnapshot, WorkerBus } from '../bus';
 import { EditorModel } from '../editor';
+import { chipSelection, createChip } from '../chips/model';
 import { mountSchematic } from './view';
 
 // Only the DOM surface used by these real renderers and click handlers. No
@@ -190,4 +191,30 @@ describe('schematic switch clicks', () => {
       expect(h.bus.readNet('out')).toBe(0);
     } finally { h.unmount(); }
   });
+});
+
+it('renders a wiring handle for a __proto__ input when a NOT chip is created and reopened', async () => {
+  const source: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'prototype port',
+    components: [...switches.components, { id: 'inv', type: 'prim.NOT' }, { id: 'led', type: 'io.led' }],
+    nets: [
+      { id: 'input', endpoints: ['switch1.Y', 'inv.A'] },
+      { id: 'output', endpoints: ['inv.Y', 'led.A'] },
+    ],
+  };
+  const selected = new Set(['inv']);
+  const ports = chipSelection(source, selected).body.ports!.map(port =>
+    port.dir === 'in' ? { ...port, name: '__proto__' } : port);
+  const created = createChip(source, selected, 'ProtoNot', ports);
+  for (const circuit of [created, JSON.parse(JSON.stringify(created)) as CircuitJSON]) {
+    const h = mount(circuit);
+    try {
+      expect(h.bus.readNet('output')).toBe(1);
+      expect(h.host.querySelector('[data-pin="protonot1.__proto__"]')).not.toBeNull();
+      expect(h.host.querySelector('[data-net-id="input"]')).not.toBeNull();
+      clickSwitch(h.host);
+      await h.flush();
+      expect(h.bus.readNet('output')).toBe(0);
+    } finally { h.unmount(); }
+  }
 });
