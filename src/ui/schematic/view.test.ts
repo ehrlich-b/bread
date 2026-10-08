@@ -13,6 +13,7 @@ import sap1 from '../../../examples/ben_eater_8bit.json';
 // Only the DOM surface used by these real renderers and click handlers. No
 // browser, replacement view logic or production dependencies are needed.
 class TestElement extends EventTarget {
+  get ownerDocument() { return document; }
   readonly children: TestElement[] = [];
   readonly dataset: Record<string, string> = {};
   private readonly attrs = new Map<string, string>();
@@ -40,6 +41,7 @@ class TestElement extends EventTarget {
     return match[2] === undefined ? key in this.dataset : this.dataset[key] === match[2];
   }
   closest(selector: string): TestElement | null { return this.matches(selector) ? this : null; }
+  contains(target: TestElement): boolean { return target === this || this.children.some(child => child.contains(target)); }
   appendChild(child: TestElement): TestElement { this.children.push(child); return child; }
   append(...children: TestElement[]): void { this.children.push(...children); }
   querySelector(selector: string): TestElement | null {
@@ -77,6 +79,7 @@ const mount = (circuit: CircuitJSON) => {
   const document = new TestElement();
   vi.stubGlobal('document', Object.assign(document, {
     body: new TestElement(), createElementNS: () => new TestElement(), createElement: () => new TestElement(),
+    elementFromPoint: vi.fn(() => null),
   }));
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
