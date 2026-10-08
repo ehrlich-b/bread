@@ -139,11 +139,13 @@ export const mountTutorial = (host: HTMLElement, editor: EditorModel, canvas: HT
   const check = button('Check Fibonacci', () => {
     const token = generation; const circuit = editor.state.circuit;
     busy = true; error.textContent = ''; refresh();
-    void editor.runTestbench(fibonacciBench as TestbenchJSON).then(result => {
+    const request = editor.runTestbench(fibonacciBench as TestbenchJSON);
+    const commandRevision = editor.commandRevision;
+    void request.then(result => {
       if (disposed || token !== generation || editor.state.circuit !== circuit) return;
       benchResult.textContent = `${result.passed === result.total ? 'PASS' : 'FAIL'} Fibonacci: ${result.passed}/${result.total} vectors`;
       recording = result.waveform;
-      if (recording) editor.focusWaveform(recording, recording.ticks[0] ?? 0);
+      if (recording && editor.commandRevision === commandRevision) editor.focusWaveform(recording, recording.ticks[0] ?? 0);
     }).catch((reason: unknown) => {
       if (token === generation && !disposed) error.textContent = reason instanceof Error ? reason.message : String(reason);
     }).finally(() => {

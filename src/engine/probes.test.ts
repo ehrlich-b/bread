@@ -3,7 +3,7 @@ import './index';
 import eater from '../../examples/ben_eater_8bit.json';
 import type { CircuitJSON, ProbeJSON } from './ir';
 import { loadCircuit } from './loader';
-import { ProbeCapture } from './probes';
+import { ProbeCapture, type ProbeSequence } from './probes';
 import { Simulator } from './sim';
 
 const circuit: CircuitJSON = {
@@ -71,5 +71,59 @@ describe('bounded probe capture', () => {
     for (let tick = 1; tick <= 4096; tick++) { plain.tick(); observed.tick(); compare(tick); }
     expect(observed.events).toEqual(plain.events);
     expect(capture.snapshot().ticks).toHaveLength(4097);
+  });
+});
+
+describe('incremental probe sequences', () => {
+  const source: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'sequence',
+    components: ['clock', 'enable', 'data'].map(id => ({ id, type: 'io.switch' })),
+    nets: ['clock', 'enable', 'data'].map(id => ({ id, endpoints: [`${id}.Y`] })),
+  };
+  const lanes = source.nets.map(net => ({ id: net.id, label: net.id, nets: [net.id] }));
+  const sequence: ProbeSequence = { id: 'sequence', clock: 'clock', enable: { net: 'enable', value: 0 }, nets: ['data'], values: [1, 1, 0] };
+  const capture = (probes = lanes): ProbeCapture => new ProbeCapture(probes, loadCircuit(source), 2, [sequence]);
+
+  it('counts both repeated loads, uses pre-edge enable, and preserves evidence through ring wrap and probe-only edits', () => {
+    const first = capture();
+    first.record(0, Uint8Array.of(0, 0, 0)); first.record(1, Uint8Array.of(1, 1, 1));
+    first.record(2, Uint8Array.of(0, 0, 1)); first.record(3, Uint8Array.of(1, 1, 1));
+    expect(first.snapshot().completedSequences).toEqual([]);
+    const next = capture(); next.preserveSequences(first); next.record(3, Uint8Array.of(1, 1, 1));
+    next.record(4, Uint8Array.of(0, 0, 1)); next.record(5, Uint8Array.of(1, 1, 0));
+    expect(next.snapshot().completedSequences).toEqual(['sequence']);
+    next.record(6, Uint8Array.of(0, 0, 0)); next.record(7, Uint8Array.of(1, 1, 1));
+    expect(next.snapshot().completedSequences).toEqual(['sequence']);
+    expect(Array.from(next.snapshot().ticks)).toEqual([6, 7]);
+    expect(capture().snapshot().completedSequences).toEqual([]);
+  });
+
+  it.each([2, 3])('rejects X/Z output bytes (%i), disabled loads, and repeated-tick input changes', unknown => {
+    const observed = capture();
+    observed.record(0, Uint8Array.of(0, 0, 0)); observed.record(1, Uint8Array.of(1, 0, 1));
+    observed.record(2, Uint8Array.of(0, 0, 1)); observed.record(3, Uint8Array.of(1, 0, unknown));
+    observed.record(4, Uint8Array.of(0, 1, 1)); observed.record(5, Uint8Array.of(1, 0, 1));
+    observed.record(6, Uint8Array.of(0, 0, 1)); observed.record(6, Uint8Array.of(1, 0, 1));
+    observed.record(7, Uint8Array.of(0, 0, 1)); observed.record(8, Uint8Array.of(1, 0, 0));
+    expect(observed.snapshot().completedSequences).toEqual([]);
+  });
+
+  it('does not combine evidence across missing ticks', () => {
+    const observed = capture();
+    observed.record(0, Uint8Array.of(0, 0, 0)); observed.record(1, Uint8Array.of(1, 0, 1));
+    observed.record(4, Uint8Array.of(0, 0, 1)); observed.record(5, Uint8Array.of(1, 0, 1));
+    observed.record(6, Uint8Array.of(0, 0, 1)); observed.record(7, Uint8Array.of(1, 0, 0));
+    expect(observed.snapshot().completedSequences).toEqual([]);
+  });
+
+  it.each(['clock', 'enable', 'data'])('requires the %s lane to be probed and does not inherit evidence across its removal', missing => {
+    const first = capture();
+    first.record(0, Uint8Array.of(0, 0, 0)); first.record(1, Uint8Array.of(1, 0, 1));
+    const incomplete = capture(lanes.filter(probe => probe.id !== missing)); incomplete.preserveSequences(first);
+    const next = capture(); next.preserveSequences(incomplete);
+    next.record(2, Uint8Array.of(0, 0, 1)); next.record(3, Uint8Array.of(1, 0, 1));
+    next.record(4, Uint8Array.of(0, 0, 1)); next.record(5, Uint8Array.of(1, 0, 0));
+    expect(incomplete.snapshot().completedSequences).toBeUndefined();
+    expect(next.snapshot().completedSequences).toEqual([]);
   });
 });

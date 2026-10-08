@@ -2,6 +2,7 @@ import eater from '../../examples/ben_eater_8bit.json';
 import type { CircuitJSON, NetState } from '../engine/ir';
 import type { WaveformSnapshot } from '../engine/probes';
 import type { MetricsNotif } from '../worker/protocol';
+import { TUTORIAL_FIBONACCI } from './tutorial_sequence';
 
 const bits = (prefix: string, width = 8): string[] => Array.from({ length: width }, (_, bit) => `${prefix}${bit}`);
 const SIGNALS = {
@@ -109,6 +110,7 @@ export class TutorialClock {
 export function tutorialComplete(id: TutorialStepId, snapshot: WaveformSnapshot | null | undefined, clock?: TutorialClock): boolean {
   if (id === 'clock') return clock?.complete ?? false;
   if (!snapshot) return false;
+  if (id === 'fibonacci' && snapshot.completedSequences?.includes(TUTORIAL_FIBONACCI.id)) return true;
   const lanes = new Map<string, number>();
   let offset = 0;
   for (const probe of snapshot.probes) for (const net of probe.nets) lanes.set(net, offset++);
@@ -123,7 +125,7 @@ export function tutorialComplete(id: TutorialStepId, snapshot: WaveformSnapshot 
     return result;
   };
   let stage = 0;
-  const fibonacci = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233];
+  const fibonacci = TUTORIAL_FIBONACCI.values;
   for (let sample = 1; sample < snapshot.ticks.length; sample++) {
     if (snapshot.ticks[sample] !== snapshot.ticks[sample - 1]! + 1 || value(sample - 1, 'CLK') !== 0 || value(sample, 'CLK') !== 1) continue;
     if (id === 'probe') return true;

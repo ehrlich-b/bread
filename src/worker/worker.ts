@@ -14,6 +14,7 @@ import '../engine/primitives/index';
 import { Simulator, type SimEvent } from '../engine/sim';
 import { runTestbench } from '../engine/testbench';
 import '../stdlib/index';
+import { TUTORIAL_FIBONACCI } from '../ui/tutorial_sequence';
 import {
   NET_STATE_BYTE,
   validateRateHz,
@@ -84,7 +85,7 @@ const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
   const nextGraph = loadCircuit(req.circuit);
   const nextSim = new Simulator(nextGraph, { rateHz: nextRate, onEvent: reportEvent });
   nextSim.settle();
-  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph) : null;
+  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph, undefined, [TUTORIAL_FIBONACCI]) : null;
   nextCapture?.record(0, nextGraph.netValues);
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
@@ -167,7 +168,8 @@ const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
   const { probes: _nextProbes, ...nextBody } = req.circuit;
   if (req.preserveProbeEdits && sim && graph && netsBuffer && JSON.stringify(nextBody) === circuitSignature) {
     validateProbes(req.circuit.probes, graph);
-    const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, graph) : null;
+    const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, graph, undefined, [TUTORIAL_FIBONACCI]) : null;
+    nextCapture?.preserveSequences(capture);
     nextCapture?.record(ticksTotal, graph.netValues);
     capture = nextCapture;
     pendingWaveform = null;
@@ -179,7 +181,7 @@ const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
   const nextGraph = loadCircuit(req.circuit);
   const nextSim = new Simulator(nextGraph, { rateHz: targetRateHz, onEvent: reportEvent });
   nextSim.settle();
-  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph) : null;
+  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph, undefined, [TUTORIAL_FIBONACCI]) : null;
   nextCapture?.record(0, nextGraph.netValues);
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;

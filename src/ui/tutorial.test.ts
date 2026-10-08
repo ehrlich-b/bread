@@ -6,8 +6,9 @@ import { loadCircuit } from '../engine/loader';
 import { ProbeCapture } from '../engine/probes';
 import { Simulator } from '../engine/sim';
 import { runTestbench, type TestbenchJSON } from '../engine/testbench';
-import type { MetricsNotif } from '../worker/protocol';
+import { MAX_RATE_HZ, type MetricsNotif } from '../worker/protocol';
 import { pinProbe } from './probes';
+import { TUTORIAL_FIBONACCI } from './tutorial_sequence';
 import {
   readTutorialProgress, saveTutorialProgress, TUTORIAL_STEPS, TUTORIAL_STORAGE_KEY,
   TutorialClock, tutorialCircuit, tutorialComplete, type TutorialStepId,
@@ -140,6 +141,31 @@ describe('tutorial completion from real SAP-1 state', () => {
     const h = machine('fibonacci'); h.release(); h.tick(1200);
     expect(tutorialComplete('fibonacci', h.snapshot())).toBe(true);
   });
+
+  it.each([10000, MAX_RATE_HZ])('captures live Fibonacci load edges at %i ticks/s before the waveform ring evicts the start', rateHz => {
+    const circuit = tutorialCircuit('fibonacci');
+    circuit.probes!.push({ id: 'out', ...pinProbe(circuit, 'display.OUT0', true) });
+    const sim = new Simulator(loadCircuit(circuit), { rateHz }); sim.settle();
+    const capture = new ProbeCapture(circuit.probes!, sim.graph, undefined, [TUTORIAL_FIBONACCI]);
+    sim.setComponentInput('sw_reset', 'Y', 1); sim.settle(); capture.record(0, sim.graph.netValues);
+    const outputs: number[] = []; const outputTicks: number[] = [];
+    for (let tick = 1; tick <= 1300 * rateHz / 1000 && outputs.length < 13; tick++) {
+      const load = sim.readNet('gated_clk') === 0 && sim.readNet('ctl_oi') === 0;
+      sim.tick(); capture.record(tick, sim.graph.netValues);
+      if (load && sim.readNet('gated_clk') === 1) {
+        outputs.push(TUTORIAL_FIBONACCI.nets.reduce((value, net, bit) => value + Number(sim.readNet(net)) * 2 ** bit, 0));
+        outputTicks.push(tick);
+        expect(tutorialComplete('fibonacci', capture.snapshot())).toBe(outputs.length === 13);
+      }
+    }
+    expect(outputs).toEqual([1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]);
+    expect(outputTicks.at(-1)! - outputTicks[0]!).toBeGreaterThan(capture.capacity);
+    const snapshot = capture.snapshot();
+    expect(snapshot.ticks).toHaveLength(8192);
+    expect(tutorialComplete('fibonacci', { ...snapshot, completedSequences: undefined })).toBe(false);
+    // A delayed first delivery still includes the already observed completion.
+    expect(tutorialComplete('fibonacci', snapshot)).toBe(true);
+  }, 30000);
 
   it('OUT values without a bus probe or /OI edges cannot complete Fibonacci', () => {
     const noOut = machine('fibonacci', circuit => { circuit.probes = circuit.probes!.filter(probe => probe.id !== 'out'); });

@@ -9,6 +9,26 @@ export interface WaveformSnapshot {
   values: Uint8Array;
   stride: number;
   capacity: number;
+  completedSequences?: string[];
+}
+
+export interface ProbeSequence {
+  id: string;
+  clock: string;
+  enable: { net: string; value: 0 | 1 };
+  nets: readonly string[];
+  values: readonly number[];
+}
+
+interface SequenceCapture {
+  sequence: ProbeSequence;
+  clockIndex: number;
+  enableIndex: number;
+  indices: number[];
+  tick: number;
+  clock: number;
+  enable: number;
+  stage: number;
 }
 
 export function validateProbes(probes: ProbeJSON[] | undefined, graph: RuntimeGraph): void {
@@ -35,9 +55,10 @@ export class ProbeCapture {
   private readonly probes: ProbeJSON[];
   private next = 0;
   private count = 0;
+  private readonly sequences: SequenceCapture[];
   readonly stride: number;
 
-  constructor(probes: ProbeJSON[], graph: RuntimeGraph, readonly capacity = PROBE_CAPACITY) {
+  constructor(probes: ProbeJSON[], graph: RuntimeGraph, readonly capacity = PROBE_CAPACITY, sequences: readonly ProbeSequence[] = []) {
     validateProbes(probes, graph);
     if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Probe capacity must be a positive integer');
     this.probes = probes.map(probe => ({ ...probe, nets: [...probe.nets] }));
@@ -45,9 +66,39 @@ export class ProbeCapture {
     this.stride = this.indices.length;
     this.ticks = new Float64Array(capacity);
     this.values = new Uint8Array(capacity * this.stride);
+    const observed = new Set(probes.flatMap(probe => probe.nets));
+    this.sequences = sequences.filter(sequence => [sequence.clock, sequence.enable.net, ...sequence.nets].every(net => observed.has(net))).map(sequence => ({
+      sequence, clockIndex: graph.netById.get(sequence.clock)!, enableIndex: graph.netById.get(sequence.enable.net)!,
+      indices: sequence.nets.map(net => graph.netById.get(net)!), tick: -1, clock: 3, enable: 3, stage: 0,
+    }));
+  }
+
+  // A probe-only edit can replace the ring without losing an observed sequence.
+  preserveSequences(previous: ProbeCapture | null): void {
+    for (const capture of this.sequences) {
+      const old = previous?.sequences.find(candidate => candidate.sequence === capture.sequence);
+      if (old) { capture.tick = old.tick; capture.clock = old.clock; capture.enable = old.enable; capture.stage = old.stage; }
+    }
   }
 
   record(tick: number, netValues: Uint8Array): void {
+    // Observe load edges before the bounded sample ring evicts any evidence.
+    // Only sequences whose clock, enable and data lanes are probed can grade.
+    for (const capture of this.sequences) {
+      const { sequence } = capture;
+      const clock = netValues[capture.clockIndex]!;
+      if (tick !== capture.tick && tick !== capture.tick + 1) capture.stage = 0;
+      if (capture.stage < sequence.values.length && tick === capture.tick + 1 && capture.clock === 0 && clock === 1 && capture.enable === sequence.enable.value) {
+        let value: number | null = 0;
+        for (const [bit, index] of capture.indices.entries()) {
+          const byte = netValues[index];
+          if (byte !== 0 && byte !== 1) { value = null; break; }
+          value += byte * 2 ** bit;
+        }
+        capture.stage = value === sequence.values[capture.stage] ? capture.stage + 1 : value === sequence.values[0] ? 1 : 0;
+      }
+      capture.tick = tick; capture.clock = clock; capture.enable = netValues[capture.enableIndex]!;
+    }
     // Paused input settling replaces the current tick; it never invents time.
     const previous = (this.next + this.capacity - 1) % this.capacity;
     const replace = this.count > 0 && this.ticks[previous] === tick;
@@ -70,6 +121,9 @@ export class ProbeCapture {
     ticks.set(this.ticks.subarray(0, this.count - firstCount), firstCount);
     values.set(this.values.subarray(oldest * this.stride, (oldest + firstCount) * this.stride));
     values.set(this.values.subarray(0, (this.count - firstCount) * this.stride), firstCount * this.stride);
-    return { probes: this.probes.map(probe => ({ ...probe, nets: [...probe.nets] })), ticks, values, stride: this.stride, capacity: this.capacity };
+    return {
+      probes: this.probes.map(probe => ({ ...probe, nets: [...probe.nets] })), ticks, values, stride: this.stride, capacity: this.capacity,
+      ...(this.sequences.length ? { completedSequences: this.sequences.filter(capture => capture.stage === capture.sequence.values.length).map(capture => capture.sequence.id) } : {}),
+    };
   }
 }

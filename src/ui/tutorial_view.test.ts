@@ -10,6 +10,7 @@ import type { LoadSnapshot, WorkerBus } from './bus';
 import { EditorModel } from './editor';
 import { TUTORIAL_STORAGE_KEY, tutorialCircuit } from './tutorial';
 import { mountTutorial } from './tutorial_view';
+import { mountWaveform } from './waveform_view';
 
 // Exercise panel events and editor ordering with the real simulator, without
 // a browser or a DOM dependency. The canvas only supplies component groups.
@@ -20,7 +21,9 @@ class TestElement extends EventTarget {
   textContent = ''; hidden = false; disabled = false; id = ''; className = ''; tabIndex = 0;
   focused = false;
   constructor(readonly tag: string) { super(); }
+  clientWidth = 600; scrollLeft = 0;
   append(...children: TestElement[]): void { this.children.push(...children); }
+  prepend(...children: TestElement[]): void { this.children.unshift(...children); }
   replaceChildren(...children: TestElement[]): void { this.children = children; }
   setAttribute(key: string, value: string): void { this.attributes.set(key, value); }
   removeAttribute(key: string): void { this.attributes.delete(key); }
@@ -43,7 +46,7 @@ async function setup(hash = '#tutorial', saved?: string) {
   const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } };
   const window = Object.assign(new EventTarget(), { location: { hash }, localStorage: storage });
   vi.stubGlobal('window', window);
-  vi.stubGlobal('document', { createElement: (tag: string) => new TestElement(tag), querySelector: () => header });
+  vi.stubGlobal('document', { createElement: (tag: string) => new TestElement(tag), createElementNS: (_ns: string, tag: string) => new TestElement(tag), querySelector: () => header });
   let sim!: Simulator;
   let capture: ProbeCapture | null = null;
   let ticks = 0;
@@ -138,6 +141,31 @@ it('stored completion cannot grade fresh state; the final button uses real testb
     h.button('Finish tutorial').click(); expect(h.host.hidden).toBe(true);
     expect(h.canvas.children.some(group => group.dataset.tutorialFocus)).toBe(false);
   } finally { unsub(); h.dispose(); }
+});
+
+it.each(['run', 'step', 'pause'] as const)('Check Fibonacci respects a later %s command without focusing its historical waveform', async command => {
+  const h = await setup('#tutorial', JSON.stringify({ step: 6, results: new Array(7).fill('pending') }));
+  let release!: () => void; const testbench = h.bus.testbench;
+  vi.spyOn(h.bus, 'testbench').mockImplementationOnce((circuit, bench) => new Promise(resolve => {
+    release = () => resolve(testbench(circuit, bench));
+  }));
+  const focus = vi.fn(); const unsub = h.editor.onWaveformFocus(focus);
+  const waveHost = new TestElement('section'); const disposeWaveform = mountWaveform(waveHost as unknown as HTMLElement, h.editor);
+  let running = false; const unsubMetrics = h.bus.on('metrics', metrics => { running = metrics.running; });
+  try {
+    await h.editor.addPinProbe('display.OUT0', true);
+    h.button('Check Fibonacci').click();
+    await vi.waitFor(() => expect(release).toBeTypeOf('function'));
+    const later = command === 'run' ? h.editor.run(1000) : h.editor[command]();
+    const revision = h.editor.commandRevision;
+    release(); await later; await h.ready();
+    expect(h.editor.commandRevision).toBe(revision);
+    expect(focus).not.toHaveBeenCalled();
+    expect(running).toBe(command === 'run');
+    expect(waveHost.find(element => element.attributes.get('aria-label') === 'Waveform capture')!.textContent).toContain(command === 'run' ? 'Running' : 'Paused');
+    expect(h.label('Tutorial testbench result').textContent).toBe('PASS Fibonacci: 41/41 vectors');
+    expect(h.button('Finish tutorial').disabled).toBe(false);
+  } finally { unsub(); unsubMetrics(); disposeWaveform(); h.dispose(); }
 });
 
 it('circuit changes remove highlights and Restart recovers the lesson', async () => {
