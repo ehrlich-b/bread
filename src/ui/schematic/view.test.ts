@@ -16,6 +16,7 @@ class TestElement extends EventTarget {
   readonly children: TestElement[] = [];
   readonly dataset: Record<string, string> = {};
   private readonly attrs = new Map<string, string>();
+  private readonly captures = new Set<number>();
   attributeWrites = 0;
   readonly classList = { toggle: vi.fn(), remove: vi.fn(), add: vi.fn() };
   textContent = '';
@@ -27,8 +28,12 @@ class TestElement extends EventTarget {
       this.dataset[name.slice(5).replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase())] = value;
     }
   }
-  getAttribute(name: string): string | null { return this.attrs.get(name) ?? null; }
+  getAttribute(name: string): string | null {
+    if (name.startsWith('data-')) return this.dataset[name.slice(5).replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase())] ?? null;
+    return this.attrs.get(name) ?? null;
+  }
   private matches(selector: string): boolean {
+    if (selector === 'svg[data-role="canvas"]') return this.dataset.role === 'canvas';
     const match = /^\[data-([a-z-]+)(?:="([^"\]]*)")?\]$/.exec(selector);
     if (!match) throw new Error(`Unsupported test selector: ${selector}`);
     const key = match[1]!.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
@@ -45,6 +50,25 @@ class TestElement extends EventTarget {
     }
     return null;
   }
+  querySelectorAll(selector: string): TestElement[] {
+    return this.children.flatMap(child => [
+      ...(child.matches(selector) ? [child] : []), ...child.querySelectorAll(selector),
+    ]);
+  }
+  setPointerCapture(id: number): void { this.captures.add(id); }
+  hasPointerCapture(id: number): boolean { return this.captures.has(id); }
+  releasePointerCapture(id: number): void { this.captures.delete(id); }
+  getBoundingClientRect() { return { x: 0, y: 0, width: 10, height: 10 }; }
+  getScreenCTM() {
+    const [x, y, width] = (this.getAttribute('viewBox') ?? '0 0 600 320').split(' ').map(Number);
+    const scale = 600 / width!;
+    return { a: scale, d: scale, inverse: () => ({ a: 1 / scale, d: 1 / scale, e: x!, f: y! }) };
+  }
+  createSVGPoint() {
+    return { x: 0, y: 0, matrixTransform(matrix: { a: number; d: number; e: number; f: number }) {
+      return { x: this.x * matrix.a + matrix.e, y: this.y * matrix.d + matrix.f };
+    } };
+  }
   remove(): void {}
   click(): void { this.dispatchEvent(new Event('click')); }
 }
@@ -56,6 +80,11 @@ const mount = (circuit: CircuitJSON) => {
   }));
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  vi.stubGlobal('MouseEvent', class extends Event {
+    constructor(type: string, init: MouseEventInit) {
+      super(type, init); Object.assign(this, { clientX: init.clientX, clientY: init.clientY });
+    }
+  });
   let sim: Simulator;
   let snapshot: LoadSnapshot;
   const sync = (): void => {
@@ -196,6 +225,117 @@ describe('schematic switch clicks', () => {
       expect(h.editor.state.error).toBe('input rejected');
       expect(label(h.host)).toBe('0');
       expect(h.bus.readNet('out')).toBe(0);
+    } finally { h.unmount(); }
+  });
+});
+
+const pointer = (surface: EventTarget, type: string, target: TestElement, x: number, y: number, id = 1, pointerType = 'touch'): void => {
+  const event = new Event(type, { cancelable: true });
+  Object.defineProperty(event, 'target', { value: target });
+  Object.assign(event, { pointerType, pointerId: id, clientX: x, clientY: y });
+  surface.dispatchEvent(event);
+};
+const touchCircuit: CircuitJSON = {
+  version: 1, kind: 'circuit', name: 'touch edits',
+  components: [{ id: 'buf', type: 'prim.BUF', position: [100, 100] }], nets: [],
+};
+
+describe('schematic touch editor actions', () => {
+  it('suppresses compatibility clicks while allowing a subsequent real mouse click', () => {
+    const h = mount(touchCircuit);
+    try {
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      const group = h.host.querySelector('[data-comp-id="buf"]')!;
+      pointer(svg, 'pointerdown', group, 120, 120);
+      pointer(document, 'pointercancel', group, 120, 120);
+      const clicked = vi.fn(); h.host.addEventListener('click', clicked);
+      const click = (pointerType: string): void => {
+        const event = new Event('click', { cancelable: true });
+        Object.defineProperties(event, { isTrusted: { value: true }, target: { value: svg } });
+        Object.assign(event, { pointerType, detail: 1 }); h.host.dispatchEvent(event);
+      };
+      click('touch'); click(''); expect(clicked).not.toHaveBeenCalled();
+      // Some browsers expose a MouseEvent rather than a PointerEvent for
+      // click. Its preceding mouse pointerdown still identifies real input.
+      pointer(h.host, 'pointerdown', svg, 120, 120, 2, 'mouse');
+      click(''); expect(clicked).toHaveBeenCalledTimes(1);
+    } finally { h.unmount(); }
+  });
+
+  it('selects with a tap and leaves history unchanged', () => {
+    const h = mount(touchCircuit);
+    try {
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      const group = h.host.querySelector('[data-comp-id="buf"]')!;
+      pointer(svg, 'pointerdown', group, 120, 120);
+      pointer(document, 'pointerup', group, 120, 120);
+      expect([...h.editor.state.selection]).toEqual(['buf']);
+      expect(h.editor.canUndo()).toBe(false);
+    } finally { h.unmount(); }
+  });
+
+  it('reuses switch toggling on a tap', async () => {
+    const h = mount(switches);
+    try {
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      const group = h.host.querySelector('[data-comp-id="switch1"]')!;
+      pointer(svg, 'pointerdown', group, 35, 20);
+      pointer(document, 'pointerup', group, 35, 20);
+      await h.flush();
+      expect(h.bus.readNet('out')).toBe(1);
+      expect(h.setInput.mock.calls.map(call => call[2])).toEqual([1]);
+    } finally { h.unmount(); }
+  });
+
+  it('commits a snapped move only on release and undoes it in one step', async () => {
+    const h = mount(touchCircuit);
+    try {
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      const group = h.host.querySelector('[data-comp-id="buf"]')!;
+      pointer(svg, 'pointerdown', group, 120, 120);
+      pointer(document, 'pointermove', group, 145, 137);
+      expect(group.getAttribute('transform')).toBe('translate(125 117)');
+      expect(h.editor.state.circuit.components[0]!.position).toEqual([100, 100]);
+      expect(h.editor.canUndo()).toBe(false);
+      pointer(document, 'pointerup', group, 149, 141);
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.state.circuit.components[0]!.position).toEqual([130, 120]);
+      const undo = h.editor.undo(); await Promise.resolve(); h.reply(); await undo;
+      expect(h.editor.state.circuit.components[0]!.position).toEqual([100, 100]);
+      expect(h.editor.canUndo()).toBe(false);
+    } finally { h.unmount(); }
+  });
+
+  it.each(['pointercancel', 'second finger'])('restores a move preview on %s without a mutation', reason => {
+    const h = mount(touchCircuit);
+    try {
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      const group = h.host.querySelector('[data-comp-id="buf"]')!;
+      pointer(svg, 'pointerdown', group, 120, 120);
+      pointer(document, 'pointermove', group, 150, 140);
+      expect(group.getAttribute('transform')).toBe('translate(130 120)');
+      if (reason === 'pointercancel') pointer(document, 'pointercancel', group, 150, 140);
+      else {
+        pointer(svg, 'pointerdown', svg, 250, 140, 2);
+        pointer(document, 'pointerup', svg, 250, 140, 2);
+      }
+      pointer(document, 'pointerup', group, 150, 140);
+      expect(group.getAttribute('transform')).toBe('translate(100 100)');
+      expect(h.editor.state.circuit.components[0]!.position).toEqual([100, 100]);
+      expect(h.editor.canUndo()).toBe(false); expect(h.editor.state.selection.size).toBe(0);
+    } finally { h.unmount(); }
+  });
+
+  it('places at the tap coordinate through the ordinary placement handler', async () => {
+    const h = mount(touchCircuit);
+    try {
+      h.editor.setPlacement('prim.BUF');
+      const svg = h.host.querySelector('[data-role="canvas"]')!;
+      pointer(svg, 'pointerdown', svg, 310, 200);
+      pointer(document, 'pointerup', svg, 310, 200);
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.state.circuit.components[1]).toEqual({ id: 'buf1', type: 'prim.BUF', position: [290, 180] });
+      expect(h.editor.state.placement).toBeNull();
     } finally { h.unmount(); }
   });
 });

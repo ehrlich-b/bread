@@ -89,6 +89,20 @@ dialogs, including the JSON editor. **?** or **Keyboard shortcuts** opens help.
 | ? | Show shortcuts help |
 | + / − / 0 | Zoom in / out / reset view |
 
+## Touch controls
+
+On phones and tablets, the canvas comes first, with simulation controls and
+collapsible panels below it. Open **Components**, tap an entry, then tap the
+canvas to place it. Tap a component to select it, drag its body to move it,
+or tap two pins to connect them. A switch tap toggles its value.
+
+Drag empty canvas space with one finger to pan; pinch with two fingers to
+zoom and pan. Long-press a component for **Select**, **Rotate**, **Delete** or
+**Probe pin**; long-press a pin to probe it directly. Long-press empty space
+for undo, redo and **Cancel action**, which cancels placement, wiring or
+probing. Pinch to enlarge dense pin layouts before wiring them. The page
+scrolls normally outside the canvas, and panel contents survive collapse.
+
 ## Design and scope
 
 TypeScript in strict mode, Vite, SVG schematics and Web Worker simulation. Circuits and reusable chip definitions use versioned JSON. Composites flatten into primitive and behavioral evaluators at load time; packaging gates improves reuse without changing execution cost.
