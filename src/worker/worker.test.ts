@@ -270,3 +270,40 @@ it('runs testbenches from power-on state with probe capture and leaves the live 
   expect(new Uint8Array(loaded.netsBuffer)[0]).toBe(1);
   expect(messages.filter(message => message.type === 'waveform').at(-1)).toMatchObject({ snapshot: { ticks: new Float64Array([0, 1]), values: new Uint8Array([1, 1]) } });
 });
+
+it('delivers Fibonacci completion after ring wrap and a probe-only edit even when waveform delivery is blocked', async () => {
+  let receive!: (event: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (message: WorkerRes) => messages.push(message) });
+  const microtasks: Array<() => void> = []; const timers: Array<() => void> = [];
+  vi.stubGlobal('queueMicrotask', (fn: () => void) => microtasks.push(fn));
+  vi.stubGlobal('setTimeout', (fn: () => void) => { timers.push(fn); return timers.length; });
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  await import('./worker');
+  const { tutorialCircuit, tutorialComplete } = await import('../ui/tutorial');
+  const { pinProbe } = await import('../ui/probes');
+  const circuit = tutorialCircuit('fibonacci');
+  circuit.probes!.push({ id: 'out', ...pinProbe(circuit, 'display.OUT0', true) });
+  receive({ data: { type: 'load', id: 1, circuit, rateHz: 10000 } });
+  receive({ data: { type: 'set_input', id: 2, component: 'sw_reset', pin: 'Y', value: 1 } });
+  receive({ data: { type: 'run', id: 3, rateHz: 10000 } });
+  now = 100; microtasks.shift()!();
+  for (let burst = 0; burst < 10; burst++) { now += 100; timers.shift()!(); }
+  const pending = messages.filter(message => message.type === 'waveform').at(-1);
+  if (pending?.type !== 'waveform') throw new Error('missing pending capture');
+  expect(tutorialComplete('fibonacci', pending.snapshot)).toBe(false);
+  const next = { ...circuit, probes: [...circuit.probes!, { id: 'a', ...pinProbe(circuit, 'reg_a.VAL0', true) }] };
+  receive({ data: { type: 'mutate', id: 4, circuit: next, preserveProbeEdits: true } });
+  expect(messages.at(-1)).toMatchObject({ type: 'load_res', preserved: true });
+  now += 100; timers.shift()!();
+  receive({ data: { type: 'pause', id: 5 } });
+  const completed = messages.filter(message => message.type === 'waveform').at(-1);
+  if (completed?.type !== 'waveform') throw new Error('missing completed capture');
+  expect(completed.snapshot.ticks.at(-1)).toBe(12000);
+  expect(tutorialComplete('fibonacci', completed.snapshot)).toBe(true);
+  expect(tutorialComplete('fibonacci', { ...completed.snapshot, completedSequences: undefined })).toBe(false);
+  receive({ data: { type: 'load', id: 6, circuit: next } });
+  const fresh = messages.at(-1);
+  if (fresh?.type !== 'load_res') throw new Error('missing fresh capture');
+  expect(tutorialComplete('fibonacci', fresh.waveform)).toBe(false);
+});
