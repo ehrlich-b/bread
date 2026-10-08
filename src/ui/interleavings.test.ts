@@ -76,6 +76,33 @@ it('drops a delayed Open JSON after New and a later placement', async () => {
   dispose();
 });
 
+it('downloads Verilog after a queued edit commits without restarting the worker', async () => {
+  const { host, editor, mutate } = setup();
+  const dispose = mountFileControls(host as unknown as HTMLElement, editor);
+  const downloads: Blob[] = [];
+  vi.spyOn(URL, 'createObjectURL').mockImplementation(blob => { downloads.push(blob as Blob); return 'blob:verilog'; });
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {});
+  vi.useFakeTimers();
+  try {
+    let finish!: () => void;
+    mutate.mockImplementationOnce(next => new Promise(resolve => {
+      finish = () => {
+        const graph = loadCircuit(next);
+        resolve({ netIds: graph.nets.map(n => n.id), componentIds: graph.components.map(c => c.id), netIndex: graph.netById, netsView: graph.netValues });
+      };
+    }));
+    const edit = editor.addComponent({ id: 'new_gate', type: 'prim.NOT' });
+    host.find(e => e.dataset.fileAction === 'download-verilog')!.click();
+    await flush();
+    expect(downloads).toHaveLength(0);
+    finish(); await edit; await flush();
+    expect(downloads).toHaveLength(1);
+    expect(await downloads[0]!.text()).toContain('"new_gate" ("prim.NOT")');
+    expect(mutate).toHaveBeenCalledTimes(1);
+    vi.runAllTimers();
+  } finally { vi.useRealTimers(); dispose(); }
+});
+
 it('drops a native file-picker result after a later edit, even before that edit commits', async () => {
   const { host, editor, mutate } = setup();
   let finishPicker!: (handles: unknown[]) => void;

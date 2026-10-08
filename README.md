@@ -11,6 +11,7 @@ Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 - SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files, copy/paste Circuit JSON or share a circuit permalink, including memory images, probes and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
 - Persisted canvas probes and a bounded, four-state waveform viewer with hex buses, zoom, scroll and a tick cursor. Run, pause and step share the same recording.
 - [Declarative JSON testbenches](docs/TESTBENCH.md) with exhaustive loops, four-state checks and clocked vectors. Run from Node or the Testbench panel; failures show expected/actual bits and can focus probe waveforms. Bundled adder, register/bus and SAP-1 benches run in CI.
+- [Best-effort Verilog export](docs/VERILOG.md) from **Download Verilog** or the Node CLI, preserving reusable chip hierarchy, four-state buses, storage, TTL/memory and SAP-1 modules. Optional Icarus oracles compare the adder, register/bus and Fibonacci circuits after every settle/tick.
 - Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
 - Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.
 - Open **Tutorial** or use the app’s [`#tutorial`](#tutorial) link for seven guided steps through the clock, probes, bus/register load, ALU, RAM/PC, microcode and Fibonacci waveforms, checked against simulator state.
@@ -27,6 +28,9 @@ Requires Node.js 20+ and npm. Install dependencies with `npm ci`, then start Vit
 Run `npm run typecheck`, `npm test -- --maxWorkers=2 --minWorkers=1` and `npm run build` for local checks. For browser tests, install Chromium once with `npx playwright install chromium`, then run `npm run e2e`.
 
 When a local server cannot bind, run `npm run build && BREAD_E2E_IN_MEMORY=1 npm run e2e`. This runs the same specs against built files fulfilled by Playwright at a fake HTTPS origin, with no server or listening port. The default browser tests still use Vite.
+Export with `node --import tsx scripts/verilog.ts examples/full_adder.json full_adder.v`.
+With optional `iverilog`/`vvp` installed, `npm run test:verilog` runs the independent
+four-state oracle corpus. See [Verilog mapping and limits](docs/VERILOG.md).
 
 ## Sharing circuits
 
@@ -109,7 +113,7 @@ scrolls normally outside the canvas, and panel contents survive collapse.
 
 TypeScript in strict mode, Vite, SVG schematics and Web Worker simulation. Circuits and reusable chip definitions use versioned JSON. Composites flatten into primitive and behavioral evaluators at load time; packaging gates improves reuse without changing execution cost.
 
-Bread models digital `0`, `1`, `Z` and `X`. Analog effects, breadboard physics, FPGA synthesis and hardware programming are out of scope. Best-effort Verilog export is planned. A WASM engine remains a profiling-driven option.
+Bread models digital `0`, `1`, `Z` and `X`. Analog effects, breadboard physics, FPGA synthesis and hardware programming are out of scope. Best-effort Verilog export marks timing and synthesis limitations in the generated source. A WASM engine remains a profiling-driven option.
 
 ## Documentation
 
@@ -120,5 +124,6 @@ Bread models digital `0`, `1`, `Z` and `X`. Analog effects, breadboard physics, 
 | [Components](docs/COMPONENTS.md) | Primitive, composite and behavioral tiers. |
 | [Circuit format](docs/CIRCUIT_FORMAT.md) | Saved circuits and chip definitions. |
 | [Testbench format](docs/TESTBENCH.md) | JSON vectors, clocks, exhaustive ranges, CLI and panel. |
+| [Verilog export](docs/VERILOG.md) | Structural mapping, approximations, CLI and independent Icarus oracles. |
 | [Standard library](docs/STDLIB.md) | Chip catalog and implementation strategy. |
 | [Roadmap](docs/ROADMAP.md) | Milestones, performance measurements and planned features. |

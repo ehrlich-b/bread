@@ -1,7 +1,7 @@
 # Roadmap
 
 M0–M5 are shipped. M6's JavaScript optimization pass is complete; its speed
-target remains unverified. M7 is in progress.
+target remains unverified. M7 is shipped.
 
 ## Shipped milestones
 
@@ -105,15 +105,12 @@ Implemented:
 - Canvas net/bus probes saved in version-1 JSON, with undo/redo; an 8,192-tick waveform ring, distinct 0/1/X/Z traces, hex bus segments, zoom, scroll and a tick cursor integrated with run/pause/step. Probe-only edits preserve running state; capture is absent with no probes.
 - [Declarative testbench files](TESTBENCH.md): schema-validated JSON signal bindings, four-state vectors and masks, clock pulses, bounded edge waits and exhaustive loops. Node CLI and worker-backed UI panel share the engine runner; adder, register/bus and SAP-1 Fibonacci corpus runs in Vitest.
 - An Eater CPU tutorial, opened with **Tutorial** or `#tutorial`: seven guided steps covering step/run, a CLK probe, A-register loading, addition, RAM/PC fetch, one ADD instruction’s microcode and Fibonacci OUT waveforms. Canvas highlights and completion checks use real control signals, register values and recorded edges; Back, Skip, Restart and Reset work with optional browser-local progress. The final step can run the bundled Fibonacci testbench.
+- [Best-effort Verilog export](VERILOG.md): pure saved-circuit export, a top module and one module per reusable chip, scalar bus lanes, tristates/wired nets, storage, TTL/memory and SAP-1 mappings. UI download and Node CLI include explicit approximation/omission comments. Optional Icarus/vvp oracles compare every settle/tick for exhaustive full-adder inputs, the register/shared bus and three Fibonacci OUT sequences through carry restart; memory, storage and all shipped chips have additional checks.
 
 Same-session background Node benchmarks measured median clock throughput of
 **22,763 Hz without probes** and **22,396 Hz with eight OUT-bit probes**
 (200,000 ticks, 20,000 warmup). These include capture, excluding UI delivery
 and rendering; the simulator tick path is unchanged when no probes exist.
-
-Planned:
-
-- Best-effort Verilog export.
 
 ## Later possibilities
 
