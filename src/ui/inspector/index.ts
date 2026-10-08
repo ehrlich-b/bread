@@ -36,24 +36,30 @@ export const mountInspector = (host: HTMLElement, editor: EditorModel): (() => v
   let refreshSignals = (): void => {};
   let renderedCircuit: CircuitJSON | null = null;
   let renderedSelection: string | null = null;
+  const message = (text: string, hint?: string): void => {
+    const placeholder = document.createElement('div'); placeholder.className = 'inspector-empty';
+    placeholder.textContent = text;
+    if (hint) placeholder.append(document.createElement('br'), hint);
+    host.replaceChildren(placeholder);
+  };
   const render = (state: EditorState): void => {
     const { selection, circuit } = state;
     if (selection.size === 0) {
       refreshSignals = () => {}; renderedCircuit = null;
-      host.innerHTML = '<div class="inspector-empty">Nothing selected</div>';
+      message('Nothing selected');
       return;
     }
     if (selection.size > 1) {
       refreshSignals = () => {}; renderedCircuit = null;
       const ids = [...selection].join(', ');
-      host.innerHTML = `<div class="inspector-empty">Multiple selected: ${ids}<br/>Press R to rotate, Del to delete.</div>`;
+      message(`Multiple selected: ${ids}`, 'Press R to rotate, Del to delete.');
       return;
     }
     const id = [...selection][0]!;
     if (renderedCircuit === circuit && renderedSelection === id) return;
     const inst = circuit.components.find((c) => c.id === id);
     if (!inst) {
-      host.innerHTML = `<div class="inspector-empty">Selected ${id} (no longer exists)</div>`;
+      message(`Selected ${id} (no longer exists)`);
       return;
     }
     const form = buildForm(editor, inst);

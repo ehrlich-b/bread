@@ -8,7 +8,7 @@ Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 
 - Event-driven, two-phase engine with four-state logic, tristate resolution, oscillation detection and deterministic traces.
 - Primitive gates and storage, 16 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
-- SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files or copy/paste Circuit JSON, including memory images and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
+- SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files, copy/paste Circuit JSON or share a circuit permalink, including memory images, probes and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
 - Persisted canvas probes and a bounded, four-state waveform viewer with hex buses, zoom, scroll and a tick cursor. Run, pause and step share the same recording.
 - Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
 - Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.
@@ -23,6 +23,69 @@ Vitest covers engine semantics, queued editor actions, library edits, save/load 
 Requires Node.js 20+ and npm. Install dependencies with `npm ci`, then start Vite with `npm run dev` and open the URL it prints. Use a current browser with `SharedArrayBuffer` support; Vite supplies the required isolation headers.
 
 Run `npm run typecheck`, `npm test -- --maxWorkers=2 --minWorkers=1` and `npm run build` for local checks. For browser tests, install Chromium once with `npx playwright install chromium`, then run `npm run e2e`.
+
+## Sharing circuits
+
+Click **Share**, then **Copy link**, or copy the selected link manually. Opening
+it restores the circuit through the same validation and undoable editor queue
+as **Open JSON**. Changing the URL hash loads another circuit; later edits or
+loads supersede pending decoding. Sharing updates the address without resetting
+the current simulation. Links contain saved circuit data, including probes,
+memory images and project chip libraries. Live simulation state and waveform
+history are session-only.
+
+Version 1 links use the browser's built-in `CompressionStream('deflate-raw')`
+and base64url, with the format
+`#c1=<compressed UTF-8 JSON>.<SHA-256 of compressed bytes>` (both fields are
+base64url). The checksum detects damage; circuit content is parsed as JSON data
+and validated against registered components. Corrupt, truncated, invalid or
+future-version links show an error and preserve the current circuit. A current
+browser with raw-deflate compression and Web Crypto support is required.
+
+The practical limit is **16,000 characters for the full URL**, including the
+origin and path. Share reports its length and offers **Download JSON** when the
+circuit exceeds that limit. Opening an oversized circuit URL also shows an
+error. Decoded JSON is bounded to 4 MiB during decompression. This is a
+conservative sharing limit; messaging services may impose smaller limits.
+
+Measured with the built-in raw-deflate encoder (Node 25.6.1):
+
+| Bundled example | Hash characters | Full URL characters¹ |
+| --- | ---: | ---: |
+| `blink_demo` | 492 | 514 |
+| `full_adder` | 644 | 666 |
+| `nand_latch` | 378 | 400 |
+| `register_bus_4bit` | 612 | 634 |
+| `ripple_adder_4bit` | 782 | 804 |
+| `hex_display_28c16` | 930 | 952 |
+| `ben_eater_8bit` | 2,626 | 2,648 |
+| `original_digital_cpu_generated` | 65,842 | 65,864 (use JSON) |
+
+¹ Using the illustrative 22-character base `https://bread.example/`; actual
+lengths depend on the hosting address and browser compression output.
+
+For an unedited bundled example, use `#example=<name>`, such as
+`#example=full_adder` or `#example=original_digital_cpu_generated`. These short
+links select the example bundled with the app rather than carrying its data.
+
+## Keyboard shortcuts
+
+Click the canvas or another area outside a text field to use these keys.
+Shortcuts are disabled in inputs, textareas, selects, editable text and open
+dialogs, including the JSON editor. **?** or **Keyboard shortcuts** opens help.
+
+| Key | Action |
+| --- | --- |
+| Space | Run / pause at the configured tick rate |
+| `.` | Step one tick |
+| Ctrl/Cmd+Z | Undo |
+| Shift+Ctrl/Cmd+Z, Ctrl+Y | Redo |
+| Delete / Backspace | Remove selection |
+| R | Rotate selection 90° |
+| Escape | Cancel placement, wiring, probe or bus mode |
+| F | Fit circuit |
+| ? | Show shortcuts help |
+| + / − / 0 | Zoom in / out / reset view |
 
 ## Design and scope
 

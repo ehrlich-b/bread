@@ -383,3 +383,7 @@ aside > * { flex-shrink: 0; }
 .waveform-Z path { stroke: #a78bfa; stroke-dasharray: 5 3; }
 .waveform-bus path { stroke: var(--accent); fill: #38bdf818; }
 .waveform-cursor { stroke: #f87171; stroke-width: 1.5; pointer-events: none; }
+
+.share-dialog input { box-sizing: border-box; width: 100%; font: .8rem ui-monospace, monospace; }
+.shortcuts-dialog td { padding: .35rem .8rem .35rem 0; }
+.shortcuts-dialog td:first-child { font-family: ui-monospace, monospace; }
