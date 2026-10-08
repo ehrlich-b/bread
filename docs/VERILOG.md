@@ -71,6 +71,10 @@ same loader, undo history and ordered document queue as **Open JSON**; a newer
 document action supersedes an unfinished file read. Errors leave the current
 circuit intact. Imported inputs can be driven by the Testbench panel's net
 bindings or by wiring switches into the circuit.
+File reading, parsing, elaboration and placement run in a separate worker.
+The phase indicator stays cancellable throughout import; cancelling terminates
+the worker and leaves the document and undo history intact. Files above 16 MB
+are rejected before reading.
 
 The hand-written subset is intentionally bounded:
 
@@ -93,6 +97,13 @@ synchronous controls before a known 0-to-1 clock edge. Uncertain clock edges,
 simultaneous data/clock changes and delta-cycle races are outside the timing
 contract, as they are for export. This is structural import, not behavioral
 RTL synthesis or an event-driven Verilog runtime.
+This includes startup edges on derived clocks: the generated original Digital
+CPU export can differ from Bread before the first external clock pulse when
+initializing logic changes a derived clock from X to 1 (a Verilog posedge).
+Imported `bufif0`/`bufif1` gates preserve uncertain 0/Z and 1/Z drives until net
+resolution, so an unknown enable can still resolve with a matching driver.
+Re-export retains these Verilog gate primitives; ordinary Bread tristates keep
+their existing unknown-enable behavior.
 
 Current Bread exports also contain `bread:cell` annotations for every leaf and
 `bread:sources` annotations for forwarded switch/clock ports. The importer
@@ -106,6 +117,10 @@ logic. This checked template path supports exported latches, asynchronous
 controls and memory arrays without accepting arbitrary behavioral processes.
 Older unannotated exports can use the plain subset where applicable; arbitrary
 memory/initialization processes require a current Bread export.
+Every nested source port must be connected exactly once, and recovered sources
+must match the `bread:sources` list in component/source order. Swapping or
+removing source connections is rejected, including when the parent list is
+cleared. Preserve this order when editing an annotated export.
 
 Unsupported constructs fail with a line/column error naming the token or
 construct. These include parameters, signed types, macros/includes, generate
@@ -113,8 +128,14 @@ blocks, arrays/memories outside checked cells, arbitrary `initial` blocks,
 procedural loops/case statements, functions/tasks, delays/strength syntax,
 blocking assignments, asynchronous or negative-edge hand-written processes,
 dynamic selects, replication and other operators. No statement is silently
-discarded. Limits are 16 MB of source, 250,000 tokens, 256-bit vectors and
-64 levels of expression/statement nesting and 16,384 input lanes per expression.
+discarded. Limits are 16 MB of UTF-8 source, 250,000 tokens, 256-bit vectors,
+64 levels of expression/statement nesting and module hierarchy, and 16,384
+input lanes per expression. Elaboration checks a memoized expansion budget
+before flattening: at most 25,000 instances (including intermediate module
+instances) and 100,000 nets (before port stitching, including floating leaf
+pins) in each module's expanded hierarchy. Unused modules are checked too.
+Excess expansion fails with a line/column error naming the instance or net
+limit, so a small acyclic hierarchy cannot request exponential allocation.
 
 ## Independent oracle
 

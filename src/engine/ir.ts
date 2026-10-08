@@ -12,7 +12,8 @@ export type NetState = 0 | 1 | 'Z' | 'X';
 //   'L' — weak 0 (pull-down)
 //   'H' — weak 1 (pull-up)
 // Strong drivers (0/1) override weak drivers per SIMULATION.md.
-export type DriverValue = NetState | 'L' | 'H';
+// Verilog bufif gates retain an uncertain 0/Z or 1/Z drive until resolution.
+export type DriverValue = NetState | 'L' | 'H' | '0Z' | '1Z';
 
 export type PinDir = 'in' | 'out' | 'inout';
 

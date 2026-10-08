@@ -55,6 +55,70 @@ test('Load replaces the current circuit with file contents', async ({ page }) =>
   await expect(page.locator('[data-comp-id="sw"]')).toHaveCount(0);
 });
 
+test('Verilog import reads and parses a large commented file in a worker and supports undo', async ({ page }) => {
+  await page.evaluate(() => {
+    File.prototype.text = async () => { throw new Error('File reading ran on the main thread'); };
+  });
+  const workerPromise = page.waitForEvent('worker', worker => worker.url().includes('verilog_import-'));
+  await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
+    name: 'commented.v', mimeType: 'text/plain',
+    buffer: Buffer.from('// ordinary comment\n'.repeat(50_000) + 'module imported(output y); assign y=1\'b0; endmodule'),
+  });
+  const worker = await workerPromise;
+  expect(worker.url()).toContain('verilog_import-');
+  await expect(page.locator('[data-comp-type="prim.VERILOG"]')).toHaveCount(1);
+  await expect(page.locator('[data-comp-id]')).toHaveCount(1);
+  await expect(page.locator('[data-file-action="verilog-import-status"]')).toBeHidden();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Redo', exact: true }).click();
+  await expect(page.locator('[data-comp-id]')).toHaveCount(1);
+});
+
+test('Verilog import errors preserve the current document and undo history', async ({ page }) => {
+  await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
+    name: 'broken.v', mimeType: 'text/plain', buffer: Buffer.from("module m(output y);\n  assign y = 1';\nendmodule"),
+  });
+  await expect(page.getByRole('alert').filter({ hasText: 'Line 2, column 14: invalid numeric literal' })).toBeVisible();
+  await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+  await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
+    name: 'oversized.v', mimeType: 'text/plain', buffer: Buffer.alloc(16_000_001, 32),
+  });
+  await expect(page.getByRole('alert').filter({ hasText: 'source exceeds 16 MB limit' })).toBeVisible();
+  await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+});
+
+for (const action of ['cancel', 'new'] as const) {
+  test(`pending Verilog import stays responsive to ${action} and cannot replace a newer document`, async ({ page }) => {
+    let release!: () => void;
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    await page.route('**/verilog_import-*.js', async route => { await blocked; await route.fallback(); });
+    try {
+      await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
+        name: 'pending.v', mimeType: 'text/plain', buffer: Buffer.from("module pending(output y); assign y=1'b0; endmodule"),
+      });
+      await expect(page.getByRole('progressbar', { name: 'Verilog import progress' })).toBeVisible();
+      if (action === 'cancel') {
+        await page.getByRole('button', { name: 'Cancel import', exact: true }).click();
+        await expect(page.locator('[data-file-action="verilog-import-status"]')).toBeHidden();
+        await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+        await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+        release();
+      } else {
+        await page.getByRole('button', { name: 'New circuit', exact: true }).click();
+        await expect(page.locator('[data-comp-id]')).toHaveCount(0);
+        release();
+        await expect(page.locator('[data-file-action="verilog-import-status"]')).toBeHidden();
+        await expect(page.locator('[data-comp-id]')).toHaveCount(0);
+        await page.getByRole('button', { name: 'Undo', exact: true }).click();
+        await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+      }
+    } finally { release(); }
+  });
+}
+
 for (const source of ['Open JSON', 'Paste JSON']) {
   test(`${source} rejects malformed layout without changing the circuit or history`, async ({ page }) => {
     await page.getByRole('button', { name: 'New circuit', exact: true }).click();
