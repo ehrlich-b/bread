@@ -238,6 +238,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   svg.appendChild(wireLayer);
   const compLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(compLayer);
+  const componentGroups = new Map<string, SVGGElement>();
   const overlayLayer = document.createElementNS(SVG_NS, 'g');
   svg.appendChild(overlayLayer);
   const fit = document.createElement('button'); fit.type = 'button';
@@ -255,7 +256,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   const pinAbs = buildPinLookup(circuit);
 
   // ---- Wire-drawing state (local) --------------------------------------
-  let wireFrom: { ep: string; abs: PinOffset } | null = null;
+  let wireFrom: { ep: string; abs: PinOffset; handle: SVGCircleElement } | null = null;
   let pendingLine: SVGPolylineElement | null = null;
   let disposeBusDialog: (() => void) | null = null;
   // Drag suppression: set when a real drag completes, consumed by the next
@@ -265,8 +266,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   const cancelWire = (): void => {
     if (wireFrom) {
-      const prev = svg.querySelector(`[data-pin="${wireFrom.ep}"]`);
-      prev?.classList.remove('pin-active');
+      wireFrom.handle.classList.remove('pin-active');
     }
     wireFrom = null;
     if (pendingLine) {
@@ -279,7 +279,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (wireFrom === null) {
       const lookup = pinAbs.get(ep);
       if (!lookup) return;
-      wireFrom = { ep, abs: lookup.abs };
+      wireFrom = { ep, abs: lookup.abs, handle };
       handle.classList.add('pin-active');
       return;
     }
@@ -470,6 +470,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   for (const inst of circuit.components) {
     const renderer = resolveRenderer(inst.type, inst.params, circuit.definitions);
     const g = document.createElementNS(SVG_NS, 'g');
+    componentGroups.set(inst.id, g);
     g.dataset.compId = inst.id;
     g.dataset.compType = inst.type;
     if (selection.has(inst.id)) g.dataset.selected = 'true';
@@ -594,8 +595,8 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   }
 
   const wires = buildWires(circuit, pinAbs, snapshot, wireLayer);
-  const leds = buildLedRefs(circuit, snapshot, compLayer);
-  const segs = buildSegRefs(circuit, snapshot, compLayer);
+  const leds = buildLedRefs(circuit, snapshot, componentGroups);
+  const segs = buildSegRefs(circuit, snapshot, componentGroups);
 
   let disposed = false;
   let rafHandle = 0;
@@ -690,12 +691,12 @@ interface LedRef {
 const buildLedRefs = (
   circuit: CircuitJSON,
   snapshot: LoadSnapshot,
-  compLayer: SVGGElement,
+  componentGroups: Map<string, SVGGElement>,
 ): LedRef[] => {
   const leds: LedRef[] = [];
   for (const inst of circuit.components) {
     if (inst.type !== 'io.led') continue;
-    const g = compLayer.querySelector(`[data-comp-id="${inst.id}"]`) as SVGGElement | null;
+    const g = componentGroups.get(inst.id);
     if (!g) continue;
     const c = g.querySelector('[data-role="led"]') as SVGCircleElement | null;
     if (!c) continue;
@@ -717,12 +718,12 @@ interface SegRef {
 const buildSegRefs = (
   circuit: CircuitJSON,
   snapshot: LoadSnapshot,
-  compLayer: SVGGElement,
+  componentGroups: Map<string, SVGGElement>,
 ): SegRef[] => {
   const segs: SegRef[] = [];
   for (const inst of circuit.components) {
     if (inst.type !== 'io.7seg') continue;
-    const g = compLayer.querySelector(`[data-comp-id="${inst.id}"]`) as SVGGElement | null;
+    const g = componentGroups.get(inst.id);
     if (!g) continue;
     for (const pin of SEG_PINS) {
       const el = g.querySelector(`[data-role="seg-${pin}"]`) as SVGRectElement | null;
