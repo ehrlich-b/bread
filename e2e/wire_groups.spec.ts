@@ -55,17 +55,19 @@ test('SAP-1 grouping toggle retains JSON and selection and restores individual w
   await expect(page.locator('[data-role="wire-bundle"][data-width="4"]')).toHaveCount(4);
   await page.locator('[data-comp-id="reg_a"] .gate-body').click();
   const before = await exported(page);
-  await expect(button(page, 'Undo')).toBeDisabled();
+  // Opening the file is the newest undo entry; grouping must not add another.
+  await expect(button(page, 'Undo')).toBeEnabled();
   await button(page, 'Group wires').click();
   await expect(button(page, 'Group wires')).toHaveAttribute('aria-pressed', 'false');
   await expect(bundle(page)).toHaveCount(0);
   await expect(page.locator('polyline.wire')).toHaveCount(135);
   await expect(page.locator('[data-comp-id="reg_a"]')).toHaveAttribute('data-selected', 'true');
   expect(await exported(page)).toEqual(before);
-  await expect(button(page, 'Undo')).toBeDisabled();
   await button(page, 'Group wires').click();
   await expect(button(page, 'Group wires')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('[data-wire-group]')).toHaveCount(5);
+  await button(page, 'Undo').click();
+  await expect(page.locator('[data-comp-id="reg_a"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
