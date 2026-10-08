@@ -59,13 +59,13 @@ test('Verilog import reads and parses a large commented file in a worker and sup
   await page.evaluate(() => {
     File.prototype.text = async () => { throw new Error('File reading ran on the main thread'); };
   });
-  const workerPromise = page.waitForEvent('worker', worker => worker.url().includes('verilog_import-'));
+  const workerPromise = page.waitForEvent('worker', worker => /verilog_import[-.]/.test(worker.url()));
   await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
     name: 'commented.v', mimeType: 'text/plain',
     buffer: Buffer.from('// ordinary comment\n'.repeat(50_000) + 'module imported(output y); assign y=1\'b0; endmodule'),
   });
   const worker = await workerPromise;
-  expect(worker.url()).toContain('verilog_import-');
+  expect(worker.url()).toMatch(/verilog_import[-.]/);
   await expect(page.locator('[data-comp-type="prim.VERILOG"]')).toHaveCount(1);
   await expect(page.locator('[data-comp-id]')).toHaveCount(1);
   await expect(page.locator('[data-file-action="verilog-import-status"]')).toBeHidden();
@@ -94,7 +94,7 @@ for (const action of ['cancel', 'new'] as const) {
   test(`pending Verilog import stays responsive to ${action} and cannot replace a newer document`, async ({ page }) => {
     let release!: () => void;
     const blocked = new Promise<void>(resolve => { release = resolve; });
-    await page.route('**/verilog_import-*.js', async route => { await blocked; await route.fallback(); });
+    await page.route(/verilog_import[-.]/, async route => { await blocked; await route.fallback(); });
     try {
       await page.locator('input[data-file-action="verilog-input"]').setInputFiles({
         name: 'pending.v', mimeType: 'text/plain', buffer: Buffer.from("module pending(output y); assign y=1'b0; endmodule"),
