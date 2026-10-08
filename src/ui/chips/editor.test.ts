@@ -6,6 +6,7 @@ import { Simulator } from '../../engine/sim';
 import { NET_STATE_BYTE } from '../../worker/protocol';
 import type { LoadSnapshot, WorkerBus } from '../bus';
 import { EditorModel } from '../editor';
+import { pinProbe } from '../probes';
 import { chipSelection } from './model';
 
 const initial: CircuitJSON = { version: 1, kind: 'circuit', name: 'author', components: [{ id: 'g', type: 'prim.NAND', params: { inputs: 2 } }], nets: [{ id: 'a', endpoints: ['g.A'] }, { id: 'b', endpoints: ['g.B'] }, { id: 'y', endpoints: ['g.Y'] }] };
@@ -108,6 +109,71 @@ describe('chip authoring document history and edit propagation', () => {
     await editor.undo(); await editor.cancelChip();
     expect(editor.project).toBe(original);
     expect(loadCircuit(editor.project).netById.has('u__out')).toBe(true);
+  });
+
+  it('follows a rebound chip port while an internal net probe stays on the surviving old net', async () => {
+    const definition: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Rebind',
+      components: [{ id: 'a', type: 'prim.BUF' }, { id: 'b', type: 'prim.NOT' }],
+      nets: [{ id: 'in', endpoints: ['a.A'] }, { id: 'middle', endpoints: ['a.Y', 'b.A'] }, { id: 'out', endpoints: ['b.Y'] }],
+      ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }, { name: 'OUT', dir: 'out', internalNet: 'out' }],
+    };
+    const project: CircuitJSON = {
+      version: 1, kind: 'circuit', name: 'Rebind', definitions: [definition],
+      components: [{ id: 'sw', type: 'io.switch' }, { id: 'u', type: 'user.Rebind' }], nets: [{ id: 'input', endpoints: ['sw.Y', 'u.IN'] }],
+    };
+    const { editor, bus } = setup(project);
+    await editor.addPinProbe('u.OUT', false);
+    const internal = { id: 'internal', label: 'Internal output', nets: ['u__out'] };
+    await editor.replaceCircuit({ ...editor.project, probes: [...editor.project.probes!, internal] });
+    const original = editor.project;
+    await editor.editChip('user.Rebind');
+    await editor.updatePorts(editor.state.circuit.ports!.map(port => port.name === 'OUT' ? { ...port, internalNet: 'middle' } : port));
+    await editor.saveChip();
+    expect(editor.project.probes).toEqual([
+      { id: 'probe1', ...pinProbe(editor.project, 'u.OUT', false) }, internal,
+    ]);
+    expect(editor.project.probes![0]!.nets).toEqual(['u__middle']);
+    expect(bus.readNet('u__middle')).toBe(0); expect(bus.readNet('u__out')).toBe(1);
+    expect(editor.state.note).toContain('retargeted u.OUT');
+    const saved = editor.project;
+    await editor.undo(); expect(editor.project).toBe(original); expect(editor.state.editingChip).toBe('user.Rebind');
+    await editor.redo(); expect(editor.project).toBe(saved);
+    await editor.undo(); await editor.cancelChip();
+    expect(editor.project.probes![0]!.nets).toEqual(['u__out']);
+    expect(bus.readNet('u__out')).toBe(1);
+  });
+
+  it('reconciles containing chip probes at every level, including unused definitions, with the save and undo', async () => {
+    const inner: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Inner', components: [{ id: 'buf', type: 'prim.BUF' }],
+      nets: [{ id: 'in', endpoints: ['buf.A'] }, { id: 'out', endpoints: ['buf.Y'] }], ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }],
+    };
+    const outer: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Outer', components: [{ id: 'v', type: 'user.Inner' }],
+      nets: [{ id: 'in', endpoints: ['v.IN'] }], ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }],
+      probes: [{ id: 'child', label: 'Child output', nets: ['v__out'] }, { id: 'input', label: 'v.IN', nets: ['in'] }],
+    };
+    const container: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Container', components: [{ id: 'w', type: 'user.Outer' }],
+      nets: [{ id: 'in', endpoints: ['w.IN'] }], ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }],
+      probes: [{ id: 'child', label: 'Nested output', nets: ['w__v__out'] }],
+    };
+    const project: CircuitJSON = {
+      version: 1, kind: 'circuit', name: 'Nested saved probes', components: [{ id: 'u', type: 'user.Outer' }], nets: [],
+      definitions: [container, outer, inner], probes: [],
+    };
+    const { editor } = setup(project);
+    await editor.editChip('user.Inner'); await editor.removeNet('out'); await editor.saveChip();
+    expect(editor.state.editingChip).toBeNull(); expect(editor.state.error).toBeNull();
+    expect(editor.project.definitions![0]!.probes).toEqual([]);
+    expect(editor.project.definitions![1]!.probes).toEqual([outer.probes![1]!]);
+    expect(editor.state.note).toContain('removed user.Container: Nested output');
+    expect(editor.state.note).toContain('removed user.Outer: Child output');
+    expect(() => loadCircuit(editor.project)).not.toThrow();
+    const saved = editor.project;
+    await editor.undo(); expect(editor.project).toBe(project); expect(editor.state.editingChip).toBe('user.Inner');
+    await editor.redo(); expect(editor.project).toBe(saved);
   });
 
   it('removes a dangling internal probe after saving a nested chip edit', async () => {
