@@ -19,6 +19,7 @@ import registerBus from '../../examples/register_bus_4bit.json';
 import rippleAdder from '../../examples/ripple_adder_4bit.json';
 import type { CircuitJSON } from '../engine/ir';
 import { exportVerilog } from '../engine/verilog';
+import { importVerilog } from '../engine/verilog_import';
 import type { EditorModel } from './editor';
 import { mountShareControls } from './share';
 
@@ -72,6 +73,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   const saveBtn = button('Save', 'save');
   const downloadBtn = button('Download JSON', 'download');
   const verilogBtn = button('Download Verilog', 'download-verilog');
+  const importVerilogBtn = button('Import Verilog', 'import-verilog');
   const uploadBtn = button('Open JSON', 'upload');
   const showBtn = button('Circuit JSON', 'show-json');
   const pasteBtn = button('Paste JSON', 'paste-json');
@@ -95,6 +97,19 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
         fileInput.value = '';
       });
   });
+  const verilogInput = document.createElement('input');
+  verilogInput.type = 'file';
+  verilogInput.accept = '.v,.sv,text/plain';
+  verilogInput.dataset.fileAction = 'verilog-input';
+  verilogInput.style.display = 'none';
+  verilogInput.addEventListener('change', () => {
+    const file = verilogInput.files?.[0];
+    if (!file) return;
+    void editor.loadCircuit(file.text().then(text => importVerilog(text).circuit))
+      .catch((err: unknown) => editor.reportError(err instanceof Error ? err.message : String(err)))
+      .finally(() => { verilogInput.value = ''; });
+  });
+  importVerilogBtn.addEventListener('click', () => verilogInput.click());
 
   saveBtn.addEventListener('click', () => {
     void saveCircuit(editor).catch((err: unknown) => {
@@ -188,10 +203,10 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     });
   });
 
-  host.append(newBtn, saveBtn, downloadBtn, verilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
+  host.append(newBtn, saveBtn, downloadBtn, verilogBtn, importVerilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput, verilogInput);
   const disposeShare = mountShareControls(host, editor, name => EXAMPLES.find(e => e.key === name)?.circuit);
   const refresh = (): void => {
-    for (const control of [newBtn, saveBtn, downloadBtn, verilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
+    for (const control of [newBtn, saveBtn, downloadBtn, verilogBtn, importVerilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
   };
   const unsub = editor.subscribe(refresh); refresh();
 

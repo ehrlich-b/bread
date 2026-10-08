@@ -10,5 +10,6 @@ import './latch';
 import './mux';
 import './decoder';
 import './adder';
+import './verilog_expr';
 
 export { getPrimitive, listPrimitives, registerPrimitive } from './registry';

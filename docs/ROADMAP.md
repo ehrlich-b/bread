@@ -106,6 +106,7 @@ Implemented:
 - [Declarative testbench files](TESTBENCH.md): schema-validated JSON signal bindings, four-state vectors and masks, clock pulses, bounded edge waits and exhaustive loops. Node CLI and worker-backed UI panel share the engine runner; adder, register/bus and SAP-1 Fibonacci corpus runs in Vitest.
 - An Eater CPU tutorial, opened with **Tutorial** or `#tutorial`: seven guided steps covering step/run, a CLK probe, A-register loading, addition, RAM/PC fetch, one ADD instruction’s microcode and Fibonacci OUT waveforms. Canvas highlights and completion checks use real control signals, register values and recorded edges; Back, Skip, Restart and Reset work with optional browser-local progress. The final step can run the bundled Fibonacci testbench.
 - [Best-effort Verilog export](VERILOG.md): pure saved-circuit export, a top module and one module per reusable chip, scalar bus lanes, tristates/wired nets, storage, TTL/memory and SAP-1 mappings. UI download and Node CLI include explicit approximation/omission comments. Optional Icarus/vvp oracles compare every settle/tick for exhaustive full-adder inputs, the register/shared bus and three Fibonacci OUT sequences through carry restart; memory, storage and all shipped chips have additional checks.
+- [Structural Verilog import](VERILOG.md#import): a dependency-free parser for documented unsigned gate-level hierarchy, vector ports/wires, continuous expressions, gate primitives, tristates and positive-edge registers. Checked exporter cells recover all shipped storage/memory/source primitives; helper modules become placed project chips. UI and CLI use engine validation and ordered document loading. Round-trip oracles compare every net for all bundled examples/library types and the existing testbench corpus; Icarus executes original hand-written adder, counter, eight-bit register and ALU designs for independent four-state comparisons.
 
 Same-session background Node benchmarks measured median clock throughput of
 **22,763 Hz without probes** and **22,396 Hz with eight OUT-bit probes**
@@ -114,7 +115,7 @@ and rendering; the simulator tick path is unchanged when no probes exist.
 
 ## Later possibilities
 
-WASM-isolated user behavioral chips, Verilog import, a visual breadboard skin,
+WASM-isolated user behavioral chips, a visual breadboard skin,
 cloud save/sharing and collaboration. These are not promised.
 Analog simulation, CPU-specific engine instructions, PCB layout and real
 hardware programming remain out of scope.

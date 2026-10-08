@@ -21,6 +21,8 @@ export interface PinSpec {
   dir: PinDir;
   width?: number;
   activeLow?: boolean;
+  // Structural Verilog assignments/registers preserve Z at data inputs.
+  readAsWire?: boolean;
 }
 
 // Deterministic context handed to every evaluate(). Behavioral components that

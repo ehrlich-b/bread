@@ -8,6 +8,8 @@ interface DffParams {
   // source simulator initializes storage. Unspecified still starts unknown.
   initialQ?: 0 | 1;
   enable?: boolean;
+  // Verilog registers can store Z; ordinary physical D inputs read Z as X.
+  verilogData?: boolean;
 }
 
 interface DffState {
@@ -20,7 +22,7 @@ const dffPins = (params: DffParams): PinSpec[] => {
     throw new Error('DFF initialQ must be 0 or 1');
   }
   const pins: PinSpec[] = [
-    { name: 'D', dir: 'in' },
+    { name: 'D', dir: 'in', ...(params.verilogData ? { readAsWire: true } : {}) },
     { name: 'CLK', dir: 'in' },
   ];
   if (params.enable) pins.push({ name: 'EN', dir: 'in' });

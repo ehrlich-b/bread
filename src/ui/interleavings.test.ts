@@ -103,6 +103,37 @@ it('downloads Verilog after a queued edit commits without restarting the worker'
   } finally { vi.useRealTimers(); dispose(); }
 });
 
+it('loads Verilog through the ordered document queue and preserves undo after a parse failure', async () => {
+  const { host, editor, mutate } = setup();
+  const dispose = mountFileControls(host as unknown as HTMLElement, editor);
+  const input = host.find(e => e.dataset.fileAction === 'verilog-input')!;
+  input.files = [{ text: async () => 'module imported(input a,output y); not g(y,a); endmodule' }];
+  input.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
+  expect(editor.project.name).toBe('imported'); expect(mutate).toHaveBeenCalledTimes(1);
+  const saved = editor.project;
+  input.files = [{ text: async () => 'module bad; initial begin end endmodule' }];
+  input.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
+  expect(editor.project).toBe(saved); expect(mutate).toHaveBeenCalledTimes(1);
+  expect(editor.state.error).toContain('Line 1');
+  await editor.undo(); expect(editor.project).toEqual(empty());
+  await editor.redo(); expect(editor.project).toBe(saved);
+  dispose();
+});
+
+it('discards a delayed Verilog import superseded by Open JSON', async () => {
+  const { host, editor } = setup(); const dispose = mountFileControls(host as unknown as HTMLElement, editor);
+  let finish!: (text: string) => void;
+  const input = host.find(e => e.dataset.fileAction === 'verilog-input')!;
+  input.files = [{ text: () => new Promise(resolve => { finish = resolve; }) }];
+  input.dispatchEvent(new Event('change'));
+  const json = host.find(e => e.dataset.fileAction === 'load-input')!;
+  json.files = [{ text: async () => JSON.stringify({ ...empty(), name: 'newer-file' }) }];
+  json.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
+  finish('module older(input a,output y); assign y=a; endmodule'); await flush(); await editor.whenIdle();
+  expect(editor.project.name).toBe('newer-file');
+  await editor.undo(); expect(editor.project).toEqual(empty()); dispose();
+});
+
 it('drops a native file-picker result after a later edit, even before that edit commits', async () => {
   const { host, editor, mutate } = setup();
   let finishPicker!: (handles: unknown[]) => void;

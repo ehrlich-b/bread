@@ -1,0 +1,15 @@
+{
+  "version": 1, "name": "Imported four-bit counter: wrap, enable, reset and unknown controls",
+  "inputs": { "clk": ["clk"], "reset": ["reset"], "enable": ["enable"] },
+  "outputs": { "q": ["q[0]", "q[1]", "q[2]", "q[3]"] },
+  "vectors": [
+    { "drive": { "clk": 0, "reset": 0, "enable": 1 }, "expect": { "q": 0 } },
+    { "for": { "cycle": { "from": 0, "to": 31 } }, "vectors": [{ "clock": "clk" }] },
+    { "drive": { "enable": 0 }, "clock": "clk", "expect": { "q": 0 } },
+    { "drive": { "enable": "X" }, "clock": "clk", "expect": { "q": 0 } },
+    { "drive": { "enable": "Z" }, "clock": "clk", "expect": { "q": 0 } },
+    { "drive": { "enable": 1 }, "clock": "clk", "expect": { "q": 1 } },
+    { "drive": { "reset": "X" }, "clock": "clk", "expect": { "q": 2 } },
+    { "drive": { "reset": 1 }, "clock": "clk", "expect": { "q": 0 } }
+  ]
+}

@@ -42,6 +42,7 @@ export const PALETTE: PaletteEntry[] = [
   { group: 'Logic blocks', type: 'prim.DEMUX2', label: 'DEMUX2 ×4', params: { width: 4 } },
   { group: 'Logic blocks', type: 'prim.DECODER', label: '3→8 decoder', params: { bits: 3, activeLow: false } },
   { group: 'Logic blocks', type: 'prim.ADDER', label: 'Adder ×4', params: { width: 4 } },
+  { group: 'Logic blocks', type: 'prim.VERILOG', label: 'Verilog expression' },
 
   { group: 'TTL', type: 'ttl.74LS00', label: '74LS00' },
   { group: 'TTL', type: 'ttl.74LS02', label: '74LS02' },
