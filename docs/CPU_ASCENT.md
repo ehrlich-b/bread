@@ -59,7 +59,8 @@ keep Pause responsive. Worker ticks, circuit clocks and CPU instructions
 are separate rates: change a clock component's `freqHz` as well as worker
 resolution to increase its circuit clock.
 
-The engine event array and UI log are unbounded, limiting high-speed runs.
+The engine retains the latest 1024 diagnostics and delivers every emitted
+event to callbacks. The UI log is unbounded, limiting high-speed runs.
 Composites flatten before execution; the
 [hierarchy benchmark](../scripts/bench_hierarchy.ts) compares load cost and
 equivalent leaf graphs. No hierarchical execution backend exists. Crowded
