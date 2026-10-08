@@ -143,3 +143,24 @@ test('shared circuit IDs render as data and never execute markup', async ({ page
   await expect(page.locator('#inspector img')).toHaveCount(0);
   expect(await page.evaluate(() => (window as Window & { __breadShareExecuted?: number }).__breadShareExecuted)).toBe(0);
 });
+
+for (const type of ['io.led', 'io.7seg']) {
+  test(`shared ${type} with a CSS-special ID renders and follows its input`, async ({ page }) => {
+    const id = 'bad"id\\[value]\n🍞';
+    const pin = type === 'io.led' ? 'A' : 'a';
+    const role = type === 'io.led' ? 'led' : 'seg-a';
+    const circuit: CircuitJSON = { version: 1, kind: 'circuit', name: 'literal indicator IDs',
+      components: [{ id: 'source', type: 'io.switch', position: [40, 100] }, { id, type, position: [240, 100] }],
+      nets: [{ id: 'wire', endpoints: ['source.Y', `${id}.${pin}`] }],
+    };
+    const hash = await encodeCircuit(circuit);
+    await page.evaluate(hash => { window.location.hash = hash; }, hash);
+    const indicator = page.locator(`[data-comp-type="${type}"]`);
+    await expect(indicator).toHaveAttribute('data-comp-id', id);
+    const light = indicator.locator(`[data-role="${role}"]`);
+    await expect(light).toHaveAttribute('fill', type === 'io.led' ? 'var(--led-off)' : 'var(--seg-off)');
+    await page.locator('[data-comp-id="source"] .gate-body').click();
+    await expect(light).toHaveAttribute('fill', type === 'io.led' ? 'var(--led-on)' : 'var(--seg-on)');
+    expect(await exported(page)).toEqual(circuit);
+  });
+}

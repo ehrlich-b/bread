@@ -197,6 +197,43 @@ describe('schematic switch clicks', () => {
   });
 });
 
+describe('schematic circuit IDs', () => {
+  it.each(['io.led', 'io.7seg'])('renders and updates %s with CSS-special IDs', type => {
+    const id = 'bad"id\\[value]\n🍞';
+    const pin = type === 'io.led' ? 'A' : 'a';
+    const role = type === 'io.led' ? 'led' : 'seg-a';
+    const h = mount({
+      ...switches,
+      components: [...switches.components, { id, type }],
+      nets: [{ id: 'out', endpoints: ['switch1.Y', `${id}.${pin}`] }],
+    });
+    try {
+      const frame = vi.mocked(requestAnimationFrame).mock.calls.at(-1)![0]!;
+      const indicator = h.host.querySelector(`[data-role="${role}"]`)!;
+      frame(0);
+      expect(indicator.getAttribute('fill')).toBe(type === 'io.led' ? 'var(--led-off)' : 'var(--seg-off)');
+      h.editor.state.snapshot.netsView[h.editor.state.snapshot.netIndex.get('out')!] = 1;
+      frame(0);
+      expect(indicator.getAttribute('fill')).toBe(type === 'io.led' ? 'var(--led-on)' : 'var(--seg-on)');
+      h.editor.select(id);
+      expect(h.editor.state.selection.has(id)).toBe(true);
+    } finally { h.unmount(); }
+  });
+
+  it('cancels a wire from a CSS-special endpoint without a selector', () => {
+    const id = 'bad"id\\[value]\n🍞';
+    const h = mount({ ...switches, components: [{ id, type: 'prim.BUF' }], nets: [] });
+    try {
+      const pin = h.host.querySelector('[data-role="pin"]')!;
+      pin.click();
+      expect(pin.classList.add).toHaveBeenCalledWith('pin-active');
+      pin.click();
+      expect(pin.classList.remove).toHaveBeenCalledWith('pin-active');
+      expect(h.editor.canUndo()).toBe(false);
+    } finally { h.unmount(); }
+  });
+});
+
 it('renders a wiring handle for a __proto__ input when a NOT chip is created and reopened', async () => {
   const source: CircuitJSON = {
     version: 1, kind: 'circuit', name: 'prototype port',
