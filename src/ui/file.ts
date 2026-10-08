@@ -18,6 +18,7 @@ import originalDigitalCpu from '../../examples/original_digital_cpu_generated.js
 import registerBus from '../../examples/register_bus_4bit.json';
 import rippleAdder from '../../examples/ripple_adder_4bit.json';
 import type { CircuitJSON } from '../engine/ir';
+import { exportVerilog } from '../engine/verilog';
 import type { EditorModel } from './editor';
 import { mountShareControls } from './share';
 
@@ -70,6 +71,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
 
   const saveBtn = button('Save', 'save');
   const downloadBtn = button('Download JSON', 'download');
+  const verilogBtn = button('Download Verilog', 'download-verilog');
   const uploadBtn = button('Open JSON', 'upload');
   const showBtn = button('Circuit JSON', 'show-json');
   const pasteBtn = button('Paste JSON', 'paste-json');
@@ -144,6 +146,12 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   downloadBtn.addEventListener('click', () => {
     void editor.whenIdle().then(() => downloadCircuit(editor.project));
   });
+  verilogBtn.addEventListener('click', () => {
+    void editor.whenIdle().then(() => {
+      const { source } = exportVerilog(editor.project);
+      downloadText(source, `${editor.project.name || 'circuit'}.v`, 'text/plain');
+    }).catch((err: unknown) => editor.reportError(err instanceof Error ? err.message : String(err)));
+  });
   uploadBtn.addEventListener('click', () => fileInput.click());
   newBtn.addEventListener('click', () => { void editor.newCircuit().catch(() => {}); });
 
@@ -180,10 +188,10 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     });
   });
 
-  host.append(newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
+  host.append(newBtn, saveBtn, downloadBtn, verilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
   const disposeShare = mountShareControls(host, editor, name => EXAMPLES.find(e => e.key === name)?.circuit);
   const refresh = (): void => {
-    for (const control of [newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
+    for (const control of [newBtn, saveBtn, downloadBtn, verilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
   };
   const unsub = editor.subscribe(refresh); refresh();
 
@@ -234,7 +242,11 @@ const saveCircuit = async (editor: EditorModel): Promise<void> => {
 const downloadCircuit = (circuit: CircuitJSON): void => {
   const data = JSON.stringify(circuit, null, 2);
   const filename = `${circuit.name || 'circuit'}.json`;
-  const blob = new Blob([data], { type: 'application/json' });
+  downloadText(data, filename, 'application/json');
+};
+
+const downloadText = (data: string, filename: string, type: string): void => {
+  const blob = new Blob([data], { type });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
