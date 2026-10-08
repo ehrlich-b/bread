@@ -1,0 +1,8 @@
+{
+  "version": 1, "name": "Imported full adder: all 64 four-state inputs",
+  "inputs": { "a": ["a"], "b": ["b"], "cin": ["cin"] },
+  "outputs": { "sum": ["sum"], "cout": ["cout"] },
+  "vectors": [{ "drive": { "a": 0, "b": 0, "cin": 0 }, "expect": { "sum": 0, "cout": 0 } }, { "for": { "a": [0, 1, 2, 3], "b": [0, 1, 2, 3], "cin": [0, 1, 2, 3] }, "vectors": [
+    { "drive": { "a": { "table": [0, 1, "X", "Z"], "index": "a" }, "b": { "table": [0, 1, "X", "Z"], "index": "b" }, "cin": { "table": [0, 1, "X", "Z"], "index": "cin" } } }
+  ] }]
+}

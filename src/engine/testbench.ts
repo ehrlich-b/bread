@@ -180,7 +180,7 @@ const matches = (expected: string, actual: string): boolean => [...expected].eve
 
 // Each run starts from power-on state. No scheduler or primitive changes are
 // needed, and none of this work runs unless a caller invokes the testbench.
-export function runTestbench(circuit: CircuitJSON, input: unknown, options: { stopOnFailure?: boolean; capture?: boolean; throughVector?: number } = {}): TestbenchResult {
+export function runTestbench(circuit: CircuitJSON, input: unknown, options: { stopOnFailure?: boolean; capture?: boolean; throughVector?: number; observe?: (sim: Simulator, tick: boolean) => void } = {}): TestbenchResult {
   const bench = parseTestbench(input);
   const vectors = prepare(bench);
   if (options.throughVector !== undefined && (!Number.isInteger(options.throughVector) || options.throughVector < 1 || options.throughVector > vectors.length)) throw new Error('Invalid replay vector');
@@ -211,6 +211,7 @@ export function runTestbench(circuit: CircuitJSON, input: unknown, options: { st
     if (sample >= MAX_STEPS) throw new Error(`Testbench exceeds ${MAX_STEPS} simulation steps`);
     if (tick) sim.tick(); else sim.settle();
     capture?.record(sample, sim.graph.netValues);
+    options.observe?.(sim, tick);
     sample++;
   };
   const drive = (name: string, value: string): void => {
