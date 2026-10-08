@@ -66,6 +66,7 @@ export interface CircuitJSON {
   components: ComponentInstanceJSON[];
   nets: NetJSON[];
   ports?: PortJSON[];
+  probes?: ProbeJSON[];
   // Project-local composite definitions, saved with the root circuit.
   definitions?: CircuitJSON[];
   metadata?: Record<string, unknown>;
@@ -85,6 +86,13 @@ export interface NetJSON {
   name?: string;
   endpoints: string[];
   waypoints?: [number, number][];
+}
+
+// Probe lanes are runtime net IDs in least-significant-bit order.
+export interface ProbeJSON {
+  id: string;
+  label: string;
+  nets: string[];
 }
 
 export interface PortJSON {

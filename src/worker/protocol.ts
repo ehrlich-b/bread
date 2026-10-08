@@ -7,6 +7,7 @@
 // The UI samples the SAB at requestAnimationFrame; no per-frame messaging.
 
 import type { CircuitJSON, NetState } from '../engine/ir';
+import type { WaveformSnapshot } from '../engine/probes';
 
 export const NET_STATE_BYTE: Record<NetState, number> = {
   0: 0,
@@ -64,9 +65,17 @@ export interface MutateReq {
   type: 'mutate';
   id: number;
   circuit: CircuitJSON;
+  preserveProbeEdits?: boolean;
 }
 
-export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq;
+// Delivery acknowledgement bounds waveform messages if the UI is busy.
+export interface WaveformAckReq {
+  type: 'waveform_ack';
+  id: number;
+  sequence: number;
+}
+
+export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq | WaveformAckReq;
 
 export interface LoadRes {
   type: 'load_res';
@@ -74,6 +83,8 @@ export interface LoadRes {
   netIds: string[];
   componentIds: string[];
   netsBuffer: SharedArrayBuffer;
+  waveform: WaveformSnapshot | null;
+  preserved?: boolean;
 }
 
 export interface Ack {
@@ -109,4 +120,10 @@ export interface MetricsNotif {
   ticks: number;
 }
 
-export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif;
+export interface WaveformNotif {
+  type: 'waveform';
+  sequence: number;
+  snapshot: WaveformSnapshot;
+}
+
+export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif | WaveformNotif;

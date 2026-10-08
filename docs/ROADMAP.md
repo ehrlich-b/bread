@@ -98,10 +98,16 @@ Implemented:
 - [Reusable chip authoring](CHIP_AUTHORING.md): select fragments, name ports, nest/edit/test definitions and save project libraries.
 - Atomic bus connections with bit-mapping preview; configurable word ROMs and live binary/hex readouts.
 - Fit circuit and editable labels that persist through save/reopen.
+- Canvas net/bus probes saved in version-1 JSON, with undo/redo; an 8,192-tick waveform ring, distinct 0/1/X/Z traces, hex bus segments, zoom, scroll and a tick cursor integrated with run/pause/step. Probe-only edits preserve running state; capture is absent with no probes.
+
+Same-session background Node benchmarks measured median clock throughput of
+**22,763 Hz without probes** and **22,396 Hz with eight OUT-bit probes**
+(200,000 ticks, 20,000 warmup). These include capture, excluding UI delivery
+and rendering; the simulator tick path is unchanged when no probes exist.
 
 Planned:
 
-- Grouped wire rendering, probes and waveform viewer.
+- Grouped wire rendering.
 - Declarative testbench files, best-effort Verilog export, permalink sharing.
 - More keyboard shortcuts and an Eater CPU tutorial.
 

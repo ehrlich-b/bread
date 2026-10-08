@@ -10,10 +10,11 @@
 // Selection is local-only (the worker doesn't care). Selected component IDs
 // referencing instances that disappear after a mutation are pruned silently.
 
-import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON } from '../engine/ir';
+import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON, ProbeJSON } from '../engine/ir';
 import type { LoadSnapshot, WorkerBus } from './bus';
 import { chipBody, createChip } from './chips/model';
 import { busPairs, connectSignals } from './signals';
+import { pinProbe, reconcileProbes } from './probes';
 
 export interface Placement {
   type: string;
@@ -29,6 +30,7 @@ export interface EditorState {
   editingChip: string | null;
   error: string | null;
   busWiring: boolean;
+  probing: 'net' | 'bus' | null;
 }
 
 interface EditorDocument {
@@ -52,6 +54,7 @@ export class EditorModel {
   private selection: Set<string> = new Set();
   private placement: Placement | null = null;
   private busWiring = false;
+  private probing: 'net' | 'bus' | null = null;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
   private pendingComponentIds: Set<string> = new Set();
@@ -80,6 +83,7 @@ export class EditorModel {
       editingChip: this.document.editing,
       error: this.error,
       busWiring: this.busWiring,
+      probing: this.probing,
     };
   }
 
@@ -119,14 +123,41 @@ export class EditorModel {
 
   setBusWiring(enabled: boolean): void {
     this.busWiring = enabled;
-    if (enabled) this.placement = null;
+    if (enabled) { this.placement = null; this.probing = null; }
     this.notify();
+  }
+
+  setProbing(mode: 'net' | 'bus' | null): void {
+    this.probing = mode;
+    if (mode) { this.placement = null; this.busWiring = false; }
+    this.notify();
+  }
+
+  addPinProbe(endpoint: string, bus: boolean): Promise<void> {
+    return this.applyMutate(circuit => this.withProbe(circuit, pinProbe(circuit, endpoint, bus)));
+  }
+
+  addNetProbe(net: string): Promise<void> {
+    return this.applyMutate(circuit => this.withProbe(circuit, { label: circuit.nets.find(n => n.id === net)?.name?.trim() || net, nets: [net] }));
+  }
+
+  private withProbe(circuit: CircuitJSON, signal: Omit<ProbeJSON, 'id'>): CircuitJSON | null {
+    if (circuit.probes?.some(p => p.nets.length === signal.nets.length && p.nets.every((net, bit) => net === signal.nets[bit]))) return null;
+    let id = 1; while (circuit.probes?.some(p => p.id === `probe${id}`)) id++;
+    return { ...circuit, probes: [...(circuit.probes ?? []), { id: `probe${id}`, ...signal }] };
+  }
+
+  removeProbe(id: string): Promise<void> {
+    return this.applyMutate(circuit => circuit.probes?.some(p => p.id === id)
+      ? { ...circuit, probes: circuit.probes.filter(p => p.id !== id) } : null);
   }
 
   // ---- Placement ---------------------------------------------------------
 
   setPlacement(type: string, params?: Record<string, unknown>): void {
     this.placement = { type, params };
+    this.probing = null;
+    this.busWiring = false;
     this.notify();
   }
 
@@ -338,44 +369,47 @@ export class EditorModel {
       // doesn't drain the stack.
       this.undoStack.pop();
       this.redoStack.push(old);
-    });
+    }, true);
   }
 
   async redo(): Promise<void> {
     await this.applyTransition(() => this.redoStack[this.redoStack.length - 1] ?? null, (old) => {
       this.redoStack.pop();
       this.undoStack.push(old);
-    });
+    }, true);
   }
 
   // ---- Internal ---------------------------------------------------------
 
   private applyMutate(build: (circuit: CircuitJSON) => CircuitJSON | null): Promise<void> {
     return this.applyDocument((doc) => {
-      const next = build(doc.draft ?? doc.project);
-      if (next === null) return null;
+      const current = doc.draft ?? doc.project;
+      const built = build(current);
+      if (built === null) return null;
+      const next = built.probes === current.probes ? reconcileProbes(current, built) : built;
       return doc.draft ? { ...doc, draft: next } : { ...doc, project: next };
-    });
+    }, true);
   }
 
-  private applyDocument(build: (doc: EditorDocument) => EditorDocument | null): Promise<void> {
+  private applyDocument(build: (doc: EditorDocument) => EditorDocument | null, preserveProbeEdits = false): Promise<void> {
     return this.applyTransition(build, (old) => {
       this.undoStack.push(old);
       if (this.undoStack.length > MAX_UNDO_DEPTH) this.undoStack.shift();
       this.redoStack = [];
-    });
+    }, preserveProbeEdits);
   }
 
   // Both document changes and history targets resolve after prior RPCs finish.
   private applyTransition(
     build: (doc: EditorDocument) => EditorDocument | null,
     onCommit: (old: EditorDocument) => void,
+    preserveProbeEdits = false,
   ): Promise<void> {
     return this.enqueue(async () => {
       const next = build(this.document);
       if (next === null) return;
       const circuit = next.draft ?? next.project;
-      const snapshot = await this.bus.mutate(circuit);
+      const snapshot = await this.bus.mutate(circuit, preserveProbeEdits);
       const ids = new Set(circuit.components.map((c) => c.id));
       this.selection = new Set([...this.selection].filter((id) => ids.has(id)));
       if (next.editing !== this.document.editing) {
@@ -386,7 +420,7 @@ export class EditorModel {
       onCommit(this.document);
       this.document = next;
       this.snapshot = snapshot;
-      this.switchValues.clear();
+      if (!snapshot.preserved) this.switchValues.clear();
       // Testing a chip starts with released inputs. Preserve explicit drives
       // across structural edits, and release ports which became outputs.
       for (const [netId, value] of this.portInputs) {

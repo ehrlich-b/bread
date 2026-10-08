@@ -23,6 +23,7 @@
 import type { CircuitJSON, ComponentInstanceJSON, NetState } from '../../engine/ir';
 import type { LoadSnapshot } from '../bus';
 import type { EditorModel } from '../editor';
+import { runtimeSignalNet } from '../inspector/signals';
 import { showBusDialog } from '../bus_dialog';
 import { resolveRenderer, type PinOffset } from './renderers';
 
@@ -332,6 +333,11 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
   svg.addEventListener('click', (e) => {
     if (editor.state.placement) return;
     const target = e.target as Element | null;
+    const netId = target?.closest('[data-net-id]')?.getAttribute('data-net-id');
+    if (editor.state.probing === 'net' && netId) {
+      void editor.addNetProbe(netId).then(() => editor.setProbing(null)).catch(() => {});
+      return;
+    }
     if (target?.closest('[data-pin]')) return;
     if (target?.closest('[data-comp-id]')) return;
     if (wireFrom) {
@@ -398,6 +404,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (e.key === 'Escape') {
       cancelWire();
       if (editor.state.placement) editor.clearPlacement();
+      if (editor.state.probing) editor.setProbing(null);
       return;
     }
     // Don't steal keys while the user is typing in an input.
@@ -504,11 +511,14 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
       pin.setAttribute('class', 'pin');
       pin.setAttribute('data-role', 'pin');
       pin.setAttribute('data-pin', `${inst.id}.${pinName}`);
+      if (circuit.probes?.some(probe => probe.nets.includes(runtimeSignalNet(circuit, inst, pinName)))) pin.dataset.probed = 'true';
       g.appendChild(pin);
       pin.addEventListener('click', (e) => {
         if (editor.state.placement) return;
         e.stopPropagation();
-        startOrFinishWire(`${inst.id}.${pinName}`, pin);
+        if (editor.state.probing) {
+          void editor.addPinProbe(`${inst.id}.${pinName}`, editor.state.probing === 'bus').then(() => editor.setProbing(null)).catch(() => {});
+        } else startOrFinishWire(`${inst.id}.${pinName}`, pin);
       });
     }
 
@@ -635,6 +645,7 @@ const buildWires = (
     line.setAttribute('points', pointsAttr(pts));
     line.setAttribute('class', 'wire wire-Z');
     line.setAttribute('data-net-id', net.id);
+    if (circuit.probes?.some(probe => probe.nets.includes(net.id))) line.dataset.probed = 'true';
     wireLayer.appendChild(line);
     wires.push({ line, netIdx });
   };
