@@ -250,7 +250,10 @@ export class EditorModel {
   // A newer document action or file selection supersedes a pending file read.
   async loadCircuit(read: Promise<CircuitJSON | null>): Promise<void> {
     const revision = ++this.documentRevision;
-    const circuit = await read;
+    const circuit = await read.catch((error: unknown) => {
+      if (revision === this.documentRevision) throw error;
+      return null;
+    });
     if (circuit !== null && revision === this.documentRevision) await this.replaceCircuit(circuit);
   }
 

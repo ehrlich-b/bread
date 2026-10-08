@@ -393,3 +393,6 @@ aside > * { flex-shrink: 0; }
 #testbench li { margin-bottom: .5rem; }
 #testbench [data-passed='false'], #testbench [role='alert'] { color: #f87171; }
 #testbench pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: .3rem 0; }
+.share-dialog input { box-sizing: border-box; width: 100%; font: .8rem ui-monospace, monospace; }
+.shortcuts-dialog td { padding: .35rem .8rem .35rem 0; }
+.shortcuts-dialog td:first-child { font-family: ui-monospace, monospace; }

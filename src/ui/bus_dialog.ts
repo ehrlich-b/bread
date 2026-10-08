@@ -30,7 +30,7 @@ export const showBusDialog = (editor: EditorModel, from: string, to: string): ((
     });
   });
   cancel.addEventListener('click', () => dialog.remove());
-  dialog.addEventListener('cancel', () => dialog.remove());
+  dialog.addEventListener('cancel', () => { dialog.remove(); editor.setBusWiring(false); });
   dialog.append(title, hint, label, mapping, error, connect, cancel); refresh(); document.body.append(dialog); dialog.showModal();
   return () => dialog.remove();
 };
