@@ -396,3 +396,23 @@ aside > * { flex-shrink: 0; }
 .share-dialog input { box-sizing: border-box; width: 100%; font: .8rem ui-monospace, monospace; }
 .shortcuts-dialog td { padding: .35rem .8rem .35rem 0; }
 .shortcuts-dialog td:first-child { font-family: ui-monospace, monospace; }
+
+main:has(#tutorial:not([hidden])) { grid-template-columns: 260px minmax(0, 1fr) 280px; }
+main:has(#tutorial:not([hidden])) #palette { display: none; }
+#tutorial { border: 1px solid var(--accent); border-radius: 4px; padding: .6rem; font-size: .85rem; height: fit-content; max-height: 70vh; overflow: auto; }
+#tutorial h2 { margin: 0 0 .5rem; font-size: 1rem; }
+#tutorial p { line-height: 1.5; }
+#tutorial small { opacity: .8; line-height: 1.4; }
+#tutorial output { display: block; font: .75rem ui-monospace, monospace; line-height: 1.5; }
+#tutorial table { font-size: .7rem; width: 100%; margin-top: .5rem; }
+#tutorial table[hidden] { display: none; }
+#tutorial th, #tutorial td { text-align: left; padding: .3rem .15rem; }
+#tutorial [role='status'] { border-left: 3px solid var(--accent); padding-left: .5rem; }
+#tutorial details { margin-top: .6rem; }
+#tutorial ol { padding-left: 1.3rem; font-size: .75rem; line-height: 1.7; }
+#tutorial [aria-current='step'] { font-weight: bold; }
+#tutorial [data-result='complete'] { color: #4ade80; }
+.tutorial-actions { display: flex; flex-wrap: wrap; gap: .3rem; }
+.tutorial-actions button { font-size: .75rem; padding: .3rem .45rem; }
+[data-tutorial-focus='true'] .gate-body { stroke: #facc15; stroke-width: 3; }
+[data-tutorial-focus='true'] > .label { fill: #facc15; font-weight: bold; }
