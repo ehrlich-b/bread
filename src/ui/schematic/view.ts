@@ -18,6 +18,9 @@
 //   data-pin="<id>.<pin>"   — the endpoint id, used by wire-drawing tests
 //   data-net-id="<id>"      — net id on every wire / junction belonging to it
 //   polyline.wire           — every wire segment
+//   data-wire-group         — visual bundle identity; never a simulation net
+//   data-role="wire-bundle" — thick trunk with width and live value
+//   data-role="wire-bit"    — individual, probeable fan-in/out paths
 //   circle.junction         — junction dot at multi-endpoint centroids
 
 import type { CircuitJSON, ComponentInstanceJSON, NetState } from '../../engine/ir';
@@ -26,7 +29,9 @@ import type { EditorModel } from '../editor';
 import { runtimeSignalNet } from '../inspector/signals';
 import { showBusDialog } from '../bus_dialog';
 import { shortcutBlocked } from '../shortcuts';
+import { waveformValue } from '../waveform';
 import { resolveRenderer, type PinOffset } from './renderers';
+import { groupWires, type WireGroup } from './wire_groups';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const GRID = 10;
@@ -114,6 +119,7 @@ const decodeNet = (byte: number): NetState => {
 
 interface PinLookup {
   abs: PinOffset;
+  outward: PinOffset;
   type: string;
 }
 
@@ -130,8 +136,8 @@ const rotatePin = (p: PinOffset, sz: { w: number; h: number }, deg: number): Pin
   const dx = p.x - cx;
   const dy = p.y - cy;
   return {
-    x: cx + dx * cos + dy * sin,
-    y: cy - dx * sin + dy * cos,
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos,
   };
 };
 
@@ -144,8 +150,11 @@ const buildPinLookup = (circuit: CircuitJSON): Map<string, PinLookup> => {
     const rot = rotationOf(inst);
     for (const [pinName, off] of Object.entries(renderer.pins)) {
       const r = rotatePin(off, renderer.size, rot);
+      const normal = rotatePin({ x: off.x + (off.x === 0 ? -1 : off.x === renderer.size.w ? 1 : 0),
+        y: off.y + (off.y === 0 ? -1 : off.y === renderer.size.h ? 1 : 0) }, renderer.size, rot);
       out.set(`${inst.id}.${pinName}`, {
         abs: { x: px + r.x, y: py + r.y },
+        outward: { x: normal.x - r.x, y: normal.y - r.y },
         type: inst.type,
       });
     }
@@ -183,10 +192,12 @@ const transformFor = (inst: ComponentInstanceJSON, sz: { w: number; h: number })
 };
 
 export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => void) => {
-  let dispose = renderOnce(host, editor);
+  let grouped = true;
+  const toggleGrouping = (): boolean => { grouped = !grouped; return grouped; };
+  let dispose = renderOnce(host, editor, grouped, toggleGrouping);
   const unsub = editor.subscribe(() => {
     dispose();
-    dispose = renderOnce(host, editor);
+    dispose = renderOnce(host, editor, grouped, toggleGrouping);
   });
   return () => {
     dispose();
@@ -194,7 +205,7 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
   };
 };
 
-const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
+const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, toggleGrouping: () => boolean): (() => void) => {
   const { circuit, snapshot, switchValues, placement, selection } = editor.state;
   host.innerHTML = '';
   host.classList.toggle('placing', placement !== null);
@@ -251,6 +262,17 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     applyViewBox(svg);
   });
   host.append(fit);
+  const groupToggle = document.createElement('button'); groupToggle.type = 'button';
+  groupToggle.textContent = 'Group wires'; groupToggle.className = 'schematic-group';
+  groupToggle.setAttribute('aria-pressed', String(grouped));
+  groupToggle.title = 'Bundle consecutive bus bits. Turn off to show individual wires.';
+  groupToggle.addEventListener('click', () => {
+    grouped = toggleGrouping();
+    groupToggle.setAttribute('aria-pressed', String(grouped));
+    wireLayer.innerHTML = '';
+    ({ wires, bundles } = buildWires(circuit, pinAbs, snapshot, wireLayer, grouped));
+  });
+  host.append(groupToggle);
 
   const pinAbs = buildPinLookup(circuit);
 
@@ -593,7 +615,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     compLayer.appendChild(g);
   }
 
-  const wires = buildWires(circuit, pinAbs, snapshot, wireLayer);
+  let { wires, bundles } = buildWires(circuit, pinAbs, snapshot, wireLayer, grouped);
   const leds = buildLedRefs(circuit, snapshot, compLayer);
   const segs = buildSegRefs(circuit, snapshot, compLayer);
 
@@ -603,7 +625,25 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (disposed) return;
     for (const w of wires) {
       const v = decodeNet(snapshot.netsView[w.netIdx]!);
+      if (v === w.value) continue;
+      w.value = v;
       w.line.setAttribute('class', NET_CLASS[v]);
+      w.line.dataset.value = String(v);
+    }
+    for (const bundle of bundles) {
+      let changed = !bundle.initialized;
+      for (let bit = 0; bit < bundle.netIndices.length; bit++) {
+        const value = snapshot.netsView[bundle.netIndices[bit]!]!;
+        if (bundle.values[bit] !== value) { bundle.values[bit] = value; changed = true; }
+      }
+      if (!changed) continue;
+      bundle.initialized = true;
+      const value = waveformValue(Array.from(bundle.values, decodeNet));
+      bundle.line.setAttribute('class', `wire wire-bus${value.kind === 'bus' ? '' : ` wire-${value.kind}`}`);
+      bundle.line.dataset.value = value.text;
+      bundle.line.dataset.binary = value.binary;
+      bundle.label.textContent = `/${bundle.netIndices.length} ${value.kind === 'bus' ? '0x' : ''}${value.text}`;
+      bundle.hint.textContent = `${value.text} (${value.binary})\n${bundle.description}`;
     }
     for (const led of leds) {
       if (led.netIdx === null) continue;
@@ -628,8 +668,19 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 };
 
 interface WireRef {
-  line: SVGPolylineElement;
+  line: SVGElement;
   netIdx: number;
+  value?: NetState;
+}
+
+interface BundleRef {
+  line: SVGPolylineElement;
+  label: SVGTextElement;
+  hint: SVGTitleElement;
+  description: string;
+  netIndices: number[];
+  values: Uint8Array;
+  initialized: boolean;
 }
 
 const buildWires = (
@@ -637,20 +688,91 @@ const buildWires = (
   pinAbs: Map<string, PinLookup>,
   snapshot: LoadSnapshot,
   wireLayer: SVGGElement,
-): WireRef[] => {
+  grouped: boolean,
+): { wires: WireRef[]; bundles: BundleRef[] } => {
   const wires: WireRef[] = [];
+  const bundles: BundleRef[] = [];
+  const model = grouped ? groupWires(circuit) : { groups: [], singles: circuit.nets };
+  const singles = [...model.singles];
+  const probed = new Set(circuit.probes?.flatMap(probe => probe.nets));
+
+  const title = (el: SVGElement, text: string): SVGTitleElement => {
+    const hint = document.createElementNS(SVG_NS, 'title'); hint.textContent = text; el.appendChild(hint);
+    return hint;
+  };
+
+  const addGroup = (group: WireGroup): void => {
+    if (group.nets.some(net => !snapshot.netIndex.has(net.id) || net.endpoints.some(ep => !pinAbs.has(ep)))) {
+      singles.push(...group.nets); return;
+    }
+    const layer = document.createElementNS(SVG_NS, 'g'); layer.dataset.wireGroup = group.id;
+    wireLayer.appendChild(layer);
+    const paths = group.nets.map(() => [] as string[]);
+    const branches = group.branches.map(branch => {
+      const pins = branch.endpoints.map(ep => pinAbs.get(ep)!);
+      const join = { x: pins.reduce((sum, pin) => sum + pin.abs.x + 24 * pin.outward.x, 0) / pins.length,
+        y: pins.reduce((sum, pin) => sum + pin.abs.y + 24 * pin.outward.y, 0) / pins.length };
+      pins.forEach((pin, bit) => {
+        const tip = { x: pin.abs.x + 12 * pin.outward.x, y: pin.abs.y + 12 * pin.outward.y };
+        paths[branch.lanes[bit]!]!.push(`M ${pin.abs.x} ${pin.abs.y} L ${tip.x} ${tip.y} L ${join.x} ${join.y}`);
+      });
+      return { ...branch, join };
+    });
+    const center = { x: branches.reduce((sum, branch) => sum + branch.join.x, 0) / branches.length,
+      y: branches.reduce((sum, branch) => sum + branch.join.y, 0) / branches.length };
+    const addTrunk = (lanes: number[], pts: PinOffset[]): void => {
+      if (lanes.length === 1) {
+        paths[lanes[0]!]!.push(`M ${pts.map(p => `${p.x} ${p.y}`).join(' L ')}`); return;
+      }
+      const line = document.createElementNS(SVG_NS, 'polyline');
+      line.setAttribute('points', pointsAttr(pts)); line.setAttribute('class', 'wire wire-bus wire-Z');
+      line.dataset.role = 'wire-bundle'; line.dataset.width = String(lanes.length);
+      const description = lanes.map(lane => `${lane}: ${group.nets[lane]!.endpoints.join(' ↔ ')}`).join('\n')
+        + '\nProbe or edit a bit at its pin or fan-out wire.';
+      const hint = title(line, description);
+      if (lanes.some(lane => probed.has(group.nets[lane]!.id))) line.dataset.probed = 'true';
+      const label = document.createElementNS(SVG_NS, 'text');
+      // Put the label above the longest route segment, away from the pins.
+      let a = pts[0]!; let b = pts[1]!;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const from = pts[i]!; const to = pts[i + 1]!;
+        if (Math.hypot(to.x - from.x, to.y - from.y) > Math.hypot(b.x - a.x, b.y - a.y)) { a = from; b = to; }
+      }
+      label.setAttribute('x', String((a.x + b.x) / 2 + (a.x === b.x ? 8 : 0)));
+      label.setAttribute('y', String((a.y + b.y) / 2 - 8));
+      label.setAttribute('class', 'wire-bus-label'); label.dataset.role = 'wire-bundle-label';
+      label.textContent = `/${lanes.length}`;
+      layer.appendChild(line); layer.appendChild(label);
+      bundles.push({ line, label, hint, description, netIndices: lanes.map(lane => snapshot.netIndex.get(group.nets[lane]!.id)!),
+        values: new Uint8Array(lanes.length), initialized: false });
+    };
+    if (branches.length === 2 && branches.every(branch => branch.lanes.length === group.nets.length)) {
+      addTrunk(branches[0]!.lanes, manhattanPath(branches[0]!.join, branches[1]!.join));
+    } else {
+      for (const branch of branches) addTrunk(branch.lanes, manhattanPath(branch.join, center));
+    }
+    group.nets.forEach((net, lane) => {
+      const path = document.createElementNS(SVG_NS, 'path'); path.setAttribute('d', paths[lane]!.join(' '));
+      path.setAttribute('class', 'wire wire-Z'); path.dataset.role = 'wire-bit';
+      path.setAttribute('data-net-id', net.id);
+      title(path, `${net.id}: ${net.endpoints.join(' ↔ ')}`);
+      if (probed.has(net.id)) path.dataset.probed = 'true';
+      layer.appendChild(path); wires.push({ line: path, netIdx: snapshot.netIndex.get(net.id)! });
+    });
+  };
+  for (const group of model.groups) addGroup(group);
 
   const addSegment = (net: { id: string }, netIdx: number, pts: PinOffset[]): void => {
     const line = document.createElementNS(SVG_NS, 'polyline');
     line.setAttribute('points', pointsAttr(pts));
     line.setAttribute('class', 'wire wire-Z');
     line.setAttribute('data-net-id', net.id);
-    if (circuit.probes?.some(probe => probe.nets.includes(net.id))) line.dataset.probed = 'true';
+    if (probed.has(net.id)) line.dataset.probed = 'true';
     wireLayer.appendChild(line);
     wires.push({ line, netIdx });
   };
 
-  for (const net of circuit.nets) {
+  for (const net of singles) {
     const pts: PinOffset[] = [];
     for (const ep of net.endpoints) {
       const lookup = pinAbs.get(ep);
@@ -679,7 +801,7 @@ const buildWires = (
     wireLayer.appendChild(junction);
   }
 
-  return wires;
+  return { wires, bundles };
 };
 
 interface LedRef {

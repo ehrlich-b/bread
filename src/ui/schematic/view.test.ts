@@ -8,6 +8,7 @@ import { EditorModel } from '../editor';
 import { mountControls } from '../controls';
 import { chipSelection, createChip } from '../chips/model';
 import { mountSchematic } from './view';
+import sap1 from '../../../examples/ben_eater_8bit.json';
 
 // Only the DOM surface used by these real renderers and click handlers. No
 // browser, replacement view logic or production dependencies are needed.
@@ -15,10 +16,12 @@ class TestElement extends EventTarget {
   readonly children: TestElement[] = [];
   readonly dataset: Record<string, string> = {};
   private readonly attrs = new Map<string, string>();
+  attributeWrites = 0;
   readonly classList = { toggle: vi.fn(), remove: vi.fn(), add: vi.fn() };
   textContent = '';
   set innerHTML(_value: string) { this.children.length = 0; }
   setAttribute(name: string, value: string): void {
+    this.attributeWrites++;
     this.attrs.set(name, value);
     if (name.startsWith('data-')) {
       this.dataset[name.slice(5).replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase())] = value;
@@ -331,6 +334,148 @@ describe('canvas probe attachment', () => {
       await Promise.resolve(); h.reply(); await h.flush();
       expect(h.editor.project.probes?.[1]?.label).toBe('rom.D[7:0]');
       expect(h.editor.project.probes?.[1]?.nets).toEqual(Array.from({ length: 8 }, (_, bit) => `__floating__rom__D${bit}`));
+    } finally { h.unmount(); }
+  });
+});
+
+const bundled: CircuitJSON = {
+  version: 1, kind: 'circuit', name: 'grouped counter',
+  components: [
+    { id: 'source', type: 'prim.COUNTER', params: { width: 8 }, position: [40, 40] },
+    { id: 'target', type: 'prim.MUX2', params: { width: 8 }, position: [350, 40] },
+    { id: 'led', type: 'io.led', position: [250, 300] },
+  ],
+  nets: Array.from({ length: 8 }, (_, bit) => ({ id: `bit${bit}`, endpoints: [`source.Q${bit}`, `target.A${bit}`] })),
+};
+const elements = (root: TestElement): TestElement[] => root.children.flatMap(child => [child, ...elements(child)]);
+const frame = (): void => { vi.mocked(requestAnimationFrame).mock.calls.at(-1)![0](0); };
+const toggleGroups = (host: TestElement): void => { host.children.find(child => child.textContent === 'Group wires')!.click(); };
+
+describe('grouped schematic rendering', () => {
+  it('toggles only the view, retains selection and undo history, and keeps the preference across edits', async () => {
+    const h = mount(bundled);
+    try {
+      h.editor.select('target');
+      const before = h.editor.project; const snapshot = h.editor.state.snapshot;
+      expect(h.host.querySelector('[data-role="wire-bundle"]')!.dataset.width).toBe('8');
+      toggleGroups(h.host);
+      expect(h.host.querySelector('[data-role="wire-bundle"]')).toBeNull();
+      expect(h.host.children.find(child => child.textContent === 'Group wires')!.getAttribute('aria-pressed')).toBe('false');
+      expect(h.editor.project).toEqual(before); expect(h.editor.state.snapshot).toBe(snapshot);
+      expect(h.editor.state.selection).toEqual(new Set(['target']));
+      expect(h.editor.canUndo()).toBe(false);
+      const edit = h.editor.updateComponent('target', { label: 'destination' });
+      await Promise.resolve(); h.reply(); await edit;
+      expect(h.host.querySelector('[data-role="wire-bundle"]')).toBeNull();
+      toggleGroups(h.host);
+      expect(h.host.querySelector('[data-role="wire-bundle"]')!.dataset.width).toBe('8');
+      expect(h.editor.canUndo()).toBe(true);
+    } finally { h.unmount(); }
+  });
+
+  it('shows live hex and distinct X/Z states without writing unchanged wire attributes each frame', () => {
+    const h = mount(bundled);
+    try {
+      const { snapshot } = h.editor.state;
+      const bundle = h.host.querySelector('[data-role="wire-bundle"]')!;
+      const label = h.host.querySelector('[data-role="wire-bundle-label"]')!;
+      const set = (bits: number[]): void => {
+        bits.forEach((value, bit) => { snapshot.netsView[snapshot.netIndex.get(`bit${bit}`)!] = value; }); frame();
+      };
+      set([0, 1, 0, 1, 0, 1, 0, 0]);
+      expect(label.textContent).toBe('/8 0x2A');
+      expect(bundle.dataset.binary).toBe('00101010');
+      expect(bundle.getAttribute('class')).toBe('wire wire-bus');
+      expect(h.host.querySelector('[data-net-id="bit1"]')!.getAttribute('class')).toBe('wire wire-1');
+      const writes = elements(h.host).reduce((sum, el) => sum + el.attributeWrites, 0);
+      frame();
+      // The unwired LED is skipped; wire geometry and values stay untouched.
+      expect(elements(h.host).reduce((sum, el) => sum + el.attributeWrites, 0) - writes).toBe(0);
+      set(Array(8).fill(2));
+      expect(label.textContent).toBe('/8 ZZ'); expect(bundle.getAttribute('class')).toBe('wire wire-bus wire-Z');
+      set([3, 0, 0, 0, 0, 0, 0, 0]);
+      expect(label.textContent).toBe('/8 0X'); expect(bundle.getAttribute('class')).toBe('wire wire-bus wire-X');
+      set([2, 0, 0, 0, 0, 0, 0, 0]);
+      expect(label.textContent).toBe('/8 0?'); expect(bundle.dataset.binary).toBe('0000000Z');
+      expect(bundle.getAttribute('class')).toBe('wire wire-bus wire-Z');
+    } finally { h.unmount(); }
+  });
+
+  it('probes the exact fan-out bit, saves ordinary nets and restores the probe through undo/redo', async () => {
+    const h = mount(bundled);
+    try {
+      h.editor.setProbing('net');
+      const svg = h.host.children[0]!; const wire = h.host.querySelector('[data-net-id="bit3"]')!;
+      expect(wire.dataset.role).toBe('wire-bit');
+      const click = new Event('click'); Object.defineProperty(click, 'target', { value: wire }); svg.dispatchEvent(click);
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.probes).toEqual([{ id: 'probe1', label: 'bit3', nets: ['bit3'] }]);
+      expect(h.host.querySelector('[data-net-id="bit3"]')!.dataset.probed).toBe('true');
+      expect(h.host.querySelector('[data-role="wire-bundle"]')!.dataset.probed).toBe('true');
+      expect(h.editor.project.nets).toEqual(bundled.nets);
+      const saved = JSON.parse(JSON.stringify(h.editor.project));
+      expect(saved).not.toHaveProperty('wireGroups');
+      const undo = h.editor.undo(); await Promise.resolve(); h.reply(); await undo;
+      expect(h.editor.project.probes).toBeUndefined();
+      const redo = h.editor.redo(); await Promise.resolve(); h.reply(); await redo;
+      expect(h.editor.project.probes).toEqual(saved.probes);
+    } finally { h.unmount(); }
+  });
+
+  it('edits a grouped bit using its original pin, preserves fan-out and restores the bundle through undo/redo', async () => {
+    const h = mount(bundled);
+    try {
+      const group = h.host.querySelector('[data-wire-group]')!.dataset.wireGroup;
+      h.host.querySelector('[data-pin="target.A3"]')!.click(); h.host.querySelector('[data-pin="led.A"]')!.click();
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.nets.find(net => net.id === 'bit3')!.endpoints).toEqual(['source.Q3', 'target.A3', 'led.A']);
+      expect(h.host.querySelector('[data-wire-group]')!.dataset.wireGroup).toBe(group);
+      const undo = h.editor.undo(); await Promise.resolve(); h.reply(); await undo;
+      expect(h.editor.project.nets).toEqual(bundled.nets);
+      const redo = h.editor.redo(); await Promise.resolve(); h.reply(); await redo;
+      expect(h.editor.project.nets.find(net => net.id === 'bit3')!.endpoints).toContain('led.A');
+    } finally { h.unmount(); }
+  });
+
+  it('reduces SAP-1 wire paths and performs no wire attribute writes on an unchanged frame', () => {
+    const h = mount(sap1 as CircuitJSON);
+    try {
+      const paths = () => elements(h.host).filter(el => el.getAttribute('class')?.startsWith('wire '));
+      const groupedPaths = paths().length;
+      expect(elements(h.host).filter(el => el.dataset.wireGroup)).toHaveLength(5);
+      expect(groupedPaths).toBe(99);
+      frame();
+      const wires = paths(); const writes = wires.reduce((sum, el) => sum + el.attributeWrites, 0);
+      frame();
+      expect(wires.reduce((sum, el) => sum + el.attributeWrites, 0)).toBe(writes);
+      toggleGroups(h.host);
+      expect(paths()).toHaveLength(135);
+    } finally { h.unmount(); }
+  });
+
+  it('retains the pending pin connection while toggling the wire layer', async () => {
+    const h = mount(bundled);
+    try {
+      const pin = h.host.querySelector('[data-pin="source.Q3"]')!;
+      const svg = h.host.children[0]!;
+      pin.click(); toggleGroups(h.host); toggleGroups(h.host);
+      expect(h.host.children[0]).toBe(svg);
+      expect(h.host.querySelector('[data-pin="source.Q3"]')).toBe(pin);
+      h.host.querySelector('[data-pin="led.A"]')!.click();
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.nets.find(net => net.id === 'bit3')!.endpoints).toContain('led.A');
+    } finally { h.unmount(); }
+  });
+
+  it.each([
+    [0, 140, 62, 1, 0], [90, 141, 163, 0, 1], [180, 40, 164, -1, 0], [270, 39, 63, 0, -1],
+  ])('attaches fans to the displayed pins after a %d degree rotation', (rotation, x, y, dx, dy) => {
+    const h = mount({ ...bundled, components: bundled.components.map(comp => comp.id === 'source' ? { ...comp, rotation } : comp) });
+    try {
+      const path = h.host.querySelector('[data-net-id="bit0"]')!.getAttribute('d')!;
+      const first = /^M (\S+) (\S+) L (\S+) (\S+)/.exec(path)!;
+      expect(Number(first[1])).toBeCloseTo(x!); expect(Number(first[2])).toBeCloseTo(y!);
+      expect(Number(first[3])).toBeCloseTo(x! + 12 * dx!); expect(Number(first[4])).toBeCloseTo(y! + 12 * dy!);
     } finally { h.unmount(); }
   });
 });
