@@ -12,6 +12,7 @@ import { loadCircuit } from '../engine/loader';
 import { ProbeCapture, validateProbes } from '../engine/probes';
 import '../engine/primitives/index';
 import { Simulator, type SimEvent } from '../engine/sim';
+import { runTestbench } from '../engine/testbench';
 import '../stdlib/index';
 import {
   NET_STATE_BYTE,
@@ -253,6 +254,9 @@ const onMessage = (req: WorkerReq): void => {
       case 'set_input': handleSetInput(req); break;
       case 'set_net_input': handleSetNetInput(req); break;
       case 'mutate': handleMutate(req); break;
+      case 'testbench':
+        post({ type: 'testbench_res', id: req.id, result: runTestbench(req.circuit, req.bench, { capture: true, stopOnFailure: false, throughVector: req.throughVector }) });
+        break;
       case 'waveform_ack':
         if (pendingWaveform === req.sequence) pendingWaveform = null;
         break;

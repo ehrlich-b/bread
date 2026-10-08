@@ -5,11 +5,13 @@
 
 import type { CircuitJSON, NetState } from '../engine/ir';
 import type { WaveformSnapshot } from '../engine/probes';
+import type { TestbenchJSON, TestbenchResult } from '../engine/testbench';
 import {
   NET_STATE_FROM_BYTE,
   type EventNotif,
   type LoadRes,
   type MetricsNotif,
+  type TestbenchRes,
   type WorkerReq,
   type WorkerRes,
 } from '../worker/protocol';
@@ -30,6 +32,7 @@ export interface WorkerBus {
   step(): Promise<void>;
   setInput(component: string, pin: string, value: NetState): Promise<void>;
   setNetInput(net: string, value: NetState): Promise<void>;
+  testbench(circuit: CircuitJSON, bench: TestbenchJSON, throughVector?: number): Promise<TestbenchResult>;
   on(event: 'event', handler: (e: EventNotif) => void): () => void;
   on(event: 'metrics', handler: (e: MetricsNotif) => void): () => void;
   on(event: 'waveform', handler: (snapshot: WaveformSnapshot | null) => void): () => void;
@@ -153,6 +156,11 @@ export const createWorkerBus = (): WorkerBus => {
     async setNetInput(net, value) {
       const id = nextId++;
       await send<void>({ type: 'set_net_input', id, net, value });
+    },
+
+    async testbench(circuit, bench, throughVector) {
+      const res = await send<TestbenchRes>({ type: 'testbench', id: nextId++, circuit, bench, throughVector });
+      return res.result;
     },
 
     on(event, handler) {

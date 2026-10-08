@@ -239,3 +239,34 @@ it('bounds queued waveform notifications while retaining every tick until the UI
   expect(latest.snapshot.ticks).toHaveLength(401); expect(latest.snapshot.ticks.at(-1)).toBe(400);
   receive({ data: { type: 'pause', id: 3 } });
 });
+
+it('runs testbenches from power-on state with probe capture and leaves the live graph intact', async () => {
+  let receive!: (e: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (m: WorkerRes) => messages.push(m) });
+  await import('./worker');
+  const circuit: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'live switch', components: [{ id: 'sw', type: 'io.switch' }],
+    nets: [{ id: 'signal', endpoints: ['sw.Y'] }], probes: [{ id: 'p', label: 'Signal', nets: ['signal'] }],
+  };
+  receive({ data: { type: 'load', id: 1, circuit } });
+  const loaded = messages.at(-1); if (loaded?.type !== 'load_res') throw new Error('missing load');
+  receive({ data: { type: 'set_input', id: 2, component: 'sw', pin: 'Y', value: 1 } });
+  const bench = { version: 1 as const, name: 'Isolated', inputs: { IN: { component: 'sw', pin: 'Y' as const } }, outputs: { OUT: ['signal'] }, vectors: [
+    { expect: { OUT: 1 } }, { drive: { IN: 1 }, expect: { OUT: 1 } },
+  ] };
+  receive({ data: { type: 'testbench', id: 3, circuit, bench } });
+  const reply = messages.at(-1); if (reply?.type !== 'testbench_res') throw new Error('missing testbench reply');
+  expect(reply.result.results.map(vector => vector.passed)).toEqual([false, true]);
+  expect(reply.result.results[0]).toMatchObject({ vector: 1, step: 1, expected: { OUT: '1' }, actual: { OUT: '0' } });
+  expect(Array.from(reply.result.waveform!.ticks)).toEqual([0, 1, 2]);
+  expect(Array.from(reply.result.waveform!.values)).toEqual([0, 0, 1]);
+  expect(new Uint8Array(loaded.netsBuffer)[0]).toBe(1);
+  receive({ data: { type: 'testbench', id: 4, circuit, bench, throughVector: 1 } });
+  expect(messages.at(-1)).toMatchObject({ type: 'testbench_res', result: { results: [expect.objectContaining({ vector: 1, passed: false })] } });
+  receive({ data: { type: 'testbench', id: 5, circuit, bench: { ...bench, outputs: { OUT: ['missing'] } } } });
+  expect(messages.at(-1)).toMatchObject({ type: 'err', id: 5 });
+  receive({ data: { type: 'step', id: 6 } });
+  expect(new Uint8Array(loaded.netsBuffer)[0]).toBe(1);
+  expect(messages.filter(message => message.type === 'waveform').at(-1)).toMatchObject({ snapshot: { ticks: new Float64Array([0, 1]), values: new Uint8Array([1, 1]) } });
+});

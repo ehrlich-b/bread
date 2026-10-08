@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "name": "Full adder exhaustive",
+  "circuit": "../full_adder.json",
+  "inputs": {
+    "A": {
+      "component": "a",
+      "pin": "Y"
+    },
+    "B": {
+      "component": "b",
+      "pin": "Y"
+    },
+    "Cin": {
+      "component": "cin",
+      "pin": "Y"
+    }
+  },
+  "outputs": {
+    "Sum": [
+      "sum_out"
+    ],
+    "Cout": [
+      "cout_out"
+    ]
+  },
+  "vectors": [
+    {
+      "for": {
+        "row": {
+          "from": 0,
+          "to": 7
+        }
+      },
+      "vectors": [
+        {
+          "drive": {
+            "A": {
+              "var": "row",
+              "bit": 0
+            },
+            "B": {
+              "var": "row",
+              "bit": 1
+            },
+            "Cin": {
+              "var": "row",
+              "bit": 2
+            }
+          },
+          "expect": {
+            "Sum": {
+              "table": [
+                0,
+                1,
+                1,
+                0,
+                1,
+                0,
+                0,
+                1
+              ],
+              "index": "row"
+            },
+            "Cout": {
+              "table": [
+                0,
+                0,
+                0,
+                1,
+                0,
+                1,
+                1,
+                1
+              ],
+              "index": "row"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

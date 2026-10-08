@@ -23,7 +23,7 @@ function setup(json: CircuitJSON = initial): { editor: EditorModel; bus: WorkerB
   const graph = loadCircuit(json); sim = new Simulator(graph); sim.settle();
   const netIds = graph.nets.map((n) => n.id);
   snapshot = { netIds, componentIds: graph.components.map((c) => c.id), netIndex: new Map(netIds.map((id, i) => [id, i])), netsView: new Uint8Array(netIds.length) }; sync();
-  const bus: WorkerBus = { mutate, load: mutate, pause: async () => {}, run: async () => {}, step: async () => { sim.tick(); sync(); }, setInput: async (c, p, v) => { sim.setComponentInput(c, p, v); sim.settle(); sync(); }, setNetInput: async (n, v) => { sim.setInput(n, v); sim.settle(); sync(); }, readNet: (n) => sim.readNet(n), on: () => () => {}, netIds: [], componentIds: [] };
+  const bus: WorkerBus = { testbench: async () => { throw new Error('Unexpected testbench call'); }, mutate, load: mutate, pause: async () => {}, run: async () => {}, step: async () => { sim.tick(); sync(); }, setInput: async (c, p, v) => { sim.setComponentInput(c, p, v); sim.settle(); sync(); }, setNetInput: async (n, v) => { sim.setInput(n, v); sim.settle(); sync(); }, readNet: (n) => sim.readNet(n), on: () => () => {}, netIds: [], componentIds: [] };
   return { editor: new EditorModel(bus, json, snapshot), bus };
 }
 const makeNand = async (editor: EditorModel): Promise<void> => {

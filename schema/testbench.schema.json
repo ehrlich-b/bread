@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ehrlich-b.github.io/bread/schema/testbench.schema.json",
+  "title": "Bread testbench",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "circuit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rateHz": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 1,
+            "maxItems": 53
+          },
+          {
+            "type": "object",
+            "properties": {
+              "component": {
+                "type": "string",
+                "minLength": 1
+              },
+              "pin": {
+                "const": "Y"
+              }
+            },
+            "required": [
+              "component",
+              "pin"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minItems": 1,
+        "maxItems": 53
+      }
+    },
+    "vectors": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      },
+      "minItems": 1,
+      "maxItems": 10000
+    }
+  },
+  "required": [
+    "version",
+    "name",
+    "inputs",
+    "outputs",
+    "vectors"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "literal": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^(X|Z|[01XZ]+)$"
+        }
+      ]
+    },
+    "expected": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "string",
+          "pattern": "^(X|Z|-|[01XZ-]+)$"
+        }
+      ]
+    },
+    "value": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/literal"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "var": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 52
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/literal"
+              },
+              "minItems": 1,
+              "maxItems": 10000
+            },
+            "index": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "table",
+            "index"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "expectValue": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/expected"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "var": {
+              "type": "string",
+              "minLength": 1
+            },
+            "bit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 52
+            }
+          },
+          "required": [
+            "var"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "table": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/expected"
+              },
+              "minItems": 1,
+              "maxItems": 10000
+            },
+            "index": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "table",
+            "index"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1
+            },
+            "drive": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/value"
+              }
+            },
+            "expect": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/expectValue"
+              }
+            },
+            "clock": {
+              "type": "string",
+              "minLength": 1
+            },
+            "ticks": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "wait": {
+              "type": "object",
+              "properties": {
+                "rising": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "when": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "$ref": "#/$defs/expected"
+                  }
+                },
+                "maxTicks": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100000
+                }
+              },
+              "required": [
+                "rising",
+                "maxTicks"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "for": {
+              "type": "object",
+              "minProperties": 1,
+              "additionalProperties": {
+                "oneOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "minItems": 1,
+                    "maxItems": 10000
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "from": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "to": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "required": [
+                      "from",
+                      "to"
+                    ],
+                    "additionalProperties": false
+                  }
+                ]
+              }
+            },
+            "vectors": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/step"
+              },
+              "minItems": 1,
+              "maxItems": 10000
+            }
+          },
+          "required": [
+            "for",
+            "vectors"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

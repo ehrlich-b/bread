@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "name": "Register and shared bus",
+  "circuit": "../register_bus_4bit.json",
+  "inputs": {
+    "A": [
+      "a_d1",
+      "a_d2",
+      "a_d3",
+      "a_d4"
+    ],
+    "B": [
+      "b_d1",
+      "b_d2",
+      "b_d3",
+      "b_d4"
+    ],
+    "CLK": [
+      "clk"
+    ],
+    "CLR": [
+      "clr"
+    ],
+    "AG1": [
+      "a_g1"
+    ],
+    "AG2": [
+      "a_g2"
+    ],
+    "AM": [
+      "a_m"
+    ],
+    "AN": [
+      "a_n"
+    ],
+    "BG1": [
+      "b_g1"
+    ],
+    "BG2": [
+      "b_g2"
+    ],
+    "BM": [
+      "b_m"
+    ],
+    "BN": [
+      "b_n"
+    ]
+  },
+  "outputs": {
+    "BUS": [
+      "bus0",
+      "bus1",
+      "bus2",
+      "bus3"
+    ]
+  },
+  "vectors": [
+    {
+      "label": "Reset with both outputs released",
+      "drive": {
+        "CLK": 0,
+        "CLR": 1,
+        "AG1": 1,
+        "AG2": 1,
+        "AM": 1,
+        "AN": 1,
+        "BG1": 1,
+        "BG2": 1,
+        "BM": 1,
+        "BN": 1
+      },
+      "expect": {
+        "BUS": "Z"
+      }
+    },
+    {
+      "drive": {
+        "CLR": 0
+      }
+    },
+    {
+      "for": {
+        "value": {
+          "from": 0,
+          "to": 15
+        }
+      },
+      "vectors": [
+        {
+          "label": "Load A",
+          "drive": {
+            "A": {
+              "var": "value"
+            },
+            "AG1": 0,
+            "AG2": 0,
+            "AM": 1,
+            "AN": 1
+          },
+          "clock": "CLK",
+          "expect": {
+            "BUS": "Z"
+          }
+        },
+        {
+          "label": "Read A",
+          "drive": {
+            "AG1": 1,
+            "AG2": 1,
+            "AM": 0,
+            "AN": 0
+          },
+          "expect": {
+            "BUS": {
+              "var": "value"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "label": "Load B while A is released",
+      "drive": {
+        "AM": 1,
+        "AN": 1,
+        "B": 5,
+        "BG1": 0,
+        "BG2": 0
+      },
+      "clock": "CLK",
+      "expect": {
+        "BUS": "Z"
+      }
+    },
+    {
+      "label": "Read B",
+      "drive": {
+        "BG1": 1,
+        "BG2": 1,
+        "BM": 0,
+        "BN": 0
+      },
+      "expect": {
+        "BUS": 5
+      }
+    },
+    {
+      "label": "Both released",
+      "drive": {
+        "BM": 1,
+        "BN": 1
+      },
+      "expect": {
+        "BUS": "ZZZZ"
+      }
+    },
+    {
+      "label": "Conflicting drivers",
+      "drive": {
+        "AM": 0,
+        "AN": 0,
+        "BM": 0,
+        "BN": 0
+      },
+      "expect": {
+        "BUS": "X1X1"
+      }
+    }
+  ]
+}

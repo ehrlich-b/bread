@@ -75,6 +75,7 @@ const mount = (circuit: CircuitJSON) => {
     sync();
   });
   const bus: WorkerBus = {
+    testbench: async () => { throw new Error('Unexpected testbench call'); },
     load: async next => load(next),
     mutate: next => {
       const loaded = load(next);

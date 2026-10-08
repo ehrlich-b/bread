@@ -8,6 +8,7 @@
 
 import type { CircuitJSON, NetState } from '../engine/ir';
 import type { WaveformSnapshot } from '../engine/probes';
+import type { TestbenchJSON, TestbenchResult } from '../engine/testbench';
 
 export const NET_STATE_BYTE: Record<NetState, number> = {
   0: 0,
@@ -75,7 +76,15 @@ export interface WaveformAckReq {
   sequence: number;
 }
 
-export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq | WaveformAckReq;
+export interface TestbenchReq {
+  type: 'testbench';
+  id: number;
+  circuit: CircuitJSON;
+  bench: TestbenchJSON;
+  throughVector?: number;
+}
+
+export type WorkerReq = LoadReq | RunReq | PauseReq | StepReq | SetInputReq | SetNetInputReq | MutateReq | WaveformAckReq | TestbenchReq;
 
 export interface LoadRes {
   type: 'load_res';
@@ -126,4 +135,10 @@ export interface WaveformNotif {
   snapshot: WaveformSnapshot;
 }
 
-export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif | WaveformNotif;
+export interface TestbenchRes {
+  type: 'testbench_res';
+  id: number;
+  result: TestbenchResult;
+}
+
+export type WorkerRes = LoadRes | Ack | ErrRes | EventNotif | MetricsNotif | WaveformNotif | TestbenchRes;
