@@ -49,6 +49,9 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
   redoBtn.dataset.action = 'redo';
   const busBtn = button('Connect bus', () => editor.setBusWiring(!editor.state.busWiring));
   busBtn.title = 'Click the lowest numbered pin on each component, then confirm the bit mapping.';
+  const probeNet = button('Probe net', () => editor.setProbing(editor.state.probing === 'net' ? null : 'net'));
+  const probeBus = button('Probe bus', () => editor.setProbing(editor.state.probing === 'bus' ? null : 'bus'));
+  const probeHint = document.createElement('span'); probeHint.className = 'bus-hint';
   const busHint = document.createElement('span'); busHint.className = 'bus-hint';
   busHint.textContent = 'Bus wiring: click the lowest bit on two components, then confirm the mapping.';
 
@@ -57,10 +60,14 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
     redoBtn.disabled = !editor.canRedo();
     busBtn.setAttribute('aria-pressed', String(editor.state.busWiring));
     busHint.hidden = !editor.state.busWiring;
+    probeNet.setAttribute('aria-pressed', String(editor.state.probing === 'net'));
+    probeBus.setAttribute('aria-pressed', String(editor.state.probing === 'bus'));
+    probeHint.hidden = !editor.state.probing;
+    probeHint.textContent = editor.state.probing === 'bus' ? 'Probe bus: click its lowest numbered pin. Escape cancels.' : 'Probe net: click a wire or pin. Escape cancels.';
   };
   refresh();
 
-  host.append(runBtn, pauseBtn, stepBtn, undoBtn, redoBtn, busBtn, busHint, rateLabel, status, error);
+  host.append(runBtn, pauseBtn, stepBtn, undoBtn, redoBtn, busBtn, busHint, probeNet, probeBus, probeHint, rateLabel, status, error);
   const unsubMetrics = editor.bus.on('metrics', (m) => {
     status.textContent = `${m.running ? 'Running' : 'Paused'} · requested ${m.targetRateHz.toLocaleString()} ticks/s · measured ${Math.round(m.actualRateHz).toLocaleString()} ticks/s · ${m.ticks.toLocaleString()} ticks`;
   });

@@ -12,6 +12,7 @@ import { EditorModel } from '../ui/editor';
 import { mountFileControls } from '../ui/file';
 import { mountInspector } from '../ui/inspector';
 import { mountPalette } from '../ui/palette';
+import { mountWaveform } from '../ui/waveform_view';
 import { mountSchematic } from '../ui/schematic';
 
 const isoStatus = document.getElementById('iso-status')!;
@@ -42,6 +43,7 @@ const main = async (): Promise<void> => {
   mountFileControls(document.getElementById('file')!, editor);
   mountChips(document.getElementById('chips')!, editor);
   mountInspector(document.getElementById('inspector')!, editor);
+  mountWaveform(document.getElementById('waveforms')!, editor);
 
   // Default to running so the LED actually blinks on first load.
   await bus.run(1000);

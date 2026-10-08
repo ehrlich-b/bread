@@ -31,6 +31,11 @@
       "items": { "$ref": "#/$defs/Port" },
       "description": "Required for composites; ignored for top-level circuits."
     },
+    "probes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Probe" },
+      "description": "Observed runtime net IDs, in least-significant-bit order. Optional in version 1."
+    },
     "metadata": { "type": "object" },
     "definitions": {
       "type": "array",
@@ -102,6 +107,16 @@
           },
           "description": "Schematic-view routing hints. Engine ignores this."
         }
+      }
+    },
+    "Probe": {
+      "type": "object",
+      "required": ["id", "label", "nets"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "nets": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
       }
     },
     "Port": {

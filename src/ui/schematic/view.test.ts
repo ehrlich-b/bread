@@ -24,6 +24,7 @@ class TestElement extends EventTarget {
       this.dataset[name.slice(5).replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase())] = value;
     }
   }
+  getAttribute(name: string): string | null { return this.attrs.get(name) ?? null; }
   private matches(selector: string): boolean {
     const match = /^\[data-([a-z-]+)(?:="([^"\]]*)")?\]$/.exec(selector);
     if (!match) throw new Error(`Unsupported test selector: ${selector}`);
@@ -291,5 +292,43 @@ describe('simulation controls waiting for editor actions', () => {
       await later;
       await h.flush();
     } finally { unmountControls(); h.unmount(); }
+  });
+});
+
+
+describe('canvas probe attachment', () => {
+  it('attaches to a pin and removes the probe with undo and restores it with redo', async () => {
+    const h = mount(switches);
+    try {
+      h.editor.setProbing('net');
+      h.host.querySelector('[data-pin="switch1.Y"]')!.click();
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.probes).toEqual([{ id: 'probe1', label: 'switch1.Y', nets: ['out'] }]);
+      expect(h.editor.state.probing).toBeNull();
+      expect(h.host.querySelector('[data-pin="switch1.Y"]')!.dataset.probed).toBe('true');
+      const undo = h.editor.undo(); await Promise.resolve(); h.reply(); await undo;
+      expect(h.editor.project.probes).toBeUndefined();
+      const redo = h.editor.redo(); await Promise.resolve(); h.reply(); await redo;
+      expect(h.editor.project.probes?.[0]?.nets).toEqual(['out']);
+    } finally { h.unmount(); }
+  });
+  it('attaches to a wire through the canvas click handler and to an unwired byte bus', async () => {
+    const circuit: CircuitJSON = {
+      ...switches,
+      components: [...switches.components, { id: 'led', type: 'io.led' }, { id: 'rom', type: 'mem.ROM', params: { addressBits: 2, dataBits: 8 } }],
+      nets: [{ id: 'out', endpoints: ['switch1.Y', 'led.A'] }],
+    };
+    const h = mount(circuit);
+    try {
+      h.editor.setProbing('net');
+      const svg = h.host.children[0]!; const wire = h.host.querySelector('[data-net-id="out"]')!;
+      const click = new Event('click'); Object.defineProperty(click, 'target', { value: wire }); svg.dispatchEvent(click);
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.probes?.[0]).toEqual({ id: 'probe1', label: 'out', nets: ['out'] });
+      h.editor.setProbing('bus'); h.host.querySelector('[data-pin="rom.D0"]')!.click();
+      await Promise.resolve(); h.reply(); await h.flush();
+      expect(h.editor.project.probes?.[1]?.label).toBe('rom.D[7:0]');
+      expect(h.editor.project.probes?.[1]?.nets).toEqual(Array.from({ length: 8 }, (_, bit) => `__floating__rom__D${bit}`));
+    } finally { h.unmount(); }
   });
 });

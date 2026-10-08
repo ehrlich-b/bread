@@ -85,6 +85,15 @@
     { "name": "BUS6", "dir": "in", "internalNet": "bus6" },
     { "name": "BUS7", "dir": "in", "internalNet": "bus7" },
 
+    { "name": "OUT0", "dir": "out", "internalNet": "nlo0" },
+    { "name": "OUT1", "dir": "out", "internalNet": "nlo1" },
+    { "name": "OUT2", "dir": "out", "internalNet": "nlo2" },
+    { "name": "OUT3", "dir": "out", "internalNet": "nlo3" },
+    { "name": "OUT4", "dir": "out", "internalNet": "nhi0" },
+    { "name": "OUT5", "dir": "out", "internalNet": "nhi1" },
+    { "name": "OUT6", "dir": "out", "internalNet": "nhi2" },
+    { "name": "OUT7", "dir": "out", "internalNet": "nhi3" },
+
     { "name": "CLK", "dir": "in", "internalNet": "clk" },
     { "name": "CLR", "dir": "in", "internalNet": "clr" },
     { "name": "/OI", "dir": "in", "internalNet": "oi"  }

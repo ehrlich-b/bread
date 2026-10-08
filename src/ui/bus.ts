@@ -4,6 +4,7 @@
 // controls call methods on the returned object.
 
 import type { CircuitJSON, NetState } from '../engine/ir';
+import type { WaveformSnapshot } from '../engine/probes';
 import {
   NET_STATE_FROM_BYTE,
   type EventNotif,
@@ -18,11 +19,12 @@ export interface LoadSnapshot {
   componentIds: string[];
   netIndex: Map<string, number>;
   netsView: Uint8Array;
+  preserved?: boolean;
 }
 
 export interface WorkerBus {
   load(circuit: CircuitJSON, rateHz?: number): Promise<LoadSnapshot>;
-  mutate(circuit: CircuitJSON): Promise<LoadSnapshot>;
+  mutate(circuit: CircuitJSON, preserveProbeEdits?: boolean): Promise<LoadSnapshot>;
   run(rateHz: number): Promise<void>;
   pause(): Promise<void>;
   step(): Promise<void>;
@@ -30,6 +32,8 @@ export interface WorkerBus {
   setNetInput(net: string, value: NetState): Promise<void>;
   on(event: 'event', handler: (e: EventNotif) => void): () => void;
   on(event: 'metrics', handler: (e: MetricsNotif) => void): () => void;
+  on(event: 'waveform', handler: (snapshot: WaveformSnapshot | null) => void): () => void;
+  waveform?: WaveformSnapshot | null;
   readNet(netId: string): NetState;
   netIds: string[];
   componentIds: string[];
@@ -51,6 +55,7 @@ export const createWorkerBus = (): WorkerBus => {
   const metricsHandlers = new Set<(e: MetricsNotif) => void>();
 
   let snapshot: LoadSnapshot | null = null;
+  const waveformHandlers = new Set<(snapshot: WaveformSnapshot | null) => void>();
 
   // Hoisted so both load() and mutate() can update the same closure state.
   // `bus` is captured below; we redefine it after construction so this
@@ -64,14 +69,23 @@ export const createWorkerBus = (): WorkerBus => {
       componentIds: res.componentIds,
       netIndex,
       netsView: new Uint8Array(res.netsBuffer),
+      preserved: res.preserved,
     };
     bus.netIds = res.netIds;
     bus.componentIds = res.componentIds;
+    bus.waveform = res.waveform;
+    for (const h of waveformHandlers) h(res.waveform);
     return snapshot;
   };
 
   worker.addEventListener('message', (e: MessageEvent<WorkerRes>) => {
     const msg = e.data;
+    if (msg.type === 'waveform') {
+      bus.waveform = msg.snapshot;
+      try { for (const h of waveformHandlers) h(msg.snapshot); }
+      finally { worker.postMessage({ type: 'waveform_ack', id: 0, sequence: msg.sequence } satisfies WorkerReq); }
+      return;
+    }
     if (msg.type === 'event') {
       for (const h of eventHandlers) h(msg);
       return;
@@ -110,9 +124,9 @@ export const createWorkerBus = (): WorkerBus => {
       return adoptSnapshot(res);
     },
 
-    async mutate(circuit) {
+    async mutate(circuit, preserveProbeEdits) {
       const id = nextId++;
-      const res = await send<LoadRes>({ type: 'mutate', id, circuit });
+      const res = await send<LoadRes>({ type: 'mutate', id, circuit, preserveProbeEdits });
       return adoptSnapshot(res);
     },
 
@@ -142,6 +156,10 @@ export const createWorkerBus = (): WorkerBus => {
     },
 
     on(event, handler) {
+      if (event === 'waveform') {
+        const h = handler as (snapshot: WaveformSnapshot | null) => void;
+        waveformHandlers.add(h); return () => { waveformHandlers.delete(h); };
+      }
       if (event === 'metrics') {
         const h = handler as (e: MetricsNotif) => void;
         metricsHandlers.add(h); return () => { metricsHandlers.delete(h); };

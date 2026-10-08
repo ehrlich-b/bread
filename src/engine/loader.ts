@@ -11,6 +11,7 @@ import type {
   RuntimeNet,
 } from './ir';
 import { getPrimitive } from './primitives/index';
+import { validateProbes } from './probes';
 
 // Resolve a component type to its leaf evaluator (primitive or behavioral).
 // Composites are flattened away before this is called.
@@ -45,9 +46,11 @@ export function loadCircuit(json: CircuitJSON, opts: LoadOptions = {}): RuntimeG
   const definitions = projectComposites(json);
   // Validate unused chips too: reopening a file must not hide a broken library.
   for (const def of definitions.values()) {
-    buildRuntime(flatten(def, [def.name], definitions), opts);
+    validateProbes(def.probes, buildRuntime(flatten(def, [def.name], definitions), opts));
   }
-  return buildRuntime(flatten(json, [], definitions), opts);
+  const graph = buildRuntime(flatten(json, [], definitions), opts);
+  validateProbes(json.probes, graph);
+  return graph;
 }
 
 function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
@@ -284,6 +287,7 @@ function flatten(input: CircuitJSON, importChain: string[], definitions: Map<str
     components: outComponents,
     nets: outNets,
     ports: input.ports,
+    probes: input.probes,
     metadata: input.metadata,
   };
 }

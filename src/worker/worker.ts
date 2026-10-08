@@ -9,6 +9,7 @@
 import '../engine/behavioral/index';
 import type { NetState, RuntimeGraph } from '../engine/ir';
 import { loadCircuit } from '../engine/loader';
+import { ProbeCapture, validateProbes } from '../engine/probes';
 import '../engine/primitives/index';
 import { Simulator, type SimEvent } from '../engine/sim';
 import '../stdlib/index';
@@ -20,6 +21,11 @@ import {
 } from './protocol';
 
 let sim: Simulator | null = null;
+let capture: ProbeCapture | null = null;
+let circuitSignature = '';
+let lastWaveformMs = 0;
+let waveformSequence = 0;
+let pendingWaveform: number | null = null;
 let graph: RuntimeGraph | null = null;
 let netsBuffer: SharedArrayBuffer | null = null;
 let netsView: Uint8Array | null = null;
@@ -58,6 +64,15 @@ const writeNets = (): void => {
   }
 };
 
+const reportWaveform = (force = false): void => {
+  if (!capture || (!force && pendingWaveform !== null)) return;
+  const now = performance.now();
+  if (!force && now - lastWaveformMs < 100) return;
+  pendingWaveform = ++waveformSequence;
+  post({ type: 'waveform', sequence: pendingWaveform, snapshot: capture.snapshot() });
+  lastWaveformMs = now;
+};
+
 const reportEvent = (event: SimEvent): void => {
   post({ type: 'event', kind: event.kind, detail: event.detail, step: event.step });
 };
@@ -68,9 +83,16 @@ const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
   const nextGraph = loadCircuit(req.circuit);
   const nextSim = new Simulator(nextGraph, { rateHz: nextRate, onEvent: reportEvent });
   nextSim.settle();
+  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph) : null;
+  nextCapture?.record(0, nextGraph.netValues);
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
   sim = nextSim;
+  capture = nextCapture;
+  pendingWaveform = null;
+  const { probes: _probes, ...body } = req.circuit;
+  circuitSignature = JSON.stringify(body);
+  lastWaveformMs = performance.now();
   targetRateHz = nextRate;
   stepBudget = 0;
   lastLoopTimeMs = performance.now();
@@ -86,6 +108,7 @@ const handleLoad = (req: Extract<WorkerReq, { type: 'load' }>): void => {
     netIds: graph.nets.map((n) => n.id),
     componentIds: graph.components.map((c) => c.id),
     netsBuffer,
+    waveform: capture?.snapshot() ?? null,
   });
 };
 
@@ -111,6 +134,7 @@ const handleRun = (req: Extract<WorkerReq, { type: 'run' }>): void => {
 const handlePause = (req: Extract<WorkerReq, { type: 'pause' }>): void => {
   running = false;
   loopGeneration++;
+  reportWaveform(true);
   reportMetrics(true);
   post({ type: 'ack', id: req.id });
 };
@@ -119,6 +143,8 @@ const handleStep = (req: Extract<WorkerReq, { type: 'step' }>): void => {
   if (!sim) throw new Error('step before load');
   sim.tick();
   ticksTotal++;
+  capture?.record(ticksTotal, sim.graph.netValues);
+  reportWaveform(true);
   writeNets();
   reportMetrics(true);
   post({ type: 'ack', id: req.id });
@@ -129,25 +155,46 @@ const handleSetInput = (req: Extract<WorkerReq, { type: 'set_input' }>): void =>
   sim.setComponentInput(req.component, req.pin, req.value);
   // Settle right away so the change is visible to the UI even when paused.
   sim.settle();
+  capture?.record(ticksTotal, sim.graph.netValues);
+  reportWaveform(true);
   writeNets();
   post({ type: 'ack', id: req.id });
 };
 
 const handleMutate = (req: Extract<WorkerReq, { type: 'mutate' }>): void => {
+  // Probe-only edits preserve storage, switch inputs and simulated time.
+  const { probes: _nextProbes, ...nextBody } = req.circuit;
+  if (req.preserveProbeEdits && sim && graph && netsBuffer && JSON.stringify(nextBody) === circuitSignature) {
+    validateProbes(req.circuit.probes, graph);
+    const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, graph) : null;
+    nextCapture?.record(ticksTotal, graph.netValues);
+    capture = nextCapture;
+    pendingWaveform = null;
+    lastWaveformMs = performance.now();
+    post({ type: 'load_res', id: req.id, netIds: graph.nets.map(n => n.id), componentIds: graph.components.map(c => c.id), netsBuffer, waveform: capture?.snapshot() ?? null, preserved: true });
+    return;
+  }
   // A rejected candidate leaves both the old graph and its run loop intact.
   const nextGraph = loadCircuit(req.circuit);
   const nextSim = new Simulator(nextGraph, { rateHz: targetRateHz, onEvent: reportEvent });
   nextSim.settle();
+  const nextCapture = req.circuit.probes?.length ? new ProbeCapture(req.circuit.probes, nextGraph) : null;
+  nextCapture?.record(0, nextGraph.netValues);
   const nextBuffer = new SharedArrayBuffer(nextGraph.nets.length);
   graph = nextGraph;
   sim = nextSim;
+  capture = nextCapture;
+  pendingWaveform = null;
+  const { probes: _probes, ...body } = req.circuit;
+  circuitSignature = JSON.stringify(body);
+  lastWaveformMs = performance.now();
   netsBuffer = nextBuffer;
   netsView = new Uint8Array(nextBuffer);
   stepBudget = 0;
   lastLoopTimeMs = performance.now();
   writeNets();
   resetMetrics();
-  post({ type: 'load_res', id: req.id, netIds: graph.nets.map((n) => n.id), componentIds: graph.components.map((c) => c.id), netsBuffer });
+  post({ type: 'load_res', id: req.id, netIds: graph.nets.map((n) => n.id), componentIds: graph.components.map((c) => c.id), netsBuffer, waveform: capture?.snapshot() ?? null });
   // A running worker already has a scheduled loop. Scheduling another here
   // creates an additional timer chain after every edit.
 };
@@ -156,6 +203,8 @@ const handleSetNetInput = (req: Extract<WorkerReq, { type: 'set_net_input' }>): 
   if (!sim) throw new Error('set_net_input before load');
   sim.setInput(req.net, req.value);
   sim.settle();
+  capture?.record(ticksTotal, sim.graph.netValues);
+  reportWaveform(true);
   writeNets();
   post({ type: 'ack', id: req.id });
 };
@@ -172,14 +221,23 @@ const loop = (generation: number): void => {
   const wanted = Math.min(Math.floor(stepBudget), MAX_BATCH);
   const deadline = now + BATCH_BUDGET_MS;
   let ticks = 0;
-  for (; ticks < wanted; ticks++) {
-    sim.tick();
-    if ((ticks + 1) % 32 === 0 && performance.now() >= deadline) { ticks++; break; }
+  if (capture) {
+    for (; ticks < wanted; ticks++) {
+      sim.tick();
+      capture.record(ticksTotal + ticks + 1, sim.graph.netValues);
+      if ((ticks + 1) % 32 === 0 && performance.now() >= deadline) { ticks++; break; }
+    }
+  } else {
+    for (; ticks < wanted; ticks++) {
+      sim.tick();
+      if ((ticks + 1) % 32 === 0 && performance.now() >= deadline) { ticks++; break; }
+    }
   }
   ticksTotal += ticks;
   stepBudget -= ticks;
   writeNets();
   reportMetrics();
+  reportWaveform();
   // setTimeout(0) yields ~4ms in browsers, which gives plenty of room for
   // even 1 kHz tick rates and keeps message handling responsive.
   setTimeout(() => loop(generation), 0);
@@ -195,6 +253,9 @@ const onMessage = (req: WorkerReq): void => {
       case 'set_input': handleSetInput(req); break;
       case 'set_net_input': handleSetNetInput(req); break;
       case 'mutate': handleMutate(req); break;
+      case 'waveform_ack':
+        if (pendingWaveform === req.sequence) pendingWaveform = null;
+        break;
       default: {
         const x: never = req;
         throw new Error(`unknown request: ${JSON.stringify(x)}`);

@@ -5,7 +5,7 @@
 // 200_000 ticks/s. The bench reports sim ticks/s so the headroom against the
 // target is direct.
 //
-// Run: `npx tsx scripts/bench_eater.ts [iters]`
+// Run: `node --import tsx scripts/bench_eater.ts [iters] [probes: 0|8]`
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -14,6 +14,7 @@ import '../src/engine/behavioral/index';
 import '../src/engine/primitives/index';
 import type { CircuitJSON } from '../src/engine/ir';
 import { loadCircuit } from '../src/engine/loader';
+import { ProbeCapture } from '../src/engine/probes';
 import { Simulator } from '../src/engine/sim';
 import '../src/stdlib/index';
 
@@ -23,6 +24,8 @@ const circuit = JSON.parse(readFileSync(path, 'utf8')) as CircuitJSON;
 
 const ITERS = Number(process.argv[2] ?? 200_000);
 const WARMUP = 20_000;
+const probeCount = Number(process.argv[3] ?? 0);
+if (probeCount !== 0 && probeCount !== 8) throw new Error('Probe count must be 0 or 8');
 
 const sim = new Simulator(loadCircuit(circuit));
 sim.settle();
@@ -31,10 +34,21 @@ sim.settle();
 
 console.log(`graph: ${String(sim.graph.components.length)} components, ${String(sim.graph.nets.length)} nets`);
 
-for (let i = 0; i < WARMUP; i++) sim.tick();
+const probes = Array.from({ length: probeCount }, (_, bit) => ({ id: `p${bit}`, label: `OUT${bit}`, nets: [`display__${bit < 4 ? 'nlo' : 'nhi'}${bit % 4}`] }));
+const capture = probes.length ? new ProbeCapture(probes, sim.graph) : null;
+console.log(`probes: ${probeCount} (bounded per-tick capture; no UI snapshot cost)`);
+if (capture) {
+  for (let i = 0; i < WARMUP; i++) { sim.tick(); capture.record(i, sim.graph.netValues); }
+} else {
+  for (let i = 0; i < WARMUP; i++) sim.tick();
+}
 
 const t0 = performance.now();
-for (let i = 0; i < ITERS; i++) sim.tick();
+if (capture) {
+  for (let i = 0; i < ITERS; i++) { sim.tick(); capture.record(WARMUP + i, sim.graph.netValues); }
+} else {
+  for (let i = 0; i < ITERS; i++) sim.tick();
+}
 const dt = performance.now() - t0;
 
 const tickRate = (ITERS / dt) * 1000;
