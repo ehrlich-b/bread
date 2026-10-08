@@ -82,12 +82,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   fileInput.addEventListener('change', () => {
     const file = fileInput.files?.[0];
     if (!file) return;
-    void file
-      .text()
-      .then((text) => {
-        const circuit = JSON.parse(text) as CircuitJSON;
-        return editor.replaceCircuit(circuit);
-      })
+    void editor.loadCircuit(file.text().then((text) => JSON.parse(text) as CircuitJSON))
       .catch((err: unknown) => {
         const msg = err instanceof Error ? err.message : String(err);
         editor.reportError(msg);
@@ -251,16 +246,15 @@ const openCircuit = async (editor: EditorModel, fallbackInput: HTMLInputElement)
   const ofp = getOpenFilePicker();
   if (ofp) {
     try {
-      const [handle] = await ofp({
+      await editor.loadCircuit(ofp({
         types: [
           { description: 'Bread circuit', accept: { 'application/json': ['.json'] } },
         ],
-      });
-      if (!handle) return;
-      const file = await handle.getFile();
-      const text = await file.text();
-      const circuit = JSON.parse(text) as CircuitJSON;
-      await editor.replaceCircuit(circuit);
+      }).then(async ([handle]) => {
+        if (!handle) return null;
+        const file = await handle.getFile();
+        return JSON.parse(await file.text()) as CircuitJSON;
+      }));
       return;
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
