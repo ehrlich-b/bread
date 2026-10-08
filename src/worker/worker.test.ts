@@ -167,6 +167,50 @@ it('captures every tick in bursts, pause and step, and preserves live inputs on 
   expect(new Uint8Array(reopened.netsBuffer)[0]).toBe(0);
 });
 
+it.each([100, 2000])('aligns clock and 555 waveform edges after changing the tick rate to %i Hz', async rateHz => {
+  let receive!: (e: { data: WorkerReq }) => void;
+  const messages: WorkerRes[] = [];
+  vi.stubGlobal('self', { addEventListener: (_: string, fn: typeof receive) => { receive = fn; }, postMessage: (m: WorkerRes) => messages.push(m) });
+  const microtasks: Array<() => void> = []; const timers: Array<() => void> = [];
+  vi.stubGlobal('queueMicrotask', (fn: () => void) => microtasks.push(fn));
+  vi.stubGlobal('setTimeout', (fn: () => void) => { timers.push(fn); return timers.length; });
+  let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
+  await import('./worker');
+  const circuit: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'clock phases',
+    components: [{ id: 'clock', type: 'gen.clock', params: { freqHz: 1 } }, { id: 'timer', type: 'gen.555', params: { freqHz: 1 } }],
+    nets: [{ id: 'clock', endpoints: ['clock.Y'] }, { id: 'timer', endpoints: ['timer.OUT'] }],
+    probes: [{ id: 'clock', label: 'clock', nets: ['clock'] }, { id: 'timer', label: 'timer', nets: ['timer'] }],
+  };
+  receive({ data: { type: 'load', id: 1, circuit, rateHz: 1000 } });
+  receive({ data: { type: 'run', id: 2, rateHz: 1000 } });
+  now = 250; microtasks.shift()!();
+  receive({ data: { type: 'pause', id: 3 } }); timers.shift()!();
+  receive({ data: { type: 'run', id: 4, rateHz } });
+  now = 500; microtasks.shift()!();
+  receive({ data: { type: 'pause', id: 5 } }); timers.shift()!();
+  const rising = messages.filter(m => m.type === 'waveform').at(-1);
+  if (rising?.type !== 'waveform') throw new Error('missing rising edge capture');
+  const edgeTick = 250 + rateHz / 4;
+  expect(rising.snapshot.ticks.at(-1)).toBe(edgeTick);
+  expect(Array.from(rising.snapshot.values)).toEqual([...Array(edgeTick * 2).fill(0), 1, 1]);
+  receive({ data: { type: 'run', id: 6, rateHz } });
+  now = 750; microtasks.shift()!();
+  now = 1000; timers.shift()!();
+  receive({ data: { type: 'pause', id: 7 } }); timers.shift()!();
+  const falling = messages.filter(m => m.type === 'waveform').at(-1);
+  if (falling?.type !== 'waveform') throw new Error('missing falling edge capture');
+  const fallTick = edgeTick + rateHz / 2;
+  expect(falling.snapshot.ticks).toHaveLength(fallTick + 1);
+  expect(Array.from(falling.snapshot.ticks)).toEqual(Array.from({ length: fallTick + 1 }, (_, tick) => tick));
+  expect(Array.from(falling.snapshot.values)).toEqual(Array.from({ length: fallTick + 1 }, (_, tick) => tick >= edgeTick && tick < fallTick ? [1, 1] : [0, 0]).flat());
+  receive({ data: { type: 'step', id: 8 } });
+  const stepped = messages.filter(m => m.type === 'waveform').at(-1);
+  if (stepped?.type !== 'waveform') throw new Error('missing stepped capture');
+  expect(stepped.snapshot.ticks.at(-1)).toBe(fallTick + 1);
+  expect(Array.from(stepped.snapshot.values.slice(-2))).toEqual([0, 0]);
+});
+
 
 it('bounds queued waveform notifications while retaining every tick until the UI acknowledges delivery', async () => {
   let receive!: (e: { data: WorkerReq }) => void;
