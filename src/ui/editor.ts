@@ -288,10 +288,14 @@ export class EditorModel {
       const definition: CircuitJSON = { ...body, name: doc.editing, kind: 'composite', metadata: { ...body.metadata, revision: Number(previous?.metadata?.revision ?? 1) + 1 } };
       const definitions = (library ?? []).map((d) => d.name === doc.editing ? definition : d);
       const project = reconcileProbes(doc.project, { ...doc.project, definitions });
-      const changes = (doc.project.probes ?? []).flatMap(probe => {
-        const next = project.probes?.find(p => p.id === probe.id);
-        if (!next) return [`removed ${probe.label}`];
-        return probe.nets.some((net, bit) => net !== next.nets[bit]) ? [`retargeted ${probe.label}`] : [];
+      const changes = [doc.project, ...(doc.project.definitions ?? [])].flatMap(previous => {
+        const saved = previous === doc.project ? project : project.definitions?.find(def => def.name === previous.name);
+        return (previous.probes ?? []).flatMap(probe => {
+          const next = saved?.probes?.find(p => p.id === probe.id);
+          const label = previous === doc.project ? probe.label : `${previous.name}: ${probe.label}`;
+          if (!next) return [`removed ${label}`];
+          return probe.nets.some((net, bit) => net !== next.nets[bit]) ? [`retargeted ${label}`] : [];
+        });
       });
       return { project, draft: null, editing: null, note: changes.length ? `Updated parent probes: ${changes.join('; ')}. Undo restores the previous chip and probes.` : undefined };
     });
