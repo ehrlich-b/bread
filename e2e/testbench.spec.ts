@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
-import fullAdder from '../examples/full_adder.json';
-import fullBench from '../examples/testbenches/full_adder.json';
-import sapBench from '../examples/testbenches/sap1_fibonacci.json';
+import fullAdder from '../examples/full_adder.json' with { type: 'json' };
+import fullBench from '../examples/testbenches/full_adder.json' with { type: 'json' };
+import sapBench from '../examples/testbenches/sap1_fibonacci.json' with { type: 'json' };
 
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const status = (page: Page) => page.getByLabel('Testbench result', { exact: true });
