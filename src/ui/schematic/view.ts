@@ -25,6 +25,7 @@ import type { LoadSnapshot } from '../bus';
 import type { EditorModel } from '../editor';
 import { runtimeSignalNet } from '../inspector/signals';
 import { showBusDialog } from '../bus_dialog';
+import { shortcutBlocked } from '../shortcuts';
 import { resolveRenderer, type PinOffset } from './renderers';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -398,18 +399,13 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
 
   // ---- Document-level keyboard ----------------------------------------
   const onKey = (e: KeyboardEvent): void => {
-    // A dialog owns its keyboard input; canvas shortcuts must not edit the
-    // circuit behind the bus mapping or JSON/chip dialogs.
-    if (document.querySelector('dialog[open]')) return;
+    if (shortcutBlocked(e) || e.repeat || e.altKey) return;
     if (e.key === 'Escape') {
+      e.preventDefault();
       cancelWire();
       if (editor.state.placement) editor.clearPlacement();
       if (editor.state.probing) editor.setProbing(null);
-      return;
-    }
-    // Don't steal keys while the user is typing in an input.
-    const ae = document.activeElement;
-    if (ae instanceof HTMLInputElement || ae instanceof HTMLTextAreaElement || ae instanceof HTMLSelectElement) {
+      if (editor.state.busWiring) editor.setBusWiring(false);
       return;
     }
     // Undo / redo. Cmd-Z / Ctrl-Z, Cmd-Shift-Z / Ctrl-Shift-Z. Also Ctrl-Y
@@ -417,14 +413,18 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     const mod = e.metaKey || e.ctrlKey;
     if (mod && (e.key === 'z' || e.key === 'Z')) {
       e.preventDefault();
-      if (e.shiftKey) void editor.redo();
-      else void editor.undo();
+      if (e.shiftKey) void editor.redo().catch(() => {});
+      else void editor.undo().catch(() => {});
       return;
     }
     if (mod && (e.key === 'y' || e.key === 'Y')) {
       e.preventDefault();
-      void editor.redo();
+      void editor.redo().catch(() => {});
       return;
+    }
+    if (mod) return;
+    if (e.key === 'f' || e.key === 'F') {
+      e.preventDefault(); fit.click(); return;
     }
     // Zoom controls. Center the zoom on the viewBox midpoint so a centered
     // circuit stays centered. `0` resets the view.
@@ -454,13 +454,13 @@ const renderOnce = (host: HTMLElement, editor: EditorModel): (() => void) => {
     if (sel.size === 0) return;
     if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      for (const id of sel) void editor.removeComponent(id);
+      for (const id of sel) void editor.removeComponent(id).catch(() => {});
       return;
     }
     if (e.key === 'r' || e.key === 'R') {
       e.preventDefault();
       for (const id of sel) {
-        void editor.rotateComponent(id);
+        void editor.rotateComponent(id).catch(() => {});
       }
     }
   };

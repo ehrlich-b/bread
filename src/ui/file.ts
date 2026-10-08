@@ -19,6 +19,7 @@ import registerBus from '../../examples/register_bus_4bit.json';
 import rippleAdder from '../../examples/ripple_adder_4bit.json';
 import type { CircuitJSON } from '../engine/ir';
 import type { EditorModel } from './editor';
+import { mountShareControls } from './share';
 
 interface BundledExample {
   key: string;
@@ -180,6 +181,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   });
 
   host.append(newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput);
+  const disposeShare = mountShareControls(host, editor, name => EXAMPLES.find(e => e.key === name)?.circuit);
   const refresh = (): void => {
     for (const control of [newBtn, saveBtn, downloadBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
   };
@@ -187,6 +189,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
 
   return () => {
     unsub();
+    disposeShare();
     jsonDialog.remove();
     pasteDialog.remove();
     host.innerHTML = '';

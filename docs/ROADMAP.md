@@ -98,6 +98,8 @@ Implemented:
 - [Reusable chip authoring](CHIP_AUTHORING.md): select fragments, name ports, nest/edit/test definitions and save project libraries.
 - Atomic bus connections with bit-mapping preview; configurable word ROMs and live binary/hex readouts.
 - Fit circuit and editable labels that persist through save/reopen.
+- [Permalink sharing](../README.md#sharing-circuits) with raw-deflate/base64url version-1 hashes, damage detection, validated and ordered loads, named example links and a 16,000-character full-URL limit. Seven bundled circuit links fit; the original Digital CPU uses JSON export or its named example link.
+- [Keyboard shortcuts](../README.md#keyboard-shortcuts) for run/pause, step, undo/redo, deletion, rotation, mode cancellation, fit and help, guarded while typing or using dialogs.
 - Canvas net/bus probes saved in version-1 JSON, with undo/redo; an 8,192-tick waveform ring, distinct 0/1/X/Z traces, hex bus segments, zoom, scroll and a tick cursor integrated with run/pause/step. Probe-only edits preserve running state; capture is absent with no probes.
 - [Declarative testbench files](TESTBENCH.md): schema-validated JSON signal bindings, four-state vectors and masks, clock pulses, bounded edge waits and exhaustive loops. Node CLI and worker-backed UI panel share the engine runner; adder, register/bus and SAP-1 Fibonacci corpus runs in Vitest.
 
@@ -109,8 +111,8 @@ and rendering; the simulator tick path is unchanged when no probes exist.
 Planned:
 
 - Grouped wire rendering.
-- Best-effort Verilog export, permalink sharing.
-- More keyboard shortcuts and an Eater CPU tutorial.
+- Best-effort Verilog export.
+- An Eater CPU tutorial.
 
 ## Later possibilities
 

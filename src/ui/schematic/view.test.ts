@@ -42,13 +42,14 @@ class TestElement extends EventTarget {
     }
     return null;
   }
+  remove(): void {}
   click(): void { this.dispatchEvent(new Event('click')); }
 }
 
 const mount = (circuit: CircuitJSON) => {
   const document = new TestElement();
   vi.stubGlobal('document', Object.assign(document, {
-    createElementNS: () => new TestElement(), createElement: () => new TestElement(),
+    body: new TestElement(), createElementNS: () => new TestElement(), createElement: () => new TestElement(),
   }));
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
   vi.stubGlobal('cancelAnimationFrame', vi.fn());

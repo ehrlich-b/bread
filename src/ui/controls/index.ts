@@ -3,6 +3,7 @@
 // Undo / Redo update their `disabled` state from editor stack depth.
 
 import type { EditorModel } from '../editor';
+import { SHORTCUTS, shortcutBlocked } from '../shortcuts';
 import { MAX_RATE_HZ, validateRateHz } from '../../worker/protocol';
 
 const button = (label: string, onClick: () => void): HTMLButtonElement => {
@@ -26,25 +27,36 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
   status.setAttribute('aria-label', 'Simulation throughput');
   status.textContent = 'Waiting for simulation rate';
   const error = document.createElement('span'); error.setAttribute('role', 'alert');
+  let running = false;
+  let reportedRunning = false;
+  let pendingTransport = 0;
+  const transport = (nextRunning: boolean, action: () => Promise<void>): void => {
+    running = nextRunning; pendingTransport++;
+    void action().catch((reason: unknown) => {
+      error.textContent = reason instanceof Error ? reason.message : String(reason);
+    }).finally(() => {
+      if (--pendingTransport === 0) running = reportedRunning;
+    });
+  };
   const runBtn = button('Run', () => {
     try {
       const rate = validateRateHz(Number(rateInput.value));
       error.textContent = '';
-      void editor.run(rate).catch((e: unknown) => { error.textContent = e instanceof Error ? e.message : String(e); });
+      transport(true, () => editor.run(rate));
     } catch (e) { error.textContent = e instanceof Error ? e.message : String(e); }
   });
   const pauseBtn = button('Pause', () => {
-    void editor.pause().catch(() => {});
+    transport(false, () => editor.pause());
   });
   const stepBtn = button('Step', () => {
     void editor.step().catch(() => {});
   });
   const undoBtn = button('Undo', () => {
-    void editor.undo();
+    void editor.undo().catch(() => {});
   });
   undoBtn.dataset.action = 'undo';
   const redoBtn = button('Redo', () => {
-    void editor.redo();
+    void editor.redo().catch(() => {});
   });
   redoBtn.dataset.action = 'redo';
   const busBtn = button('Connect bus', () => editor.setBusWiring(!editor.state.busWiring));
@@ -54,6 +66,33 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
   const probeHint = document.createElement('span'); probeHint.className = 'bus-hint';
   const busHint = document.createElement('span'); busHint.className = 'bus-hint';
   busHint.textContent = 'Bus wiring: click the lowest bit on two components, then confirm the mapping.';
+
+  const help = document.createElement('dialog'); help.className = 'chip-dialog shortcuts-dialog';
+  help.setAttribute('aria-label', 'Keyboard shortcuts');
+  const title = document.createElement('h2'); title.textContent = 'Keyboard shortcuts';
+  const table = document.createElement('table');
+  for (const [keys, action] of SHORTCUTS) {
+    const row = document.createElement('tr');
+    const keyCell = document.createElement('td'); keyCell.textContent = keys;
+    const actionCell = document.createElement('td'); actionCell.textContent = action;
+    row.append(keyCell, actionCell); table.append(row);
+  }
+  const hint = document.createElement('p'); hint.textContent = 'Shortcuts are disabled while typing or while a dialog is open.';
+  const closeHelp = button('Close shortcuts', () => help.close());
+  help.append(title, table, hint, closeHelp); document.body.append(help);
+  const showHelp = button('Keyboard shortcuts', () => help.showModal());
+  const onKey = (event: KeyboardEvent): void => {
+    if (shortcutBlocked(event) || event.repeat || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key === ' ') {
+      event.preventDefault();
+      if (running) pauseBtn.click(); else runBtn.click();
+    } else if (event.key === '.') {
+      event.preventDefault(); stepBtn.click();
+    } else if (event.key === '?') {
+      event.preventDefault(); showHelp.click();
+    }
+  };
+  document.addEventListener('keydown', onKey);
 
   const refresh = (): void => {
     undoBtn.disabled = !editor.canUndo();
@@ -67,8 +106,10 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
   };
   refresh();
 
-  host.append(runBtn, pauseBtn, stepBtn, undoBtn, redoBtn, busBtn, busHint, probeNet, probeBus, probeHint, rateLabel, status, error);
+  host.append(runBtn, pauseBtn, stepBtn, undoBtn, redoBtn, busBtn, busHint, probeNet, probeBus, probeHint, rateLabel, status, error, showHelp);
   const unsubMetrics = editor.bus.on('metrics', (m) => {
+    reportedRunning = m.running;
+    if (pendingTransport === 0) running = reportedRunning;
     status.textContent = `${m.running ? 'Running' : 'Paused'} · requested ${m.targetRateHz.toLocaleString()} ticks/s · measured ${Math.round(m.actualRateHz).toLocaleString()} ticks/s · ${m.ticks.toLocaleString()} ticks`;
   });
 
@@ -77,5 +118,7 @@ export const mountControls = (host: HTMLElement, editor: EditorModel): (() => vo
     host.innerHTML = '';
     unsub();
     unsubMetrics();
+    document.removeEventListener('keydown', onKey);
+    help.remove();
   };
 };
