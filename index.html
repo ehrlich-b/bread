@@ -12,18 +12,42 @@
       <span id="iso-status"></span>
     </header>
     <main>
-      <section id="tutorial" hidden></section>
-      <nav id="palette" aria-label="component palette"></nav>
+      <details class="workspace-panel panel-tutorial" open>
+        <summary>Tutorial lesson</summary>
+        <section id="tutorial" hidden></section>
+      </details>
+      <details class="workspace-panel panel-palette" open>
+        <summary>Components</summary>
+        <nav id="palette" aria-label="component palette"></nav>
+      </details>
       <section id="schematic"></section>
       <aside>
         <div id="controls"></div>
-        <div id="file"></div>
-        <div id="chips"></div>
-        <div id="inspector"></div>
-        <div id="testbench"></div>
-        <ul id="event-log" aria-label="simulator events"></ul>
+        <details class="workspace-panel panel-file" open>
+          <summary>Files and examples</summary>
+          <div id="file"></div>
+        </details>
+        <details class="workspace-panel panel-chips" open>
+          <summary>My chips</summary>
+          <div id="chips"></div>
+        </details>
+        <details class="workspace-panel panel-inspector" open>
+          <summary>Inspector</summary>
+          <div id="inspector"></div>
+        </details>
+        <details class="workspace-panel panel-testbench" open>
+          <summary>Testbench</summary>
+          <div id="testbench"></div>
+        </details>
+        <details class="workspace-panel panel-events" open>
+          <summary>Simulator events</summary>
+          <ul id="event-log" aria-label="simulator events"></ul>
+        </details>
       </aside>
-      <section id="waveforms"></section>
+      <details class="workspace-panel panel-waveforms" open>
+        <summary>Waveforms</summary>
+        <section id="waveforms"></section>
+      </details>
     </main>
     <script type="module" src="/src/app/main.ts"></script>
   </body>
