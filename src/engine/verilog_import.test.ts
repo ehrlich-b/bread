@@ -93,6 +93,33 @@ describe('structural Verilog import', () => {
     expect(() => importVerilog(`${comments}module m(output y);\n  assign y = 1';\nendmodule`)).toThrow('Line 50002, column 14:');
     expect(performance.now() - start).toBeLessThan(3000);
   });
+  it.each(['\n', '\r\n'])('reports exact positions in continued statements and nested modules with %j lines', newline => {
+    const source = ['module leaf(input a, output y);', '  assign y =', '    (a &', '      missing);', 'endmodule',
+      'module middle(input a, output y); leaf child(a,y); endmodule',
+      'module main(input a, output y); middle child(a,y); endmodule'].join(newline);
+    expect(() => importVerilog(source)).toThrow('Line 4, column 7: undeclared signal missing');
+    expect(() => importVerilog(source.replace('missing', '%'))).toThrow('Line 4, column 7: unsupported character "%"');
+  });
+  it.each([false, true])('reports offending body tokens in checked cells (nested=%s)', nested => {
+    const leaf: CircuitJSON = { version: 1, kind: 'composite', name: 'user.Checked',
+      components: [{ id: 'zero', type: 'prim.CONST_0' }], nets: [{ id: 'q', endpoints: ['zero.Y'] }],
+      ports: [{ name: 'Y', dir: 'out', internalNet: 'q' }],
+    };
+    const source = exportVerilog(nested ? { version: 1, kind: 'circuit', name: 'test', definitions: [leaf],
+      components: [{ id: 'child', type: leaf.name }], nets: [{ id: 'q', endpoints: ['child.Y'] }],
+    } : { ...leaf, kind: 'circuit', name: 'test', ports: undefined }).source;
+    for (const newline of ['\n', '\r\n']) for (const [body, marker, message] of [
+      ["assign n_q =\n    1'b0%;", '%', 'unsupported character "%"'],
+      ["assign n_q =\n    1'b1;", "1'b1", 'modified/unsupported bread:cell'],
+      ['`define surprise 1\n  assign n_q = 1\'b0;', '`define', 'unsupported directive'],
+      ['/* unfinished\n  assign n_q = 1\'b0;', '/* unfinished', 'unterminated block comment'],
+      ['// bread:cell {}\n  assign n_q = 1\'b0;', '// bread:cell {}', 'nested bread:cell'],
+    ]) {
+      const modified = source.replace("assign n_q = 1'b0;", body!).replaceAll('\n', newline);
+      const before = modified.slice(0, modified.indexOf(marker!)).split('\n');
+      expect(() => importVerilog(modified)).toThrow(`Line ${before.length}, column ${before.at(-1)!.length + 1}: ${message}`);
+    }
+  });
   it('rejects exponential instance and net expansion before flattening', () => {
     const hierarchy = (depth: number, wide: boolean): string => {
       const modules = [`module m0(input a,output y); ${wide ? "wire [255:0] unused; assign unused = 256'b0;" : ''} buf g(y,a); endmodule`];
