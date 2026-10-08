@@ -130,8 +130,8 @@ const rotatePin = (p: PinOffset, sz: { w: number; h: number }, deg: number): Pin
   const dx = p.x - cx;
   const dy = p.y - cy;
   return {
-    x: cx + dx * cos + dy * sin,
-    y: cy - dx * sin + dy * cos,
+    x: cx + dx * cos - dy * sin,
+    y: cy + dx * sin + dy * cos,
   };
 };
 
