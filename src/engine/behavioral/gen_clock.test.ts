@@ -47,6 +47,21 @@ describe('gen.clock', () => {
     expect(() => new Simulator(loadCircuit(wrap(-1)))).toThrow(/freqHz must be positive/);
   });
 
+  it.each([100, 2000])('preserves simulated-time phase when the tick rate changes to %i Hz', rateHz => {
+    const sim = new Simulator(loadCircuit(wrap(1)), { rateHz: 1000 });
+    sim.settle();
+    expect(collect(sim, 250).every(value => value === 0)).toBe(true);
+    sim.rateHz = rateHz;
+    for (let i = 0; i < 1000; i++) sim.settle();
+    expect(collect(sim, rateHz / 4 - 1).every(value => value === 0)).toBe(true);
+    sim.tick(); expect(sim.readNet('out')).toBe(1); // 0.25 s + 0.25 s
+    expect(collect(sim, rateHz / 2 - 1).every(value => value === 1)).toBe(true);
+    sim.tick(); expect(sim.readNet('out')).toBe(0); // 1 s
+    sim.rateHz = 1000;
+    expect(collect(sim, 499).every(value => value === 0)).toBe(true);
+    sim.tick(); expect(sim.readNet('out')).toBe(1); // 1.5 s
+  });
+
   it('does not toggle when settle() is called without tick()', () => {
     const sim = new Simulator(loadCircuit(wrap(1)), { rateHz: 4 });
     sim.tick(); sim.tick(); sim.tick();   // halfPeriod boundary -> Y=1

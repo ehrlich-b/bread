@@ -1,8 +1,7 @@
 // gen.clock — idealized square-wave generator. params: { freqHz }. The output
 // toggles every halfPeriod ticks, where halfPeriod = max(1, round(rateHz /
 // freqHz / 2)). The simulator hands rateHz in via EvalCtx, so changing the
-// worker's tick rate at runtime adjusts the apparent clock frequency without
-// touching the component.
+// worker's tick rate rescales elapsed ticks to preserve simulated-time phase.
 
 import type { NetState, PrimitiveDef } from '../ir';
 import { registerBehavioral } from './registry';
@@ -13,7 +12,9 @@ interface ClockParams {
 
 interface ClockState {
   Y: NetState;
-  lastToggleStep: number;
+  lastStep: number;
+  elapsedSteps: number;
+  rateHz: number;
 }
 
 const halfPeriodSteps = (rateHz: number, freqHz: number): number => {
@@ -28,19 +29,22 @@ const genClock: PrimitiveDef<ClockState, ClockParams> = {
     if (!Number.isFinite(params.freqHz) || params.freqHz <= 0) {
       throw new Error(`gen.clock: freqHz must be positive, got ${String(params.freqHz)}`);
     }
-    return { Y: 0, lastToggleStep: 0 };
+    return { Y: 0, lastStep: 0, elapsedSteps: 0, rateHz: 1 };
   },
   evaluate(_inputs, outputs, state, params, ctx) {
     const step = ctx?.step ?? 0;
     const rateHz = ctx?.rateHz ?? 1;
+    outputs[0] = state.Y;
+    if (step === state.lastStep) return undefined;
+    const elapsed = state.elapsedSteps * (rateHz / state.rateHz) + (step - state.lastStep);
     const half = halfPeriodSteps(rateHz, params.freqHz);
-    if (step - state.lastToggleStep >= half) {
+    // Rate changes can leave fractional ticks; tolerate rescaling roundoff.
+    if (elapsed >= half - 1e-9) {
       const flipped: NetState = state.Y === 1 ? 0 : 1;
       outputs[0] = flipped;
-      return { Y: flipped, lastToggleStep: step };
+      return { Y: flipped, lastStep: step, elapsedSteps: 0, rateHz };
     }
-    outputs[0] = state.Y;
-    return undefined;
+    return { Y: state.Y, lastStep: step, elapsedSteps: elapsed, rateHz };
   },
 };
 

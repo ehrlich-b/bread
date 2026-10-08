@@ -1,5 +1,5 @@
 // gen.555 — idealized astable model of the NE555 timer. One output pin OUT,
-// one param freqHz. Same step-counted toggle as gen.clock but lives as its own
+// one param freqHz. Same phase-preserving toggle as gen.clock but lives as its own
 // chip so circuits authored against the real datasheet name (and the Eater
 // clock module) keep their identity. We do not model TRIG/THRESH/DISCH/CTRL —
 // those belong to the analog timing network, which sits below our four-state
@@ -15,7 +15,9 @@ interface Gen555Params {
 
 interface Gen555State {
   OUT: NetState;
-  lastToggleStep: number;
+  lastStep: number;
+  elapsedSteps: number;
+  rateHz: number;
 }
 
 const halfPeriodSteps = (rateHz: number, freqHz: number): number => {
@@ -30,19 +32,22 @@ const gen555: PrimitiveDef<Gen555State, Gen555Params> = {
     if (!Number.isFinite(params.freqHz) || params.freqHz <= 0) {
       throw new Error(`gen.555: freqHz must be positive, got ${String(params.freqHz)}`);
     }
-    return { OUT: 0, lastToggleStep: 0 };
+    return { OUT: 0, lastStep: 0, elapsedSteps: 0, rateHz: 1 };
   },
   evaluate(_inputs, outputs, state, params, ctx) {
     const step = ctx?.step ?? 0;
     const rateHz = ctx?.rateHz ?? 1;
+    outputs[0] = state.OUT;
+    if (step === state.lastStep) return undefined;
+    const elapsed = state.elapsedSteps * (rateHz / state.rateHz) + (step - state.lastStep);
     const half = halfPeriodSteps(rateHz, params.freqHz);
-    if (step - state.lastToggleStep >= half) {
+    // Rate changes can leave fractional ticks; tolerate rescaling roundoff.
+    if (elapsed >= half - 1e-9) {
       const flipped: NetState = state.OUT === 1 ? 0 : 1;
       outputs[0] = flipped;
-      return { OUT: flipped, lastToggleStep: step };
+      return { OUT: flipped, lastStep: step, elapsedSteps: 0, rateHz };
     }
-    outputs[0] = state.OUT;
-    return undefined;
+    return { OUT: state.OUT, lastStep: step, elapsedSteps: elapsed, rateHz };
   },
 };
 

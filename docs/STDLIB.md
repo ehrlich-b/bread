@@ -61,7 +61,7 @@ Things we don't model as primitive graphs.
 | `mem.28C16`    | M5      | 28C16   | 2K × 8 EEPROM. Storage as `Uint8Array(2048)`. Programmable via UI (paste hex, upload `.bin`). |
 | `mem.6116`     | shipped | 6116    | 2K × 8 SRAM. Storage as `Uint8Array(2048)`. Volatile; resets to 0 on power-on. Bidirectional `DQ0..7` pins; `/CE` `/OE` `/WE` truth table per datasheet. Writes with any X data bit are skipped. |
 | `mem.74LS189`  | shipped | 74LS189 | 16 × 4 RAM with **open-collector inverted outputs**. Storage as `Uint8Array(16)` (low 4 bits per byte). Outputs drive strong-0 when the stored bit is 1 and Z otherwise; the user adds an external pullup network (Eater wraps these in 74LS04s + pullups in his RAM module). Writes with any X data bit are skipped. |
-| `gen.555`      | shipped | 555     | Astable square-wave clock generator. Param: `freqHz`. Step-counted toggle keyed on the worker's current `rateHz`. RESET (datasheet pin 4) is treated as tied high; only the OUT pin is exposed. |
+| `gen.555`      | shipped | 555     | Astable square-wave clock generator. Param: `freqHz`. Preserves simulated-time phase when the worker's `rateHz` changes. RESET (datasheet pin 4) is treated as tied high; only the OUT pin is exposed. |
 | `gen.clock`    | shipped | —       | Idealized square-wave clock. Param: frequency in Hz. Used in tests and as the default clock for student circuits. |
 | `io.led`       | shipped | —       | One-pin LED. Renders color by input value (`0`=off, `1`=on, `Z`=dim, `X`=warning). |
 | `io.7seg`      | shipped | —       | 7-segment display sink. 8 input pins (a, b, c, d, e, f, g, dp); state holds the latched per-segment values. Common-anode vs common-cathode interpretation is a UI render concern, not a logic-level one. |
