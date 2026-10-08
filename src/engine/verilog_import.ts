@@ -20,9 +20,9 @@ function fail(t: Token, construct: string): never { throw new VerilogImportError
 const identifier = /^[A-Za-z_][A-Za-z0-9_$]*$/;
 const simpleIdentifier = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-function tokenize(source: string, budget = { count: 0 }): Token[] {
+function tokenize(source: string, budget = { count: 0 }, origin = { line: 1, column: 1 }): Token[] {
   const tokens: Token[] = [];
-  let offset = 0; let line = 1; let column = 1;
+  let offset = 0; let { line, column } = origin;
   const advance = (text: string): void => {
     const lines = text.split('\n');
     if (lines.length > 1) { line += lines.length - 1; column = lines.at(-1)!.length + 1; }
@@ -49,9 +49,13 @@ function tokenize(source: string, budget = { count: 0 }): Token[] {
       catch { fail(token, 'invalid bread:cell annotation'); }
       const end = rest.indexOf('// bread:endcell', endLine);
       if (end < 0) fail(token, 'unterminated bread:cell');
-      if (rest.slice(endLine + 1, end).includes('// bread:cell ')) fail(token, 'nested bread:cell is unsupported');
+      const nested = rest.indexOf('// bread:cell ', endLine);
+      if (nested >= 0 && nested < end) {
+        const lines = rest.slice(0, nested).split('\n');
+        fail({ text: 'bread:cell', line: line + lines.length - 1, column: lines.at(-1)!.length + 1 }, 'nested bread:cell is unsupported');
+      }
       token.text = 'bread:cell';
-      token.body = tokenize(rest.slice(endLine + 1, end), budget);
+      token.body = tokenize(rest.slice(endLine + 1, end), budget, { line: line + 1, column: 1 });
       tokens.push(token);
       advance(rest.slice(0, end + 16)); continue;
     }
@@ -364,8 +368,9 @@ class Builder {
       }, c.source);
       if (rendered.some(line => line.includes('Unsupported:'))) fail(t, `unsupported bread:cell ${c.type}`);
       const expected = tokenize(rendered.join('\n')).slice(0, -1).map(t => t.text);
-      const actual = t.body!.slice(0, -1).map(t => t.text);
-      if (actual.length !== expected.length || actual.some((text, i) => text !== expected[i])) fail(t, `modified/unsupported bread:cell ${c.type} body`);
+      const actual = t.body!;
+      const mismatch = actual.findIndex((token, i) => token.text !== (expected[i] ?? '<eof>'));
+      if (mismatch >= 0) fail(actual[mismatch]!, `modified/unsupported bread:cell ${c.type} body`);
       // Templates own their temporaries. No surrounding statement may reference
       // them, and pin bindings must refer to ordinary module declarations.
       for (const name of Object.values(c.temps)) {
