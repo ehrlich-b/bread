@@ -1,5 +1,5 @@
 // Ordinary imported-fixture regression; this is not manual construction.
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import originalCpu from '../examples/original_digital_cpu_generated.json' with { type: 'json' };
 
 test('original CALLRET program boots, outputs 1 through 10 and halts in the browser', async ({ page }) => {

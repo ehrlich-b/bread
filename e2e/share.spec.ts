@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import type { CircuitJSON } from '../src/engine/ir';
 import { encodeCircuit } from '../src/ui/permalink';
 

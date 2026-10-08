@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import fullAdder from '../examples/full_adder.json' with { type: 'json' };
 import fullBench from '../examples/testbenches/full_adder.json' with { type: 'json' };
 import sapBench from '../examples/testbenches/sap1_fibonacci.json' with { type: 'json' };

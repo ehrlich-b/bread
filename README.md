@@ -26,6 +26,8 @@ Requires Node.js 20+ and npm. Install dependencies with `npm ci`, then start Vit
 
 Run `npm run typecheck`, `npm test -- --maxWorkers=2 --minWorkers=1` and `npm run build` for local checks. For browser tests, install Chromium once with `npx playwright install chromium`, then run `npm run e2e`.
 
+When a local server cannot bind, run `npm run build && BREAD_E2E_IN_MEMORY=1 npm run e2e`. This runs the same specs against built files fulfilled by Playwright at a fake HTTPS origin, with no server or listening port. The default browser tests still use Vite.
+
 ## Sharing circuits
 
 Click **Share**, then **Copy link**, or copy the selected link manually. Opening

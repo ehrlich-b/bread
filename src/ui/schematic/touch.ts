@@ -10,9 +10,11 @@ interface TouchActions {
   cancel: () => void;
 }
 
-// Prefer the actual hit target. Outside a component, allow a finger to miss a
-// tiny pin by up to 14 screen pixels without enlarging densely packed SVG pins.
+// Chromium can adjust a body touch to a nearby clickable pin. Recover the
+// geometric hit before allowing near misses outside a component to find a pin.
 const touchTarget = (svg: SVGSVGElement, target: Element, point: TouchPoint): Element => {
+  const hit = svg.ownerDocument.elementFromPoint(point.x, point.y);
+  if (hit && svg.contains(hit)) target = hit;
   if (target.closest('[data-comp-id]')) return target;
   let nearest: Element = target; let radius = 14;
   for (const pin of svg.querySelectorAll('[data-pin]')) {
