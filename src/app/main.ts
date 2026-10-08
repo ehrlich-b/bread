@@ -14,6 +14,7 @@ import { mountInspector } from '../ui/inspector';
 import { mountPalette } from '../ui/palette';
 import { mountWaveform } from '../ui/waveform_view';
 import { mountTestbench } from '../ui/testbench';
+import { mountTutorial } from '../ui/tutorial_view';
 import { mountSchematic } from '../ui/schematic';
 
 const isoStatus = document.getElementById('iso-status')!;
@@ -48,7 +49,8 @@ const main = async (): Promise<void> => {
   mountTestbench(document.getElementById('testbench')!, editor);
 
   // Default to running so the LED actually blinks on first load.
-  await bus.run(1000);
+  await editor.run(1000);
+  mountTutorial(document.getElementById('tutorial')!, editor, document.getElementById('schematic')!);
 };
 
 main().catch((err: unknown) => {
