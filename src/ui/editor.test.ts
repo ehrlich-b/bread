@@ -6,6 +6,7 @@ import type { LoadSnapshot, WorkerBus } from './bus';
 import { EditorModel } from './editor';
 import fullBench from '../../examples/testbenches/full_adder.json';
 import { parseTestbench } from '../engine/testbench';
+import { decodeCircuit, encodeCircuit } from './permalink';
 
 // Model a worker round trip without a browser or app-state injection. Each
 // request validates the circuit through the real loader before it succeeds.
@@ -42,6 +43,34 @@ const setup = (): { editor: EditorModel; mutate: WorkerBus['mutate'] & ReturnTyp
 };
 
 describe('editor actions waiting for the worker', () => {
+  it.each(['JSON replacement', 'shared link'])('preserves the document and both history stacks after invalid layout from %s', async source => {
+    const { editor } = setup();
+    const initial = editor.project;
+    await editor.updateComponent('a', { label: 'kept' });
+    await editor.updateComponent('b', { label: 'redo target' });
+    await editor.undo();
+    editor.select('a');
+    const before = editor.state;
+    const invalid = { ...initial, name: 'invalid', components: [{ id: 'buf', type: 'prim.BUF', position: {} }] } as unknown as CircuitJSON;
+    const load = source === 'shared link'
+      ? editor.loadCircuit(decodeCircuit(await encodeCircuit(invalid)))
+      : editor.replaceCircuit(JSON.parse(JSON.stringify(invalid)) as CircuitJSON);
+    await expect(load).rejects.toThrow('component buf position');
+    expect(editor.project).toBe(before.circuit);
+    expect(editor.state.snapshot).toBe(before.snapshot);
+    expect(editor.state.selection).toBe(before.selection);
+    expect(editor.state.error).toContain('component buf position');
+    expect(editor.canUndo()).toBe(true);
+    expect(editor.canRedo()).toBe(true);
+    await editor.redo();
+    expect(editor.project.components[1]!.label).toBe('redo target');
+    await editor.undo();
+    expect(editor.project).toBe(before.circuit);
+    await editor.undo();
+    expect(editor.project).toBe(initial);
+    expect(editor.canUndo()).toBe(false);
+  });
+
   it('tests the document after earlier edits commit and before later edits, without changing its snapshot', async () => {
     const { editor, mutate } = setup();
     const calls: string[] = [];

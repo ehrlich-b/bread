@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CircuitJSON } from './ir';
-import { loadCircuit } from './loader';
+import { flattenCircuit, loadCircuit } from './loader';
 import './primitives/index';
 
 const minimal = (overrides: Partial<CircuitJSON> = {}): CircuitJSON => ({
@@ -175,5 +175,32 @@ describe('loadCircuit (errors)', () => {
         }),
       ),
     ).toThrow(/zero endpoints/);
+  });
+});
+
+describe('circuit layout validation', () => {
+  it.each([{}, null, 'bad', [], [0], [0, 0, 0], ['bad', 0], [0, null], [NaN, 0], [0, Infinity]].map(position => ({ position })))('rejects malformed position $position', ({ position }) => {
+    const circuit = minimal({ components: [{ id: 'buf', type: 'prim.BUF', position }] } as unknown as Partial<CircuitJSON>);
+    expect(() => loadCircuit(circuit)).toThrow('component buf position: expected [x, y] with finite numbers');
+    expect(() => flattenCircuit(circuit)).toThrow('component buf position');
+  });
+
+  it.each([null, '90', {}, [], NaN, Infinity].map(rotation => ({ rotation })))('rejects malformed rotation $rotation', ({ rotation }) => {
+    const circuit = minimal({ components: [{ id: 'buf', type: 'prim.BUF', rotation }] } as unknown as Partial<CircuitJSON>);
+    expect(() => loadCircuit(circuit)).toThrow('component buf rotation: expected a finite number');
+  });
+
+  it.each([null, {}, [null], [[0]], [[0, 'bad']], [[0, Infinity]]].map(waypoints => ({ waypoints })))('rejects malformed waypoints $waypoints', ({ waypoints }) => {
+    const circuit = minimal({ components: [{ id: 'buf', type: 'prim.BUF' }], nets: [{ id: 'wire', endpoints: ['buf.Y'], waypoints }] } as unknown as Partial<CircuitJSON>);
+    expect(() => loadCircuit(circuit)).toThrow('net wire waypoints: expected an array of [x, y] with finite numbers');
+  });
+
+  it('accepts omitted layout, finite fractional coordinates and existing rotation normalization', () => {
+    const circuit = minimal({
+      components: [{ id: 'buf', type: 'prim.BUF', position: [-0.25, 12.5], rotation: -90 }, { id: 'plain', type: 'prim.BUF' }],
+      nets: [{ id: 'wire', endpoints: ['buf.Y'], waypoints: [[-5.5, 0.25]] }],
+    });
+    expect(loadCircuit(circuit).components).toHaveLength(2);
+    expect(flattenCircuit(circuit).components).toEqual(circuit.components);
   });
 });
