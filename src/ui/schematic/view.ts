@@ -17,6 +17,7 @@
 //   data-role="pin"         — pin handle (clickable circle)
 //   data-pin="<id>.<pin>"   — the endpoint id, used by wire-drawing tests
 //   data-net-id="<id>"      — net id on every wire / junction belonging to it
+//   data-wire-net="<id>"    — net id on an invisible wire hit stroke
 //   polyline.wire           — every wire segment
 //   data-wire-group         — visual bundle identity; never a simulation net
 //   data-role="wire-bundle" — thick trunk with width and live value
@@ -386,7 +387,8 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
   svg.addEventListener('click', (e) => {
     if (editor.state.placement) return;
     const target = e.target as Element | null;
-    const netId = target?.closest('[data-net-id]')?.getAttribute('data-net-id');
+    const netId = target?.closest('[data-net-id]')?.getAttribute('data-net-id')
+      ?? target?.closest('[data-wire-net]')?.getAttribute('data-wire-net');
     if (editor.state.probing === 'net' && netId) {
       void editor.addNetProbe(netId).then(() => editor.setProbing(null)).catch(() => {});
       return;
@@ -673,7 +675,8 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
     };
     const id = target.closest('[data-comp-id]')?.getAttribute('data-comp-id');
     const endpoint = target.closest('[data-pin]')?.getAttribute('data-pin');
-    const net = target.closest('[data-net-id]')?.getAttribute('data-net-id');
+    const net = target.closest('[data-net-id]')?.getAttribute('data-net-id')
+      ?? target.closest('[data-wire-net]')?.getAttribute('data-wire-net');
     if (id) {
       button('Select', () => editor.select(id));
       button('Rotate', () => { void editor.rotateComponent(id).catch(() => {}); });
@@ -823,6 +826,15 @@ const buildWires = (
   const singles = [...model.singles];
   const probed = new Set(circuit.probes?.flatMap(probe => probe.nets));
 
+  // Hit strokes stay behind every visible wire and component. Their width
+  // is in screen pixels so touch targets remain usable when zoomed out.
+  const hitLayer = document.createElementNS(SVG_NS, 'g'); wireLayer.appendChild(hitLayer);
+  const addHit = (tag: 'path' | 'polyline', attr: 'd' | 'points', geometry: string, net: string): void => {
+    const hit = document.createElementNS(SVG_NS, tag);
+    hit.setAttribute(attr, geometry); hit.setAttribute('class', 'wire-hit');
+    hit.setAttribute('data-wire-net', net); hitLayer.appendChild(hit);
+  };
+
   const title = (el: SVGElement, text: string): SVGTitleElement => {
     const hint = document.createElementNS(SVG_NS, 'title'); hint.textContent = text; el.appendChild(hint);
     return hint;
@@ -879,7 +891,9 @@ const buildWires = (
       for (const branch of branches) addTrunk(branch.lanes, manhattanPath(branch.join, center));
     }
     group.nets.forEach((net, lane) => {
-      const path = document.createElementNS(SVG_NS, 'path'); path.setAttribute('d', paths[lane]!.join(' '));
+      const geometry = paths[lane]!.join(' ');
+      addHit('path', 'd', geometry, net.id);
+      const path = document.createElementNS(SVG_NS, 'path'); path.setAttribute('d', geometry);
       path.setAttribute('class', 'wire wire-Z'); path.dataset.role = 'wire-bit';
       path.setAttribute('data-net-id', net.id);
       title(path, `${net.id}: ${net.endpoints.join(' ↔ ')}`);
@@ -890,8 +904,10 @@ const buildWires = (
   for (const group of model.groups) addGroup(group);
 
   const addSegment = (net: { id: string }, netIdx: number, pts: PinOffset[]): void => {
+    const geometry = pointsAttr(pts);
+    addHit('polyline', 'points', geometry, net.id);
     const line = document.createElementNS(SVG_NS, 'polyline');
-    line.setAttribute('points', pointsAttr(pts));
+    line.setAttribute('points', geometry);
     line.setAttribute('class', 'wire wire-Z');
     line.setAttribute('data-net-id', net.id);
     if (probed.has(net.id)) line.dataset.probed = 'true';
