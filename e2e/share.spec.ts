@@ -93,6 +93,25 @@ test('a correctly encoded invalid circuit still goes through Open JSON validatio
   expect(await exported(page)).toEqual(before);
 });
 
+for (const location of ['component', 'chip library']) {
+  test(`a shared link rejects malformed layout in a ${location} and preserves history`, async ({ page }) => {
+    await openProject(page);
+    const invalid = structuredClone(project);
+    if (location === 'component') Object.assign(invalid.components[0]!, { position: {} });
+    else Object.assign(invalid.definitions![0]!.components[0]!, { position: {} });
+    const hash = await encodeCircuit(invalid);
+    await page.evaluate(hash => { window.location.hash = hash; }, hash);
+    await expect(page.getByRole('alert').filter({ hasText: 'Cannot open shared circuit' })).toContainText('position: expected [x, y] with finite numbers');
+    expect(await exported(page)).toEqual(project);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Redo', exact: true }).click();
+    await expect(page.locator('[data-comp-id="chip"]')).toBeVisible();
+    expect(await exported(page)).toEqual(project);
+  });
+}
+
 test('Share refuses impractical URLs and preserves the address and circuit', async ({ page }) => {
   await page.locator('select[data-file-action="examples"]').selectOption('original_digital_cpu_generated');
   await expect(page.locator('[data-comp-id="and"]')).toHaveCount(0);

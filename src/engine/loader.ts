@@ -20,6 +20,9 @@ const getLeaf = (typeId: string): PrimitiveDef<unknown, unknown> | undefined =>
 
 const SUPPORTED_VERSION = 1;
 
+const isPosition = (value: unknown): value is [number, number] =>
+  Array.isArray(value) && value.length === 2 && Number.isFinite(value[0]) && Number.isFinite(value[1]);
+
 export interface LoadOptions {
   // When true, throw on any pin that isn't wired to a net. When false (the
   // default), synthesize a floating per-pin net so the partial circuit can
@@ -244,12 +247,21 @@ function flatten(input: CircuitJSON, importChain: string[], definitions: Map<str
   // disguise duplicate instance IDs by giving only one of them a prefix.
   const componentIds = new Set<string>();
   for (const c of input.components) {
+    if (c.position !== undefined && !isPosition(c.position)) {
+      throw new Error(`component ${c.id} position: expected [x, y] with finite numbers`);
+    }
+    if (c.rotation !== undefined && !Number.isFinite(c.rotation)) {
+      throw new Error(`component ${c.id} rotation: expected a finite number`);
+    }
     if (componentIds.has(c.id)) throw new Error(`duplicate component id: ${c.id} in ${input.name}`);
     if (!c.id || c.id.includes('.')) throw new Error(`invalid component id: ${c.id}`);
     componentIds.add(c.id);
   }
   const netIds = new Set<string>();
   for (const n of input.nets) {
+    if (n.waypoints !== undefined && (!Array.isArray(n.waypoints) || !n.waypoints.every(isPosition))) {
+      throw new Error(`net ${n.id} waypoints: expected an array of [x, y] with finite numbers`);
+    }
     if (netIds.has(n.id)) throw new Error(`duplicate net id: ${n.id} in ${input.name}`);
     netIds.add(n.id);
   }

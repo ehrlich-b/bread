@@ -55,6 +55,33 @@ test('Load replaces the current circuit with file contents', async ({ page }) =>
   await expect(page.locator('[data-comp-id="sw"]')).toHaveCount(0);
 });
 
+for (const source of ['Open JSON', 'Paste JSON']) {
+  test(`${source} rejects malformed layout without changing the circuit or history`, async ({ page }) => {
+    await page.getByRole('button', { name: 'New circuit', exact: true }).click();
+    await expect(page.locator('[data-comp-id]')).toHaveCount(0);
+    const invalid = { version: 1, kind: 'circuit', name: 'broken layout', components: [{ id: 'buf', type: 'prim.BUF', position: {} }], nets: [] };
+    if (source === 'Open JSON') {
+      await page.locator('input[data-file-action="load-input"]').setInputFiles({
+        name: 'invalid.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(invalid)),
+      });
+      await expect(page.getByRole('alert').filter({ hasText: 'component buf position' })).toBeVisible();
+    } else {
+      await page.getByRole('button', { name: 'Paste JSON', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Open circuit JSON', exact: true });
+      await dialog.getByRole('textbox', { name: 'Paste circuit JSON', exact: true }).fill(JSON.stringify(invalid));
+      await dialog.getByRole('button', { name: 'Open pasted JSON', exact: true }).click();
+      await expect(dialog.getByRole('alert')).toContainText('component buf position');
+      await dialog.getByRole('button', { name: 'Cancel paste', exact: true }).click();
+    }
+    await expect(page.locator('[data-comp-id]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(page.locator('[data-comp-id]')).toHaveCount(4);
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Redo', exact: true }).click();
+    await expect(page.locator('[data-comp-id]')).toHaveCount(0);
+  });
+}
+
 test('Examples menu loads a bundled circuit', async ({ page }) => {
   // Default boot is blink_demo (4 components, 3 nets).
   await expect(page.locator('[data-comp-id]')).toHaveCount(4);

@@ -73,6 +73,17 @@ describe('self-contained project chips', () => {
     expect(() => loadCircuit(project([nand, unused]))).toThrow('duplicate component id');
   });
 
+  it('validates layout on composite instances before flattening removes them', () => {
+    const json = { ...project(), components: [{ id: 'n', type: nand.name, position: {} }] } as unknown as CircuitJSON;
+    expect(() => loadCircuit(json)).toThrow('component n position');
+  });
+
+  it.each([true, false])('validates layout in chip definitions (used: %s)', used => {
+    const broken = { ...nand, components: [{ ...nand.components[0]!, rotation: '90' }] } as unknown as CircuitJSON;
+    const json = used ? project([broken]) : { ...project([broken]), components: [], nets: [] };
+    expect(() => loadCircuit(json)).toThrow('component g rotation');
+  });
+
   it('rejects duplicate names, broken ports, aliases, cycles and incompatible versions even in unused chips', () => {
     expect(() => loadCircuit(project([nand, nand]))).toThrow('duplicate');
     expect(() => loadCircuit(project([{ ...nand, name: 'ttl.override' }]))).toThrow('user.<name>');
