@@ -99,6 +99,7 @@ export function mountChips(host: HTMLElement, editor: EditorModel): () => void {
       const add = button('Expose pin as port', () => run(editor.exposePin(pin.value, portName.value.trim(), dir.value as PortJSON['dir'])));
       host.append(pin, portName, dir, add);
     }
+    if (state.note) { const note = document.createElement('p'); note.setAttribute('role', 'status'); note.textContent = state.note; host.append(note); }
     if (state.error) { const error = document.createElement('p'); error.setAttribute('role', 'alert'); error.textContent = state.error; host.append(error); }
   };
   const sample = (): void => {
