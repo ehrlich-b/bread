@@ -88,6 +88,9 @@ test('Pause stops LED updates', async ({ page }) => {
   await expect.poll(() => led.getAttribute('fill'), { timeout: 3_000 }).toMatch(/led-on/);
 
   await page.locator('#controls button', { hasText: 'Pause' }).click();
+  await expect(page.getByLabel('Simulation throughput', { exact: true })).toContainText('Paused');
+  // Pause is a worker round trip; sample after its final net state is painted.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => resolve())));
 
   const frozen = await led.getAttribute('fill');
   await page.waitForTimeout(1500);
