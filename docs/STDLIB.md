@@ -71,6 +71,10 @@ Things we don't model as primitive graphs.
 | `io.pin_input` | M7      | —       | Numeric value input (binary/hex/decimal). For testbenches and quick prototyping. |
 | `io.pin_output`| M7      | —       | Watch a net. Logs to a waveform buffer; for testbenches and probes. |
 
+[Declarative testbenches](TESTBENCH.md) use named runtime-net bindings and
+`io.switch` output bindings for input, plus existing canvas probes for output
+capture. They do not require the planned `io.pin_input` or `io.pin_output` chips.
+
 ## What's needed for Ben Eater's 8-bit machine
 
 All chips in the tables above. Specifically, by module:

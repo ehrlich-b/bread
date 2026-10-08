@@ -10,6 +10,7 @@ Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 - Primitive gates and storage, 16 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
 - SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files or copy/paste Circuit JSON, including memory images and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
 - Persisted canvas probes and a bounded, four-state waveform viewer with hex buses, zoom, scroll and a tick cursor. Run, pause and step share the same recording.
+- [Declarative JSON testbenches](docs/TESTBENCH.md) with exhaustive loops, four-state checks and clocked vectors. Run from Node or the Testbench panel; failures show expected/actual bits and can focus probe waveforms. Bundled adder, register/bus and SAP-1 benches run in CI.
 - Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
 - Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.
 - [Bryan's original 2022 Digital CPU](docs/ORIGINAL_CPU_PORT.md), converted from pinned sources by rerunnable Python scripts. Select **Bryan's Digital CPU (generated port)** in Examples, click **Fit circuit**, then **Run** to output 1 through 10. Its CALLRET, countdown, Fibonacci and PUSH/POP programs pass instruction-by-instruction comparisons against an independent ISA interpreter. The source loader's 31-byte limit is preserved.
@@ -38,5 +39,6 @@ Bread models digital `0`, `1`, `Z` and `X`. Analog effects, breadboard physics, 
 | [Simulation](docs/SIMULATION.md) | Scheduling, four-state logic, tristates, oscillation and timing. |
 | [Components](docs/COMPONENTS.md) | Primitive, composite and behavioral tiers. |
 | [Circuit format](docs/CIRCUIT_FORMAT.md) | Saved circuits and chip definitions. |
+| [Testbench format](docs/TESTBENCH.md) | JSON vectors, clocks, exhaustive ranges, CLI and panel. |
 | [Standard library](docs/STDLIB.md) | Chip catalog and implementation strategy. |
 | [Roadmap](docs/ROADMAP.md) | Milestones, performance measurements and planned features. |

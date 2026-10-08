@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "name": "SAP-1 Fibonacci OUT sequence",
+  "circuit": "../ben_eater_8bit.json",
+  "rateHz": 1,
+  "inputs": {
+    "RESET": {
+      "component": "sw_reset",
+      "pin": "Y"
+    }
+  },
+  "outputs": {
+    "CLK": [
+      "gated_clk"
+    ],
+    "OI": [
+      "ctl_oi"
+    ],
+    "OUT": [
+      "display__nlo0",
+      "display__nlo1",
+      "display__nlo2",
+      "display__nlo3",
+      "display__nhi0",
+      "display__nhi1",
+      "display__nhi2",
+      "display__nhi3"
+    ]
+  },
+  "vectors": [
+    {
+      "label": "Power-on reset",
+      "expect": {
+        "OUT": 0
+      }
+    },
+    {
+      "label": "Release reset",
+      "drive": {
+        "RESET": 1
+      }
+    },
+    {
+      "for": {
+        "cycle": {
+          "from": 1,
+          "to": 3
+        }
+      },
+      "vectors": [
+        {
+          "for": {
+            "out": {
+              "from": 0,
+              "to": 12
+            }
+          },
+          "vectors": [
+            {
+              "label": "OUT instruction",
+              "wait": {
+                "rising": "CLK",
+                "when": {
+                  "OI": 0
+                },
+                "maxTicks": 1000
+              },
+              "expect": {
+                "OUT": {
+                  "table": [
+                    1,
+                    1,
+                    2,
+                    3,
+                    5,
+                    8,
+                    13,
+                    21,
+                    34,
+                    55,
+                    89,
+                    144,
+                    233
+                  ],
+                  "index": "out"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

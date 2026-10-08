@@ -383,3 +383,13 @@ aside > * { flex-shrink: 0; }
 .waveform-Z path { stroke: #a78bfa; stroke-dasharray: 5 3; }
 .waveform-bus path { stroke: var(--accent); fill: #38bdf818; }
 .waveform-cursor { stroke: #f87171; stroke-width: 1.5; pointer-events: none; }
+
+#testbench { border-top: 1px solid #8885; padding-top: .5rem; }
+#testbench p, #testbench output, #testbench li { font-size: .8rem; }
+#testbench textarea { box-sizing: border-box; width: 100%; resize: vertical; background: var(--bg); color: var(--fg); font: 12px ui-monospace, monospace; border: 1px solid #8888; }
+#testbench input[type='file'] { max-width: 100%; font-size: .8rem; }
+#testbench output { display: block; margin-top: .5rem; }
+#testbench ol { max-height: 260px; overflow: auto; padding-left: 1.5rem; }
+#testbench li { margin-bottom: .5rem; }
+#testbench [data-passed='false'], #testbench [role='alert'] { color: #f87171; }
+#testbench pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: .3rem 0; }

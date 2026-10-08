@@ -118,6 +118,12 @@ export const mountWaveform = (host: HTMLElement, editor: EditorModel): (() => vo
     draw();
   });
   const unsubMetrics = editor.bus.on('metrics', metrics => { running = metrics.running; refresh(); });
+  const unsubFocus = editor.onWaveformFocus((next, step) => {
+    snapshot = next; cursorTick = step; running = false; follow.checked = false;
+    refresh();
+    viewport.scrollLeft = Math.max(0, (step - range()[0]) * scale - viewport.clientWidth / 2);
+    draw();
+  });
   refresh();
-  return () => { unsub(); unsubMetrics(); host.replaceChildren(); };
+  return () => { unsub(); unsubMetrics(); unsubFocus(); host.replaceChildren(); };
 };

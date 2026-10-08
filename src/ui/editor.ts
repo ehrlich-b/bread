@@ -11,6 +11,8 @@
 // referencing instances that disappear after a mutation are pruned silently.
 
 import type { CircuitJSON, ComponentInstanceJSON, NetJSON, NetState, PortJSON, ProbeJSON } from '../engine/ir';
+import type { WaveformSnapshot } from '../engine/probes';
+import type { TestbenchJSON, TestbenchResult } from '../engine/testbench';
 import type { LoadSnapshot, WorkerBus } from './bus';
 import { chipBody, createChip } from './chips/model';
 import { busPairs, connectSignals } from './signals';
@@ -56,6 +58,7 @@ export class EditorModel {
   private busWiring = false;
   private probing: 'net' | 'bus' | null = null;
   private subs: Set<(s: EditorState) => void> = new Set();
+  private waveformFocus = new Set<(snapshot: WaveformSnapshot, step: number) => void>();
   private inflight: Promise<void> = Promise.resolve();
   private pendingComponentIds: Set<string> = new Set();
   // Each entry is the circuit *before* a user-initiated mutation; pop one to
@@ -299,6 +302,24 @@ export class EditorModel {
 
   step(): Promise<void> {
     return this.enqueue(() => this.bus.step());
+  }
+
+  async runTestbench(bench: TestbenchJSON, throughVector?: number): Promise<TestbenchResult> {
+    let result!: TestbenchResult;
+    await this.enqueue(async () => {
+      await this.bus.pause();
+      result = await this.bus.testbench(this.circuit, bench, throughVector);
+    });
+    return result;
+  }
+
+  focusWaveform(snapshot: WaveformSnapshot, step: number): void {
+    for (const fn of this.waveformFocus) fn(snapshot, step);
+  }
+
+  onWaveformFocus(fn: (snapshot: WaveformSnapshot, step: number) => void): () => void {
+    this.waveformFocus.add(fn);
+    return () => { this.waveformFocus.delete(fn); };
   }
 
   setPortInput(netId: string, value: NetState): Promise<void> {
