@@ -3,6 +3,8 @@ import '../engine/index';
 import type { CircuitJSON } from '../engine/ir';
 import { loadCircuit } from '../engine/loader';
 import { runTestbench, type TestbenchResult } from '../engine/testbench';
+import { importVerilog } from '../engine/verilog_import';
+import type { VerilogImportResponse } from '../worker/verilog_import';
 import type { WorkerReq } from '../worker/protocol';
 import { createWorkerBus, type LoadSnapshot, type WorkerBus } from './bus';
 import { mountChips } from './chips';
@@ -55,6 +57,24 @@ const setup = (circuit = empty()) => {
   return { host: new Element(), editor: new EditorModel(bus, circuit, snapshot(circuit)), mutate, bus };
 };
 const flush = async (): Promise<void> => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+const verilogWorkers = () => {
+  const workers: Array<{ terminated: boolean }> = [];
+  vi.stubGlobal('Worker', class extends EventTarget {
+    terminated = false;
+    constructor() { super(); workers.push(this); }
+    terminate(): void { this.terminated = true; }
+    postMessage(file: { text(): Promise<string> }): void {
+      const respond = (data: VerilogImportResponse): void => {
+        if (!this.terminated) this.dispatchEvent(new MessageEvent('message', { data }));
+      };
+      void file.text().then(source => importVerilog(source).circuit).then(
+        circuit => respond({ type: 'done', circuit }),
+        error => respond({ type: 'error', message: error instanceof Error ? error.message : String(error) }),
+      );
+    }
+  });
+  return workers;
+};
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('drops a delayed Open JSON after New and a later placement', async () => {
@@ -105,23 +125,26 @@ it('downloads Verilog after a queued edit commits without restarting the worker'
 
 it('loads Verilog through the ordered document queue and preserves undo after a parse failure', async () => {
   const { host, editor, mutate } = setup();
+  const workers = verilogWorkers();
   const dispose = mountFileControls(host as unknown as HTMLElement, editor);
   const input = host.find(e => e.dataset.fileAction === 'verilog-input')!;
   input.files = [{ text: async () => 'module imported(input a,output y); not g(y,a); endmodule' }];
   input.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
   expect(editor.project.name).toBe('imported'); expect(mutate).toHaveBeenCalledTimes(1);
+  expect(workers).toHaveLength(1); expect(workers[0]!.terminated).toBe(true);
   const saved = editor.project;
   input.files = [{ text: async () => 'module bad; initial begin end endmodule' }];
   input.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
   expect(editor.project).toBe(saved); expect(mutate).toHaveBeenCalledTimes(1);
   expect(editor.state.error).toContain('Line 1');
+  expect(workers).toHaveLength(2); expect(workers.every(w => w.terminated)).toBe(true);
   await editor.undo(); expect(editor.project).toEqual(empty());
   await editor.redo(); expect(editor.project).toBe(saved);
   dispose();
 });
 
 it('discards a delayed Verilog import superseded by Open JSON', async () => {
-  const { host, editor } = setup(); const dispose = mountFileControls(host as unknown as HTMLElement, editor);
+  const { host, editor } = setup(); const workers = verilogWorkers(); const dispose = mountFileControls(host as unknown as HTMLElement, editor);
   let finish!: (text: string) => void;
   const input = host.find(e => e.dataset.fileAction === 'verilog-input')!;
   input.files = [{ text: () => new Promise(resolve => { finish = resolve; }) }];
@@ -131,6 +154,7 @@ it('discards a delayed Verilog import superseded by Open JSON', async () => {
   json.dispatchEvent(new Event('change')); await flush(); await editor.whenIdle();
   finish('module older(input a,output y); assign y=a; endmodule'); await flush(); await editor.whenIdle();
   expect(editor.project.name).toBe('newer-file');
+  expect(workers).toHaveLength(1); expect(workers[0]!.terminated).toBe(true);
   await editor.undo(); expect(editor.project).toEqual(empty()); dispose();
 });
 

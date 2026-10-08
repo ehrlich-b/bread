@@ -30,6 +30,9 @@ export interface ResolveResult {
 // Strong drivers always win over weak. Weak drivers behave like strong drivers
 // at a lower priority — fighting weaks resolve to X (analogous to a pull-up and
 // pull-down on the same net).
+// A 0Z/1Z driver may be enabled or released. Resolve both possibilities:
+// a matching definite drive removes the uncertainty; an opposite drive or
+// a potentially floating net remains X.
 export function resolveNet(driverValues: readonly DriverValue[]): ResolveResult {
   const out: ResolveResult = { value: 'Z', contention: false };
   resolveNetInto(driverValues, out);
@@ -45,6 +48,8 @@ export function resolveNetInto(driverValues: readonly DriverValue[], out: Resolv
   let weak: 0 | 1 | null = null;
   let weakConflict = false;
   let sawX = false;
+  let maybeLow = false;
+  let maybeHigh = false;
 
   for (let i = 0; i < driverValues.length; i++) {
     const v = driverValues[i]!;
@@ -53,6 +58,8 @@ export function resolveNetInto(driverValues: readonly DriverValue[], out: Resolv
       sawX = true;
       continue;
     }
+    if (v === '0Z') { maybeLow = true; continue; }
+    if (v === '1Z') { maybeHigh = true; continue; }
     if (v === 'L' || v === 'H') {
       const w: 0 | 1 = v === 'L' ? 0 : 1;
       if (weak === null) weak = w;
@@ -67,9 +74,10 @@ export function resolveNetInto(driverValues: readonly DriverValue[], out: Resolv
   if (strongConflict) { out.value = 'X'; out.contention = true; return; }
   out.contention = false;
   if (sawX) { out.value = 'X'; return; }
-  if (strong !== null) { out.value = strong; return; }
+  if (strong !== null) { out.value = strong === 0 && maybeHigh || strong === 1 && maybeLow ? 'X' : strong; return; }
   if (weakConflict) { out.value = 'X'; return; }
-  if (weak !== null) { out.value = weak; return; }
+  if (weak !== null) { out.value = weak === 0 && maybeHigh || weak === 1 && maybeLow ? 'X' : weak; return; }
+  if (maybeLow || maybeHigh) { out.value = 'X'; return; }
   out.value = 'Z';
 }
 

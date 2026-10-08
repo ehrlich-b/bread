@@ -267,7 +267,7 @@ export class ReferenceSimulator {
       if (drivers.length === 0) return 'Z';
       const driver = drivers[0]!;
       const value = components[driver.comp]!.outputBuf[driver.outIdx]!;
-      return value === 'H' ? 1 : value === 'L' ? 0 : value;
+      return value === 'H' ? 1 : value === 'L' ? 0 : value === '0Z' || value === '1Z' ? 'X' : value;
     }
     const scratch = this.resolveScratch;
     scratch.length = 0;

@@ -5,6 +5,7 @@ import type { CircuitJSON, ComponentInstanceJSON, PinDir } from './ir';
 import { loadCircuit } from './loader';
 import { evaluateExpression, expressionWidth, type Expression } from './primitives/verilog_expr';
 import { renderVerilogLeaf, type VerilogSource } from './verilog';
+import { VERILOG_SOURCE_LIMIT, VERILOG_SOURCE_LIMIT_ERROR } from './verilog_limits';
 import { resolveRenderer } from '../ui/schematic/renderers';
 
 interface Token { text: string; line: number; column: number; cell?: Cell; body?: Token[]; sources?: string[] }
@@ -34,7 +35,8 @@ function tokenize(source: string, budget = { count: 0 }): Token[] {
     const whitespace = /^\s+/.exec(rest);
     if (whitespace) { advance(whitespace[0]); continue; }
     if (rest.startsWith('// bread:sources ')) {
-      const comment = rest.split('\n')[0]!;
+      const endLine = rest.indexOf('\n');
+      const comment = endLine < 0 ? rest : rest.slice(0, endLine);
       try { token.sources = JSON.parse(comment.slice(17)) as string[]; }
       catch { fail(token, 'invalid bread:sources'); }
       if (!Array.isArray(token.sources) || token.sources.some(s => typeof s !== 'string' || !simpleIdentifier.test(s))) fail(token, 'invalid bread:sources');
@@ -53,14 +55,18 @@ function tokenize(source: string, budget = { count: 0 }): Token[] {
       tokens.push(token);
       advance(rest.slice(0, end + 16)); continue;
     }
-    if (rest.startsWith('//')) { advance(rest.split('\n')[0]!); continue; }
+    if (rest.startsWith('//')) {
+      const endLine = rest.indexOf('\n');
+      advance(endLine < 0 ? rest : rest.slice(0, endLine)); continue;
+    }
     if (rest.startsWith('/*')) {
       const end = rest.indexOf('*/');
       if (end < 0) fail(token, 'unterminated block comment');
       advance(rest.slice(0, end + 2)); continue;
     }
     if (rest.startsWith('`')) {
-      const directive = rest.split('\n')[0]!;
+      const endLine = rest.indexOf('\n');
+      const directive = endLine < 0 ? rest : rest.slice(0, endLine);
       if (!/^`default_nettype\s+(none|wire)\s*$/.test(directive) && !/^`timescale\s+\d+(s|ms|us|ns|ps|fs)\s*\/\s*\d+(s|ms|us|ns|ps|fs)\s*$/.test(directive)) fail(token, `unsupported directive ${directive}`);
       advance(directive); continue;
     }
@@ -242,6 +248,7 @@ const directionOf = (text: string): PinDir => text === 'input' ? 'in' : text ===
 function literal(t: Token): string {
   const match = /^(\d[\d_]*)'([bodh])([0-9a-f_xz?]+)$/i.exec(t.text);
   if (!match) {
+    if (!/^\d[\d_]*$/.test(t.text)) fail(t, 'invalid numeric literal');
     const n = BigInt(t.text.replaceAll('_', ''));
     if (n >= 2n ** 31n) fail(t, 'unsized integer exceeds nonnegative signed 32-bit subset; use a sized unsigned literal');
     return n.toString(2).padStart(32, '0');
@@ -284,7 +291,10 @@ class Builder {
     this.json = { version: 1, kind: root ? 'circuit' : 'composite', name: root ? module.name : types.get(module.name)!, components: [], nets: [], ports: [] };
     for (const instance of module.instances) if (!instance.anonymous) this.reserved.add(instance.id);
     for (const cell of module.cells) this.reserved.add(cell.cell!.id);
-    for (const s of module.signals.values()) for (const bit of signalBits(s)) { this.parent.set(bit, bit); this.endpoints.set(bit, []); }
+    for (const s of module.signals.values()) for (const bit of signalBits(s)) {
+      if (this.parent.size >= 100_000) fail(s.token, 'flattened hierarchy exceeds 100,000 net limit');
+      this.parent.set(bit, bit); this.endpoints.set(bit, []);
+    }
   }
   private find(bit: string): string {
     let root = bit;
@@ -299,6 +309,7 @@ class Builder {
   private alias(a: string, b: string): void { const ar = this.find(a); const br = this.find(b); if (ar !== br) this.parent.set(br, ar); }
   private connect(bit: string, endpoint: string): void { this.endpoints.get(this.find(bit))!.push(endpoint); }
   private add(type: string, params?: Record<string, unknown>, id?: string): ComponentInstanceJSON {
+    if (this.json.components.length >= 25_000) fail(this.module.token, 'flattened hierarchy exceeds 25,000 instance limit');
     let name = id;
     if (name === undefined) do { name = `v${this.sequence++}`; } while (this.used.has(name) || this.reserved.has(name));
     if (!name || name.includes('.') || this.used.has(name)) fail(this.module.token, `duplicate/invalid instance ${name}`);
@@ -331,6 +342,7 @@ class Builder {
     this.assign(nets, e, 'port expression'); return nets;
   }
   private newNet(prefix: string): string {
+    if (this.parent.size >= 100_000) fail(this.module.token, 'flattened hierarchy exceeds 100,000 net limit');
     let name: string; do { name = `${prefix}${this.sequence++}`; } while (this.parent.has(name));
     this.parent.set(name, name); this.endpoints.set(name, []); return name;
   }
@@ -478,12 +490,14 @@ class Builder {
   private checkSources(): void {
     const m = this.module;
     if (new Set(m.sourcePorts).size !== m.sourcePorts.length) fail(m.token, 'duplicate bread:sources');
-    const recovered = new Set<string>();
+    const cellSources = new Map<Token, string>();
     for (const t of m.cells) {
-      const c = t.cell!; const expected = c.type === 'io.switch' ? 'switch' : c.type === 'gen.clock' ? 'clock' : c.type === 'gen.555' ? '555' : undefined;
+      const c = t.cell!;
+      if (!c || typeof c !== 'object') fail(t, 'invalid bread:cell');
+      const expected = c.type === 'io.switch' ? 'switch' : c.type === 'gen.clock' ? 'clock' : c.type === 'gen.555' ? '555' : undefined;
       if (expected) {
         if (!c.source || c.source.component !== c.id || c.source.kind !== expected || c.source.pin !== (expected === '555' ? 'OUT' : 'Y')) fail(t, 'invalid bread:cell source');
-        recovered.add(c.source.port);
+        cellSources.set(t, c.source.port);
       } else if (c.source) fail(t, 'unexpected bread:cell source');
     }
     const usesSource = (e: Expr): boolean => {
@@ -498,15 +512,27 @@ class Builder {
     };
     const check = (e: Expr): void => { if (m.sourcePorts.length && usesSource(e)) fail(e.token, 'bread source used outside its recovered cell/forwarding connection'); };
     for (const assign of m.assigns) { check(assign.target); check(assign.value); }
-    for (const inst of m.instances) {
+    const recovered: string[] = [];
+    for (const item of m.items) {
+      if (item.kind === 'cell') {
+        const source = cellSources.get(item.token); if (source !== undefined) recovered.push(source);
+        continue;
+      }
+      const inst = item.instance;
       const child = this.modules.get(inst.type);
+      const forwarded = new Map<string, string>();
       for (const [index, connection] of inst.connections.entries()) {
         const name = connection.name ?? child?.ports[index];
         if (child?.sourcePorts.includes(name!)) {
           const e = connection.expression;
-          if (!e || e.kind !== 'ref' || e.high !== undefined) fail(inst.token, 'invalid bread source forwarding');
-          recovered.add(e.name);
+          if (!e || e.kind !== 'ref' || e.high !== undefined || forwarded.has(name!)) fail(inst.token, 'invalid bread source forwarding');
+          forwarded.set(name!, e.name);
         } else if (connection.expression) check(connection.expression);
+      }
+      for (const source of child?.sourcePorts ?? []) {
+        const parent = forwarded.get(source);
+        if (parent === undefined) fail(inst.token, 'missing bread source forwarding connection');
+        recovered.push(parent);
       }
     }
     const statement = (s: Statement): void => {
@@ -515,7 +541,7 @@ class Builder {
       else { check(s.condition); statement(s.yes); if (s.no) statement(s.no); }
     };
     for (const always of m.registers) { check(always.clock); statement(always.statement); }
-    if (recovered.size !== m.sourcePorts.length || m.sourcePorts.some(name => !recovered.has(name) || m.signals.get(name)?.dir !== 'in' || signalBits(m.signals.get(name)!).length !== 1)) fail(m.token, 'bread:sources do not match restored cells/forwarding connections');
+    if (recovered.length !== m.sourcePorts.length || m.sourcePorts.some((name, i) => recovered[i] !== name || m.signals.get(name)?.dir !== 'in' || signalBits(m.signals.get(name)!).length !== 1)) fail(m.token, 'bread:sources do not match restored cells/forwarding connections in source order');
   }
   private gate(inst: Instance): void {
     if (inst.connections.some(c => c.name || !c.expression)) fail(inst.token, `primitive ${inst.type} requires positional connected ports`);
@@ -536,7 +562,7 @@ class Builder {
     const count = inst.type === 'not' || inst.type === 'buf' ? 1 : inst.type.startsWith('bufif') ? 2 : undefined;
     if (inputs.length < 1 || inputs.length > 24 || count !== undefined && inputs.length !== count) fail(inst.token, `invalid ${inst.type} port count`);
     const type = inst.type.startsWith('bufif') ? 'prim.TRISTATE' : `prim.${inst.type.toUpperCase()}`;
-    const params = inst.type.startsWith('bufif') ? { oeActiveLow: inst.type === 'bufif0' } : count === undefined ? { inputs: inputs.length } : undefined;
+    const params = inst.type.startsWith('bufif') ? { oeActiveLow: inst.type === 'bufif0', verilogBufif: true } : count === undefined ? { inputs: inputs.length } : undefined;
     const c = this.add(type, params, inst.anonymous ? undefined : inst.id); const pins = getPinsForType(type, params)!.filter(p => p.dir === 'in');
     inputs.forEach((bits, i) => this.connect(bits[0]!, `${c.id}.${pins[i]!.name}`)); this.connect(output[0]!, `${c.id}.Y`);
   }
@@ -551,9 +577,12 @@ export interface VerilogImport {
   nets: Record<string, string>;
 }
 
-export function importVerilog(source: string, options: { topModule?: string } = {}): VerilogImport {
-  if (source.length > 16_000_000) throw new Error('Line 1, column 1: source exceeds 16 MB limit');
-  const parsed = new Parser(tokenize(source)).modules();
+export function importVerilog(source: string, options: { topModule?: string; onProgress?: (phase: string) => void } = {}): VerilogImport {
+  if (source.length > VERILOG_SOURCE_LIMIT || new TextEncoder().encode(source).length > VERILOG_SOURCE_LIMIT) throw new Error(VERILOG_SOURCE_LIMIT_ERROR);
+  options.onProgress?.('Scanning source');
+  const tokens = tokenize(source);
+  options.onProgress?.('Parsing modules');
+  const parsed = new Parser(tokens).modules();
   const modules = new Map<string, Module>(); const types = new Map<string, string>();
   for (const m of parsed) {
     if (modules.has(m.name)) fail(m.token, `duplicate module ${m.name}`); modules.set(m.name, m);
@@ -564,9 +593,45 @@ export function importVerilog(source: string, options: { topModule?: string } = 
   const roots = parsed.filter(m => !instantiated.has(m.name));
   const top = options.topModule ? modules.get(options.topModule) : roots.length === 1 ? roots[0] : parsed[0]!.name.startsWith('top_') ? parsed[0] : undefined;
   if (!top) fail(parsed[0]!.token, options.topModule ? `unknown top module ${options.topModule}` : 'ambiguous top module; choose topModule');
+  options.onProgress?.('Building circuit');
   const builders = new Map(parsed.map(m => [m.name, new Builder(m, types, modules, m === top)]));
   const definitions = parsed.filter(m => m !== top).map(m => builders.get(m.name)!.build());
   const circuit = builders.get(top.name)!.build(); circuit.definitions = definitions;
+  // Count the DAG with memoization before the loader allocates flattened
+  // copies. Count all instance nodes and nets before port stitching, including
+  // floating leaf pins, so both runtime allocation and wire-path recovery fit.
+  const sizes = new Map<string, { instances: number; nets: number; depth: number }>();
+  const modulesByType = new Map(parsed.map(m => [types.get(m.name)!, m]));
+  const active = new Set<string>();
+  const size = (m: Module): { instances: number; nets: number; depth: number } => {
+    const cached = sizes.get(m.name); if (cached) return cached;
+    if (active.has(m.name)) fail(m.token, 'recursive module hierarchy');
+    if (active.size >= 64) fail(m.token, 'module hierarchy exceeds 64 levels');
+    active.add(m.name);
+    const json = builders.get(m.name)!.json;
+    const count = { instances: json.components.length, nets: json.nets.length, depth: 1 };
+    const check = (): void => {
+      if (count.instances > 25_000) fail(m.token, 'flattened hierarchy exceeds 25,000 instance limit');
+      if (count.nets > 100_000) fail(m.token, 'flattened hierarchy exceeds 100,000 net limit');
+      if (count.depth > 64) fail(m.token, 'module hierarchy exceeds 64 levels');
+    };
+    check();
+    const connected = new Set(json.nets.flatMap(n => n.endpoints));
+    for (const component of json.components) {
+      const module = modulesByType.get(component.type);
+      if (module) {
+        const childSize = size(module);
+        count.instances += childSize.instances; count.nets += childSize.nets;
+        count.depth = Math.max(count.depth, childSize.depth + 1);
+      } else {
+        for (const pin of getPinsForType(component.type, component.params)!) if (!connected.has(`${component.id}.${pin.name}`)) count.nets++;
+      }
+      check();
+    }
+    active.delete(m.name); sizes.set(m.name, count); return count;
+  };
+  for (const m of parsed) size(m);
+  options.onProgress?.('Placing components');
   // Size-aware deterministic shelf placement reuses the schematic renderers.
   for (const json of [circuit, ...definitions]) {
     let x = 60; let y = 60; let rowHeight = 0;
@@ -577,9 +642,11 @@ export function importVerilog(source: string, options: { topModule?: string } = 
     }
   }
   let graph;
+  options.onProgress?.('Validating hierarchy');
   try { graph = loadCircuit(circuit); }
   catch (error) { fail(top.token, `invalid module hierarchy: ${error instanceof Error ? error.message : String(error)}`); }
   const nets: Record<string, string> = Object.create(null) as Record<string, string>;
+  options.onProgress?.('Mapping wires');
   const walk = (m: Module, path: string, prefix: string, overrides: Map<string, string>): void => {
     const builder = builders.get(m.name)!;
     const runtime = (bit: string): string => overrides.get(builder.signalNets.get(bit)!) ?? `${prefix}${builder.signalNets.get(bit)!}`;

@@ -24,7 +24,7 @@ import sap1Halt from '../../examples/sap1_halt.json';
 import sap1Multiply from '../../examples/sap1_multiply.json';
 import type { CircuitJSON } from '../engine/ir';
 import { exportVerilog } from '../engine/verilog';
-import { importVerilog } from '../engine/verilog_import';
+import { importVerilogFile } from './verilog_import';
 import type { EditorModel } from './editor';
 import { mountShareControls } from './share';
 
@@ -112,12 +112,36 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   verilogInput.accept = '.v,.sv,text/plain';
   verilogInput.dataset.fileAction = 'verilog-input';
   verilogInput.style.display = 'none';
+  const importStatus = document.createElement('span');
+  importStatus.dataset.fileAction = 'verilog-import-status';
+  importStatus.setAttribute('role', 'status');
+  importStatus.hidden = true;
+  const importPhase = document.createElement('span');
+  const importProgress = document.createElement('progress');
+  importProgress.setAttribute('aria-label', 'Verilog import progress');
+  const cancelImport = button('Cancel import', 'cancel-verilog-import');
+  importStatus.append(importPhase, importProgress, cancelImport);
+  let importing: AbortController | null = null;
+  cancelImport.addEventListener('click', () => importing?.abort());
   verilogInput.addEventListener('change', () => {
     const file = verilogInput.files?.[0];
     if (!file) return;
-    void editor.loadCircuit(file.text().then(text => importVerilog(text).circuit))
-      .catch((err: unknown) => editor.reportError(err instanceof Error ? err.message : String(err)))
-      .finally(() => { verilogInput.value = ''; });
+    importing?.abort();
+    const controller = new AbortController(); importing = controller;
+    importStatus.hidden = false; cancelImport.disabled = false; importPhase.textContent = 'Importing Verilog…';
+    const read = importVerilogFile(file, controller.signal, phase => { importPhase.textContent = `${phase}…`; }).then(circuit => {
+      if (importing === controller) { cancelImport.disabled = true; importPhase.textContent = 'Opening circuit…'; }
+      return circuit;
+    });
+    void editor.loadCircuit(read)
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === 'AbortError') return;
+        editor.reportError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (importing !== controller) return;
+        importing = null; importStatus.hidden = true; verilogInput.value = '';
+      });
   });
   importVerilogBtn.addEventListener('click', () => verilogInput.click());
 
@@ -213,7 +237,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
     });
   });
 
-  host.append(newBtn, saveBtn, downloadBtn, verilogBtn, importVerilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput, verilogInput);
+  host.append(newBtn, saveBtn, downloadBtn, verilogBtn, importVerilogBtn, importStatus, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect, fileInput, verilogInput);
   const disposeShare = mountShareControls(host, editor, name => EXAMPLES.find(e => e.key === name)?.circuit);
   const refresh = (): void => {
     for (const control of [newBtn, saveBtn, downloadBtn, verilogBtn, importVerilogBtn, showBtn, loadBtn, uploadBtn, pasteBtn, examplesSelect]) control.disabled = editor.state.editingChip !== null;
@@ -221,6 +245,7 @@ export const mountFileControls = (host: HTMLElement, editor: EditorModel): (() =
   const unsub = editor.subscribe(refresh); refresh();
 
   return () => {
+    importing?.abort();
     unsub();
     disposeShare();
     jsonDialog.remove();

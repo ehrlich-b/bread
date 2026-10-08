@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { importVerilog } from './verilog_import';
+import { describe, expect, it, vi } from 'vitest';
+import * as loader from './loader';
+import { importVerilog, VerilogImportError } from './verilog_import';
 import { exportVerilog } from './verilog';
 import { loadCircuit } from './loader';
 import { Simulator } from './sim';
-import type { NetState } from './ir';
+import type { CircuitJSON, NetState } from './ir';
 
 const simulate = (source: string): Simulator => new Simulator(loadCircuit(importVerilog(source).circuit));
 const set = (sim: Simulator, values: Record<string, NetState>): void => {
@@ -30,6 +31,14 @@ describe('structural Verilog import', () => {
     set(sim, { a: 'Z', b: 0, en: 0 }); expect(sim.readNet('raw')).toBe('Z'); expect(sim.readNet('y')).toBe('X'); expect(sim.readNet('bus')).toBe('Z');
     set(sim, { a: 1, b: 0, en: 1, bus: 0 }); expect(sim.readNet('bus')).toBe('X');
     set(sim, { a: 'Z', en: 'X', bus: 'Z' }); expect(sim.readNet('bus')).toBe('Z');
+  });
+  it('resolves uncertain bufif enables with matching strong drivers', () => {
+    const sim = simulate(`module m(input en, output lo,hi);
+      bufif1 b0(lo,1'b0,en); assign lo=1'b0;
+      bufif0 b1(hi,1'b1,en); assign hi=1'b1; endmodule`);
+    for (const en of ['X', 'Z', 0, 1] as const) {
+      set(sim, { en }); expect(sim.readNet('lo')).toBe(0); expect(sim.readNet('hi')).toBe(1);
+    }
   });
   it('handles concat, both vector directions, slices, constants, width context and reductions', () => {
     const source = `module main(input [0:3] a, output [7:0] y, output parity, output [4:0] sum);
@@ -71,6 +80,35 @@ describe('structural Verilog import', () => {
     expect(() => importVerilog(`module m(input a,output y); assign y=${Array.from({ length: 70 }, () => 'a').join('+')}; endmodule`)).toThrow('nesting');
     expect(() => importVerilog('module m(output [63:0] y); assign y=2147483648; endmodule')).toThrow('sized unsigned literal');
   });
+  it.each(["1'", "4'b", "4'h_", "4'b2", "8'o8", "4'dx1", "4'sh1", "4'q0", "0'b1", "257'h0"])(
+    'reports a source position for malformed literal %s', value => {
+      const source = `module m(output y);\n  assign y = ${value};\nendmodule`;
+      expect(() => importVerilog(source)).toThrow(VerilogImportError);
+      expect(() => importVerilog(source)).toThrow(/Line 2, column \d+:/);
+    },
+  );
+  it('scans many line comments in bounded time and preserves source positions', () => {
+    const start = performance.now();
+    const comments = '// ordinary comment\n'.repeat(50_000);
+    expect(() => importVerilog(`${comments}module m(output y);\n  assign y = 1';\nendmodule`)).toThrow('Line 50002, column 14:');
+    expect(performance.now() - start).toBeLessThan(3000);
+  });
+  it('rejects exponential instance and net expansion before flattening', () => {
+    const hierarchy = (depth: number, wide: boolean): string => {
+      const modules = [`module m0(input a,output y); ${wide ? "wire [255:0] unused; assign unused = 256'b0;" : ''} buf g(y,a); endmodule`];
+      for (let i = 1; i <= depth; i++) modules.push(`module m${i}(input a,output y); m${i - 1} left(a,y),right(a,y); endmodule`);
+      return modules.join('\n');
+    };
+    const start = performance.now();
+    const flatten = vi.spyOn(loader, 'loadCircuit').mockImplementation(() => { throw new Error('flattening started before budget check'); });
+    try {
+      expect(() => importVerilog(hierarchy(30, false))).toThrow(/Line \d+, column \d+: flattened hierarchy exceeds 25,000 instance limit/);
+      expect(() => importVerilog(hierarchy(12, true))).toThrow('flattened hierarchy exceeds 100,000 net limit');
+      expect(flatten).not.toHaveBeenCalled();
+    } finally { flatten.mockRestore(); }
+    expect(performance.now() - start).toBeLessThan(3000);
+    expect(() => importVerilog('module m(input a,output y); m child(a,y); endmodule', { topModule: 'm' })).toThrow('recursive module hierarchy');
+  });
   it('avoids generated instance/net names and preserves singleton vector lane names', () => {
     const imported = importVerilog(`module m(input [3:3] a, output [3:3] y); wire __expr0; not v0(y[3], ~a[3]); endmodule`);
     expect(new Set(imported.circuit.components.map(c => c.id)).size).toBe(imported.circuit.components.length);
@@ -87,5 +125,24 @@ describe('structural Verilog import', () => {
     expect(() => importVerilog(source.replace('// bread:sources []', '// bread:sources ["n_q"]'))).toThrow('bread:sources');
     const restored = importVerilog(source); expect(restored.nets.n_q).toBe('n_q');
     expect(importVerilog(exportVerilog(restored.circuit).source).circuit.components[0]!.type).toBe('prim.CONST_0');
+  });
+  it('rejects swapped, missing and duplicate forwarding of checked source cells', () => {
+    const chip = (name: string, freqHz: number): CircuitJSON => ({ version: 1, kind: 'composite', name,
+      components: [{ id: 'clock', type: 'gen.clock', params: { freqHz } }],
+      nets: [{ id: 'out', endpoints: ['clock.Y'] }], ports: [{ name: 'OUT', dir: 'out', internalNet: 'out' }],
+    });
+    const source = exportVerilog({ version: 1, kind: 'circuit', name: 'clocks', definitions: [chip('user.One', 1), chip('user.Two', 2)],
+      components: [{ id: 'a', type: 'user.One' }, { id: 'b', type: 'user.Two' }],
+      nets: [{ id: 'a', endpoints: ['a.OUT'] }, { id: 'b', endpoints: ['b.OUT'] }],
+    }).source;
+    expect(() => importVerilog(source)).not.toThrow();
+    const swapped = source.replace('.s_clock_Y(s_a__clock_Y)', '.s_clock_Y(PLACEHOLDER)')
+      .replace('.s_clock_Y(s_b__clock_Y)', '.s_clock_Y(s_a__clock_Y)').replace('PLACEHOLDER', 's_b__clock_Y');
+    expect(() => importVerilog(swapped)).toThrow('forwarding connections in source order');
+    const missing = source.replace(', .s_clock_Y(s_a__clock_Y)', '')
+      .replace('// bread:sources ["s_a__clock_Y","s_b__clock_Y"]', '// bread:sources ["s_b__clock_Y"]');
+    expect(() => importVerilog(missing)).toThrow('missing bread source forwarding');
+    expect(() => importVerilog(source.replace('.s_clock_Y(s_b__clock_Y)', '.s_clock_Y(s_a__clock_Y)'))).toThrow('forwarding connections in source order');
+    expect(() => importVerilog(source.replace('.s_clock_Y(s_a__clock_Y)', '.s_clock_Y()'))).toThrow('invalid bread source forwarding');
   });
 });

@@ -224,7 +224,8 @@ export function renderVerilogLeaf(inst: ComponentInstanceJSON, bindings: Record<
       break;
     case 'prim.TRISTATE': {
       const oe = input(params.oeActiveLow ? '/OE' : 'OE');
-      assign('Y', `(${oe} === 1'b${params.oeActiveLow ? 0 : 1}) ? ${input('A')} : (${oe} === 1'b${params.oeActiveLow ? 1 : 0}) ? 1'bz : 1'bx`);
+      if (params.verilogBufif) add(`bufif${params.oeActiveLow ? 0 : 1} (${wire('Y')}, ${input('A')}, ${oe});`);
+      else assign('Y', `(${oe} === 1'b${params.oeActiveLow ? 0 : 1}) ? ${input('A')} : (${oe} === 1'b${params.oeActiveLow ? 1 : 0}) ? 1'bz : 1'bx`);
       break;
     }
     case 'prim.MUX2':

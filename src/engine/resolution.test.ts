@@ -13,7 +13,7 @@ registerPrimitive('test.resolution_source', {
   },
 });
 
-const values: DriverValue[] = [0, 1, 'Z', 'X', 'L', 'H'];
+const values: DriverValue[] = [0, 1, 'Z', 'X', 'L', 'H', '0Z', '1Z'];
 
 describe('single-driver resolution agrees with the full resolver', () => {
   it.each(values)('driver %s with every external force and release', (value) => {

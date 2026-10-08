@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { hasIcarusVerilog, runVerilogImportOracle } from './verilog_oracle';
 import { roundTripCorpus, roundTripTestbench } from './verilog_roundtrip';
 import { loadCircuit } from '../src/engine/loader';
+import { importVerilog } from '../src/engine/verilog_import';
+import { exportVerilog } from '../src/engine/verilog';
+import { runVerilogOracle } from './verilog_oracle';
 
 it('round trips every bundled example and library type with identical four-state traces', () => {
   const results = roundTripCorpus();
@@ -18,6 +21,27 @@ it.each(['full_adder', 'register_bus_4bit', 'sap1_fibonacci', 'sap1_count_up', '
 });
 
 describe.skipIf(!hasIcarusVerilog())('original hand-written Verilog vs imported Bread', () => {
+  it('preserves bufif uncertain drives through resolution and re-export', () => {
+    const source = `module buffers(input a,en,d, output y,z,lone,low,high,pair);
+      bufif1 b(y,a,en); bufif0 c(z,a,en); assign y=d; assign z=d;
+      bufif1 f(lone,a,en); bufif1 l(low,a,en); pulldown(low);
+      bufif0 h(high,a,en); pullup(high);
+      bufif1 p(pair,a,en); bufif0 q(pair,a,en);
+    endmodule`;
+    const bench = { version: 1, name: 'bufif resolution', inputs: { a: ['a'], en: ['en'], d: ['d'] },
+      outputs: { y: ['y'], z: ['z'], lone: ['lone'], low: ['low'], high: ['high'], pair: ['pair'] },
+      vectors: [{ drive: { a: 0, en: 'X', d: 0 }, expect: { y: 0, z: 0, lone: 'X', low: 0, high: 'X', pair: 'X' } },
+        { drive: { a: 1, en: 'X', d: 1 }, expect: { y: 1, z: 1 } },
+        { for: { a: [0, 1, 2, 3], en: [0, 1, 2, 3], d: [0, 1, 2, 3] }, vectors: [{ drive: {
+          a: { table: [0, 1, 'X', 'Z'], index: 'a' }, en: { table: [0, 1, 'X', 'Z'], index: 'en' }, d: { table: [0, 1, 'X', 'Z'], index: 'd' },
+        } }] }],
+    };
+    expect(runVerilogImportOracle(source, bench).vectors).toBe(66);
+    const circuit = importVerilog(source).circuit;
+    expect(exportVerilog(circuit).source).toContain('bufif1 (');
+    expect(exportVerilog(circuit).source).toContain('bufif0 (');
+    expect(runVerilogOracle(circuit, bench).vectors).toBe(66);
+  });
   it.each(['full_adder', 'counter4', 'register8', 'alu4'])('matches %s in Icarus, including X/Z', name => {
     const result = runVerilogImportOracle(readFileSync(`examples/verilog/${name}.v`, 'utf8'), JSON.parse(readFileSync(`examples/verilog/${name}.testbench.json`, 'utf8')));
     expect(result.comparisons).toBeGreaterThan(100);
