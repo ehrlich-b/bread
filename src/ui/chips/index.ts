@@ -87,7 +87,7 @@ export function mountChips(host: HTMLElement, editor: EditorModel): () => void {
           }
           row.append(drives);
         }
-        const remove = button(`Remove port ${port.name}`, () => run(editor.updatePorts((state.circuit.ports ?? []).filter((_, index) => index !== i))));
+        const remove = button(`Remove port ${port.name}`, () => run(editor.removePort(port.name)));
         row.append(remove); host.append(row);
         return { portName, dir, net };
       });

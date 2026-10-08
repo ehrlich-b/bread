@@ -57,6 +57,7 @@ export class EditorModel {
   private probing: 'net' | 'bus' | null = null;
   private subs: Set<(s: EditorState) => void> = new Set();
   private inflight: Promise<void> = Promise.resolve();
+  private documentRevision = 0;
   private pendingComponentIds: Set<string> = new Set();
   // Each entry is the circuit *before* a user-initiated mutation; pop one to
   // undo. redoStack mirrors it for forward replays. Bounded so very long
@@ -243,6 +244,13 @@ export class EditorModel {
     return this.applyDocument(() => ({ project: circuit, draft: null, editing: null }));
   }
 
+  // A newer document action or file selection supersedes a pending file read.
+  async loadCircuit(read: Promise<CircuitJSON | null>): Promise<void> {
+    const revision = ++this.documentRevision;
+    const circuit = await read;
+    if (circuit !== null && revision === this.documentRevision) await this.replaceCircuit(circuit);
+  }
+
   newCircuit(): Promise<void> {
     return this.applyDocument((doc) => ({ project: { version: 1, kind: 'circuit', name: 'Untitled', components: [], nets: [], definitions: (doc.draft ?? doc.project).definitions ?? [] }, draft: null, editing: null }));
   }
@@ -277,6 +285,11 @@ export class EditorModel {
 
   updatePorts(ports: PortJSON[]): Promise<void> {
     return this.applyMutate((circuit) => ({ ...circuit, ports }));
+  }
+
+  removePort(name: string): Promise<void> {
+    return this.applyMutate((circuit) => circuit.ports?.some((p) => p.name === name)
+      ? { ...circuit, ports: circuit.ports.filter((p) => p.name !== name) } : null);
   }
 
   exposePin(endpoint: string, name: string, dir: PortJSON['dir']): Promise<void> {
@@ -405,6 +418,7 @@ export class EditorModel {
     onCommit: (old: EditorDocument) => void,
     preserveProbeEdits = false,
   ): Promise<void> {
+    this.documentRevision++;
     return this.enqueue(async () => {
       const next = build(this.document);
       if (next === null) return;
