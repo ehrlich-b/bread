@@ -2,6 +2,7 @@
 // The oracle below implements architectural instructions with integer math;
 // it does not import the microcode, TTL definitions, or gate implementations.
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import reference from '../../examples/ben_eater_8bit.json';
 import '../engine/index';
 import type { CircuitJSON } from '../engine/ir';
@@ -65,6 +66,24 @@ const cases = [
   { name: 'carry branch after overflow', code: [0x1e, 0x2f, 0x75, 0x50, 0xe0, 0x59, 0xe0, 0xf0], data: { 14: 250, 15: 10 }, outputs: [9] },
   { name: 'repeated output instructions', code: [0x55, 0xe0, 0xe0, 0xf0], data: {}, outputs: [5, 5] },
 ];
+
+const gallery = ['sap1_count_up', 'sap1_count_up_down', 'sap1_multiply', 'sap1_arithmetic', 'sap1_halt'];
+const example = (name: string): CircuitJSON => JSON.parse(readFileSync(new URL(`../../examples/${name}.json`, import.meta.url), 'utf8'));
+const imageOf = (circuit: CircuitJSON): number[] => String(circuit.components.find(component => component.id === 'ram_chip')!.params!.contents)
+  .replace(/\/\/[^\n]*/g, '').trim().split(/\s+/).map(byte => Number.parseInt(byte, 16));
+
+for (const [name, outputs] of [
+  ['sap1_multiply', [42]], ['sap1_arithmetic', [4, 250, 0, 19]], ['sap1_halt', [1, 2, 3]],
+] as const) cases.push({ name, code: imageOf(example(name)), data: {}, outputs: [...outputs] });
+
+it.each(gallery)('%s changes only the name, description and 16-byte RAM image', name => {
+  const circuit = example(name);
+  expect(imageOf(circuit)).toHaveLength(16);
+  const normalized = structuredClone(circuit);
+  normalized.name = reference.name; normalized.description = reference.description;
+  normalized.components.find(component => component.id === 'ram_chip')!.params = structuredClone(reference.components.find(component => component.id === 'ram_chip')!.params);
+  expect(normalized).toEqual(reference);
+});
 
 describe('SAP-1 reference programs against an independent ISA oracle', () => {
   it.each(cases)('$name', ({ code, data, outputs }) => {
