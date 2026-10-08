@@ -13,6 +13,8 @@ export default defineConfig({
     baseURL: inMemory ? IN_MEMORY_ORIGIN : 'http://127.0.0.1:5187',
     // Avoid trace file I/O in the serverless mode; --trace can still enable it.
     trace: inMemory ? 'off' : 'retain-on-failure',
+    // Low-priority headless runs need no display frame cap for actionability.
+    launchOptions: inMemory ? { args: ['--disable-frame-rate-limit'] } : undefined,
   },
   webServer: inMemory ? undefined : {
     // Own the test server; port 5173 may belong to another local project.
