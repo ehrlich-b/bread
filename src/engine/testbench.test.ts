@@ -214,6 +214,8 @@ describe('testbench runner', () => {
 describe('bundled declarative testbench corpus', () => {
   it.each([
     ['full_adder', 8], ['register_bus_4bit', 38], ['sap1_fibonacci', 41],
+    ['sap1_count_up', 261], ['sap1_count_up_down', 516],
+    ['sap1_multiply', 5], ['sap1_arithmetic', 8], ['sap1_halt', 7],
   ])('%s', (name, count) => {
     const benchURL = new URL(`../../examples/testbenches/${name}.json`, import.meta.url);
     const input = parseTestbench(JSON.parse(readFileSync(benchURL, 'utf8')));

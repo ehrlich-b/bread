@@ -17,6 +17,11 @@ import nandLatch from '../../examples/nand_latch.json';
 import originalDigitalCpu from '../../examples/original_digital_cpu_generated.json';
 import registerBus from '../../examples/register_bus_4bit.json';
 import rippleAdder from '../../examples/ripple_adder_4bit.json';
+import sap1Arithmetic from '../../examples/sap1_arithmetic.json';
+import sap1CountUp from '../../examples/sap1_count_up.json';
+import sap1CountUpDown from '../../examples/sap1_count_up_down.json';
+import sap1Halt from '../../examples/sap1_halt.json';
+import sap1Multiply from '../../examples/sap1_multiply.json';
 import type { CircuitJSON } from '../engine/ir';
 import { exportVerilog } from '../engine/verilog';
 import { importVerilog } from '../engine/verilog_import';
@@ -37,6 +42,11 @@ const EXAMPLES: BundledExample[] = [
   { key: 'ripple_adder_4bit', label: '4-bit ripple adder', circuit: rippleAdder as CircuitJSON },
   { key: 'hex_display_28c16', label: 'Hex display (28C16)', circuit: hexDisplay28C16 as CircuitJSON },
   { key: 'ben_eater_8bit',    label: 'Ben Eater 8-bit (Fibonacci)', circuit: benEater8bit as CircuitJSON },
+  { key: 'sap1_count_up', label: 'SAP-1: count up and wrap', circuit: sap1CountUp as CircuitJSON },
+  { key: 'sap1_count_up_down', label: 'SAP-1: count up and down', circuit: sap1CountUpDown as CircuitJSON },
+  { key: 'sap1_multiply', label: 'SAP-1: multiply 7 × 6', circuit: sap1Multiply as CircuitJSON },
+  { key: 'sap1_arithmetic', label: 'SAP-1: add/subtract and flags', circuit: sap1Arithmetic as CircuitJSON },
+  { key: 'sap1_halt', label: 'SAP-1: output and halt', circuit: sap1Halt as CircuitJSON },
   { key: 'original_digital_cpu_generated', label: 'Bryan\'s Digital CPU (generated port)', circuit: originalDigitalCpu as unknown as CircuitJSON },
 ];
 

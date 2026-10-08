@@ -117,6 +117,8 @@ recordings resume when the next live waveform is delivered.
 The [bundled corpus](../examples/testbenches) checks all eight full-adder
 combinations, all sixteen register values with shared-bus release/contention,
 and three ordered SAP-1 Fibonacci OUT cycles, including both initial ones.
+The [SAP-1 gallery](SAP1_PROGRAMS.md) adds a complete count-up wrap, both
+count-up/down turns, RAM multiplication, arithmetic flags and stable HLT checks.
 Vitest runs these same files in CI. The format takes inspiration from Digital's
 named test-case columns, loops, bit expansion and clock markers, with a smaller
 JSON-only vocabulary.

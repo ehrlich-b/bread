@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "kind": "circuit",
+  "name": "sap1_halt",
+  "description": "Ben Eater's SAP-1: Output 1, 2, 3 and halt. The following LDI 9 / OUT instructions are unreachable; the clock gate holds the display at 3. Release RESET and Run. Commented RAM listing is in ram_chip.params.contents.",
+  "components": [
+    { "id": "reg_a",   "type": "eater.register_8bit", "position": [60,  60] },
+    { "id": "reg_b",   "type": "eater.register_8bit", "position": [320, 60] },
+    { "id": "alu",     "type": "eater.alu_8bit",      "position": [580, 60] },
+
+    { "id": "ram_chip", "type": "mem.6116", "position": [60, 340],
+      "params": { "contents": "// 0: LDI 1    A = 1\n// 1: OUT      display 1\n// 2: LDI 2    A = 2\n// 3: OUT      display 2\n// 4: LDI 3    A = 3\n// 5: OUT      display 3\n// 6: HLT      stop the gated clock\n// 7: LDI 9    unreachable\n// 8: OUT      unreachable\n// 9..F: unused\n51 E0 52 E0 53 E0 F0 59 E0 00 00 00 00 00 00 00" } },
+    { "id": "mar",     "type": "ttl.74LS173", "position": [60, 480] },
+    { "id": "ir",      "type": "eater.instruction_register","position": [320, 340] },
+    { "id": "display", "type": "eater.output_display",      "position": [580, 340] },
+
+    { "id": "pc",      "type": "eater.program_counter", "position": [60,  640] },
+    { "id": "flags",   "type": "eater.flags_register",  "position": [240, 640] },
+    { "id": "control", "type": "eater.control_unit",    "position": [420, 640] },
+
+    { "id": "clk_gen", "type": "gen.clock",  "position": [60,  780], "params": { "freqHz": 2 } },
+    { "id": "sw_reset","type": "io.switch",  "position": [200, 780] },
+
+    { "id": "inv_hlt", "type": "prim.NOT", "position": [300, 800] },
+    { "id": "and_clk", "type": "prim.AND", "position": [400, 800], "params": { "inputs": 2 } },
+    { "id": "inv_clr", "type": "prim.NOT", "position": [240, 880] },
+
+    { "id": "vcc",     "type": "prim.CONST_1", "position": [820, 480] },
+    { "id": "gnd",     "type": "prim.CONST_0", "position": [820, 520] }
+  ],
+  "nets": [
+    { "id": "bus0", "endpoints": [
+      "reg_a.BUS0", "reg_b.BUS0", "alu.BUS0", "ram_chip.DQ0",
+      "mar.D1", "pc.BUS0", "ir.BUS0", "display.BUS0"
+    ] },
+    { "id": "bus1", "endpoints": [
+      "reg_a.BUS1", "reg_b.BUS1", "alu.BUS1", "ram_chip.DQ1",
+      "mar.D2", "pc.BUS1", "ir.BUS1", "display.BUS1"
+    ] },
+    { "id": "bus2", "endpoints": [
+      "reg_a.BUS2", "reg_b.BUS2", "alu.BUS2", "ram_chip.DQ2",
+      "mar.D3", "pc.BUS2", "ir.BUS2", "display.BUS2"
+    ] },
+    { "id": "bus3", "endpoints": [
+      "reg_a.BUS3", "reg_b.BUS3", "alu.BUS3", "ram_chip.DQ3",
+      "mar.D4", "pc.BUS3", "ir.BUS3", "display.BUS3"
+    ] },
+    { "id": "bus4", "endpoints": [
+      "reg_a.BUS4", "reg_b.BUS4", "alu.BUS4", "ram_chip.DQ4",
+      "ir.BUS4", "display.BUS4"
+    ] },
+    { "id": "bus5", "endpoints": [
+      "reg_a.BUS5", "reg_b.BUS5", "alu.BUS5", "ram_chip.DQ5",
+      "ir.BUS5", "display.BUS5"
+    ] },
+    { "id": "bus6", "endpoints": [
+      "reg_a.BUS6", "reg_b.BUS6", "alu.BUS6", "ram_chip.DQ6",
+      "ir.BUS6", "display.BUS6"
+    ] },
+    { "id": "bus7", "endpoints": [
+      "reg_a.BUS7", "reg_b.BUS7", "alu.BUS7", "ram_chip.DQ7",
+      "ir.BUS7", "display.BUS7"
+    ] },
+
+    { "id": "addr0", "endpoints": ["mar.Q1", "ram_chip.A0"] },
+    { "id": "addr1", "endpoints": ["mar.Q2", "ram_chip.A1"] },
+    { "id": "addr2", "endpoints": ["mar.Q3", "ram_chip.A2"] },
+    { "id": "addr3", "endpoints": ["mar.Q4", "ram_chip.A3"] },
+
+    { "id": "av0", "endpoints": ["reg_a.VAL0", "alu.A0"] },
+    { "id": "av1", "endpoints": ["reg_a.VAL1", "alu.A1"] },
+    { "id": "av2", "endpoints": ["reg_a.VAL2", "alu.A2"] },
+    { "id": "av3", "endpoints": ["reg_a.VAL3", "alu.A3"] },
+    { "id": "av4", "endpoints": ["reg_a.VAL4", "alu.A4"] },
+    { "id": "av5", "endpoints": ["reg_a.VAL5", "alu.A5"] },
+    { "id": "av6", "endpoints": ["reg_a.VAL6", "alu.A6"] },
+    { "id": "av7", "endpoints": ["reg_a.VAL7", "alu.A7"] },
+
+    { "id": "bv0", "endpoints": ["reg_b.VAL0", "alu.B0"] },
+    { "id": "bv1", "endpoints": ["reg_b.VAL1", "alu.B1"] },
+    { "id": "bv2", "endpoints": ["reg_b.VAL2", "alu.B2"] },
+    { "id": "bv3", "endpoints": ["reg_b.VAL3", "alu.B3"] },
+    { "id": "bv4", "endpoints": ["reg_b.VAL4", "alu.B4"] },
+    { "id": "bv5", "endpoints": ["reg_b.VAL5", "alu.B5"] },
+    { "id": "bv6", "endpoints": ["reg_b.VAL6", "alu.B6"] },
+    { "id": "bv7", "endpoints": ["reg_b.VAL7", "alu.B7"] },
+
+    { "id": "cout", "endpoints": ["alu.COUT", "flags.CIN"] },
+    { "id": "zero", "endpoints": ["alu.ZERO", "flags.ZIN"] },
+
+    { "id": "op0", "endpoints": ["ir.OPCODE0", "control.OPCODE0"] },
+    { "id": "op1", "endpoints": ["ir.OPCODE1", "control.OPCODE1"] },
+    { "id": "op2", "endpoints": ["ir.OPCODE2", "control.OPCODE2"] },
+    { "id": "op3", "endpoints": ["ir.OPCODE3", "control.OPCODE3"] },
+
+    { "id": "cflag", "endpoints": ["flags.CFLAG", "control.CFLAG"] },
+    { "id": "zflag", "endpoints": ["flags.ZFLAG", "control.ZFLAG"] },
+
+    { "id": "ctl_hlt", "endpoints": ["control.HLT", "inv_hlt.A"] },
+    { "id": "ctl_mi",  "endpoints": ["control./MI", "mar./G1"] },
+    { "id": "ctl_ri",  "endpoints": ["control./RI", "ram_chip./WE"] },
+    { "id": "ctl_ro",  "endpoints": ["control./RO", "ram_chip./OE"] },
+    { "id": "ctl_io",  "endpoints": ["control./IO", "ir./IO"] },
+    { "id": "ctl_ii",  "endpoints": ["control./II", "ir./II"] },
+    { "id": "ctl_ai",  "endpoints": ["control./AI", "reg_a./LD"] },
+    { "id": "ctl_ao",  "endpoints": ["control./AO", "reg_a./OE"] },
+    { "id": "ctl_eu",  "endpoints": ["control./EU", "alu./EU"] },
+    { "id": "ctl_su",  "endpoints": ["control.SU",  "alu.SU"] },
+    { "id": "ctl_bi",  "endpoints": ["control./BI", "reg_b./LD"] },
+    { "id": "ctl_oi",  "endpoints": ["control./OI", "display./OI"] },
+    { "id": "ctl_ce",  "endpoints": ["control.CE",  "pc.CE"] },
+    { "id": "ctl_co",  "endpoints": ["control./CO", "pc./CO"] },
+    { "id": "ctl_j",   "endpoints": ["control.J",   "pc.J"] },
+    { "id": "ctl_fi",  "endpoints": ["control./FI", "flags./FI"] },
+
+    { "id": "raw_clk",   "endpoints": ["clk_gen.Y", "and_clk.A"] },
+    { "id": "not_hlt",   "endpoints": ["inv_hlt.Y", "and_clk.B"] },
+    { "id": "gated_clk", "endpoints": [
+      "and_clk.Y",
+      "reg_a.CLK", "reg_b.CLK",
+      "mar.CLK",
+      "pc.CLK", "ir.CLK", "flags.CLK",
+      "display.CLK", "control.CLK"
+    ] },
+
+    { "id": "reset_low", "endpoints": [
+      "sw_reset.Y", "inv_clr.A",
+      "pc./CLR", "control./CLR"
+    ] },
+    { "id": "reset_high", "endpoints": [
+      "inv_clr.Y",
+      "reg_a.CLR", "reg_b.CLR",
+      "mar.CLR", "ir.CLR", "flags.CLR", "display.CLR"
+    ] },
+
+    { "id": "vcc_net", "endpoints": [
+      "vcc.Y",
+      "reg_b./OE"
+    ] },
+    { "id": "gnd_net", "endpoints": [
+      "gnd.Y",
+      "mar./G2", "mar./M", "mar./N",
+      "ram_chip./CE",
+      "ram_chip.A4", "ram_chip.A5", "ram_chip.A6", "ram_chip.A7",
+      "ram_chip.A8", "ram_chip.A9", "ram_chip.A10"
+    ] }
+  ]
+}

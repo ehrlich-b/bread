@@ -10,7 +10,7 @@ it('round trips every bundled example and library type with identical four-state
   expect(results.every(r => r.samples === 258 && r.comparisons > 0)).toBe(true);
 }, 60_000);
 
-it.each(['full_adder', 'register_bus_4bit', 'sap1_fibonacci'])('round trips every net at every %s testbench sample', name => {
+it.each(['full_adder', 'register_bus_4bit', 'sap1_fibonacci', 'sap1_count_up', 'sap1_multiply'])('round trips every net at every %s testbench sample', name => {
   const bench = JSON.parse(readFileSync(`examples/testbenches/${name}.json`, 'utf8'));
   const circuit = JSON.parse(readFileSync(`examples/testbenches/${bench.circuit}`, 'utf8'));
   const result = roundTripTestbench(circuit, bench);

@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "name": "SAP-1 multiply OUT sequence",
+  "circuit": "../sap1_multiply.json",
+  "rateHz": 1,
+  "inputs": {
+    "RESET": {
+      "component": "sw_reset",
+      "pin": "Y"
+    }
+  },
+  "outputs": {
+    "CLK": [
+      "gated_clk"
+    ],
+    "OI": [
+      "ctl_oi"
+    ],
+    "OUT": [
+      "display__nlo0",
+      "display__nlo1",
+      "display__nlo2",
+      "display__nlo3",
+      "display__nhi0",
+      "display__nhi1",
+      "display__nhi2",
+      "display__nhi3"
+    ],
+    "C": [
+      "cflag"
+    ],
+    "Z": [
+      "zflag"
+    ],
+    "HLT": [
+      "ctl_hlt"
+    ],
+    "A": [
+      "av0",
+      "av1",
+      "av2",
+      "av3",
+      "av4",
+      "av5",
+      "av6",
+      "av7"
+    ]
+  },
+  "vectors": [
+    {
+      "label": "Power-on reset",
+      "expect": {
+        "OUT": 0,
+        "C": 0,
+        "Z": 0,
+        "HLT": 0
+      }
+    },
+    {
+      "label": "Release reset",
+      "drive": {
+        "RESET": 1
+      }
+    },
+    {
+      "label": "OUT instruction",
+      "wait": {
+        "rising": "CLK",
+        "when": {
+          "OI": 0
+        },
+        "maxTicks": 1000
+      },
+      "expect": {
+        "OUT": 42,
+        "C": 1,
+        "Z": 1,
+        "HLT": 0
+      }
+    },
+    {
+      "label": "HLT gates the clock",
+      "wait": {
+        "rising": "HLT",
+        "maxTicks": 100
+      },
+      "expect": {
+        "OUT": 42,
+        "A": 42,
+        "C": 1,
+        "Z": 1,
+        "HLT": 1,
+        "CLK": 0,
+        "OI": 1
+      }
+    },
+    {
+      "label": "Halt holds through 100 raw clock ticks",
+      "ticks": 100,
+      "expect": {
+        "OUT": 42,
+        "A": 42,
+        "C": 1,
+        "Z": 1,
+        "HLT": 1,
+        "CLK": 0,
+        "OI": 1
+      }
+    }
+  ]
+}

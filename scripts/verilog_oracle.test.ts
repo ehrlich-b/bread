@@ -35,6 +35,7 @@ describe('Verilog testbench generation', () => {
 describe.skipIf(!available)('Icarus Verilog oracle (optional iverilog/vvp)', () => {
   it.each([
     ['full_adder', 8, 9], ['register_bus_4bit', 38, 90], ['sap1_fibonacci', 41, 3527],
+    ['sap1_count_up', 261, 8017], ['sap1_multiply', 5, 589],
   ])('matches %s after every settlement and tick', (name, vectors, samples) => {
     const bench = JSON.parse(readFileSync(`examples/testbenches/${name}.json`, 'utf8')) as TestbenchJSON;
     const circuit = JSON.parse(readFileSync(`examples/testbenches/${bench.circuit}`, 'utf8')) as CircuitJSON;

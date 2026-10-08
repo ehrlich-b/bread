@@ -20,6 +20,24 @@ Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 
 The [editor-built four-bit CPU](docs/CPU_ASCENT.md) uses 14 reusable modules. Arithmetic and HALT work in the editor; automated ISA tests also cover load/store and conditional loops. UI checks for those programs and high-speed responsiveness remain open.
 
+## SAP-1 programs
+
+Choose these in **Examples** or open the named links. Each uses the Fibonacci
+example's CPU with a different 16-byte RAM image and a commented listing in
+the [program listings](docs/SAP1_PROGRAMS.md) and `ram_chip.params.contents`.
+Release **RESET**, then **Run**; reload an example
+to restore its RAM. Probe `flags.CFLAG` and `flags.ZFLAG` to follow the flags.
+Subtraction carry means **no borrow**. The display shows hexadecimal values.
+
+- [Count up and wrap](#example=sap1_count_up): OUT 0, 1, …, 255, 0, 1, ….
+- [Count up and down](#example=sap1_count_up_down): OUT 0, 1, …, 255, 254, …, 0, 1, …; `JC` and `JZ` turn at the endpoints.
+- [Multiply](#example=sap1_multiply): repeated addition of RAM operands 7 × 6; OUT 42, then halt.
+- [Add/subtract and flags](#example=sap1_arithmetic): OUT 4, 250, 0, 19 with (carry, zero) = (1,0), (0,0), (1,1), (0,0), then halt.
+- [Output and halt](#example=sap1_halt): OUT 1, 2, 3; `HLT` prevents the following OUT 9.
+
+All five have [JSON testbenches](examples/testbenches) and browser checks;
+count-up and multiplication also run through the exported Verilog in Icarus.
+
 Vitest covers engine semantics, queued editor actions, library edits, save/load and all three CPU designs. Playwright covers editor workflows, full-adder truth tables, ROMs, bus wiring, live displays and bundled examples. See the [roadmap](docs/ROADMAP.md) for benchmark methods and remaining performance targets.
 
 ## Quick start

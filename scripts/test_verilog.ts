@@ -13,7 +13,11 @@ try {
   }
   const icarus = hasIcarusVerilog();
   if (!icarus) process.stdout.write(`${ICARUS_SKIP}\n`);
-  for (const path of paths.length ? paths : ['examples/testbenches/full_adder.json', 'examples/testbenches/register_bus_4bit.json', 'examples/testbenches/sap1_fibonacci.json']) {
+  for (const path of paths.length ? paths : [
+    'examples/testbenches/full_adder.json', 'examples/testbenches/register_bus_4bit.json',
+    'examples/testbenches/sap1_fibonacci.json', 'examples/testbenches/sap1_count_up.json',
+    'examples/testbenches/sap1_multiply.json',
+  ]) {
     const bench = parseTestbench(JSON.parse(readFileSync(path, 'utf8')));
     if (!bench.circuit) throw new Error(`Testbench ${path} needs a circuit path`);
     const circuit = JSON.parse(readFileSync(resolve(dirname(path), bench.circuit), 'utf8')) as CircuitJSON;

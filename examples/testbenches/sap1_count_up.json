@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "name": "SAP-1 count up OUT sequence",
+  "circuit": "../sap1_count_up.json",
+  "rateHz": 1,
+  "inputs": {
+    "RESET": {
+      "component": "sw_reset",
+      "pin": "Y"
+    }
+  },
+  "outputs": {
+    "CLK": [
+      "gated_clk"
+    ],
+    "OI": [
+      "ctl_oi"
+    ],
+    "OUT": [
+      "display__nlo0",
+      "display__nlo1",
+      "display__nlo2",
+      "display__nlo3",
+      "display__nhi0",
+      "display__nhi1",
+      "display__nhi2",
+      "display__nhi3"
+    ],
+    "C": [
+      "cflag"
+    ],
+    "Z": [
+      "zflag"
+    ],
+    "HLT": [
+      "ctl_hlt"
+    ],
+    "A": [
+      "av0",
+      "av1",
+      "av2",
+      "av3",
+      "av4",
+      "av5",
+      "av6",
+      "av7"
+    ]
+  },
+  "vectors": [
+    {
+      "label": "Power-on reset",
+      "expect": {
+        "OUT": 0,
+        "C": 0,
+        "Z": 0,
+        "HLT": 0
+      }
+    },
+    {
+      "label": "Release reset",
+      "drive": {
+        "RESET": 1
+      }
+    },
+    {
+      "label": "OUT instruction",
+      "wait": {
+        "rising": "CLK",
+        "when": {
+          "OI": 0
+        },
+        "maxTicks": 40
+      },
+      "expect": {
+        "OUT": 0,
+        "C": 0,
+        "Z": 0,
+        "HLT": 0
+      }
+    },
+    {
+      "for": {
+        "value": {
+          "from": 1,
+          "to": 255
+        }
+      },
+      "vectors": [
+        {
+          "label": "OUT instruction",
+          "wait": {
+            "rising": "CLK",
+            "when": {
+              "OI": 0
+            },
+            "maxTicks": 40
+          },
+          "expect": {
+            "OUT": {
+              "var": "value"
+            },
+            "C": 0,
+            "Z": 0,
+            "HLT": 0
+          }
+        }
+      ]
+    },
+    {
+      "label": "OUT instruction",
+      "wait": {
+        "rising": "CLK",
+        "when": {
+          "OI": 0
+        },
+        "maxTicks": 40
+      },
+      "expect": {
+        "OUT": 0,
+        "C": 1,
+        "Z": 1,
+        "HLT": 0
+      }
+    },
+    {
+      "for": {
+        "value": {
+          "from": 1,
+          "to": 2
+        }
+      },
+      "vectors": [
+        {
+          "label": "OUT instruction",
+          "wait": {
+            "rising": "CLK",
+            "when": {
+              "OI": 0
+            },
+            "maxTicks": 40
+          },
+          "expect": {
+            "OUT": {
+              "var": "value"
+            },
+            "C": 0,
+            "Z": 0,
+            "HLT": 0
+          }
+        }
+      ]
+    }
+  ]
+}
