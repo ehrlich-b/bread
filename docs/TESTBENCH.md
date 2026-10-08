@@ -73,7 +73,15 @@ select an entry with `{ "table": [0, 1, 1, 0], "index": "row" }`.
 There is no executable expression language or random input generation.
 
 Runs are limited to 10,000 expanded vectors, 100,000 simulation settlements
-including ticks, and 16 nested loops. At least one output bit must be checked.
+including ticks, and 16 nested loops. Before allocating expanded vectors, the
+runner also limits their aggregate signal values to 100,000: each `drive`,
+`expect`, and `wait.when` entry, plus each clock or rising-edge signal, counts
+once per expanded vector. Signal bit operations are limited to 1,000,000,
+counting each driven or expected bit, three drives per clock bit, and each
+wait condition bit plus two edge reads per possible tick (`maxTicks`). These
+budgets sum across all loops and vectors, even if a run stops or replays early.
+Oversized runs report a budget error before preparing values. At least one
+output bit must be checked.
 
 ## Running and debugging
 

@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ehrlich-b.github.io/bread/schema/testbench.schema.json",
   "title": "Bread testbench",
+  "description": "Runs allow at most 10000 expanded vectors, 100000 simulation settlements, 16 nested loops, 100000 expanded signal values (drive, expect, wait conditions, clock and edge signals), and 1000000 signal bit operations (drives, expectations, three clock phases and worst-case wait checks). Aggregate expansion budgets are checked before vector allocation.",
   "type": "object",
   "properties": {
     "version": {

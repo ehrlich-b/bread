@@ -158,6 +158,38 @@ describe('testbench runner', () => {
     expect(() => runTestbench(buffer, input, { throughVector: 3 })).toThrow('Invalid replay vector');
   });
 
+  it('rejects amplified expectations before resolving or allocating expanded values', () => {
+    const outputs = Object.fromEntries(Array.from({ length: 2000 }, (_, i) => [`Q${i}`, ['out']]));
+    const expectValues = Object.fromEntries(Object.keys(outputs).map(name => [name, 1]));
+    const input = { ...bench([]), outputs, vectors: [{ for: { i: [0, 1], j: { from: 0, to: 4999 } }, vectors: [
+      { drive: { IN: { var: 'missing' } }, expect: expectValues },
+    ] }] };
+    expect(parseTestbench(input)).toBe(input);
+    expect(() => runTestbench(buffer, input)).toThrow('Testbench exceeds 100000 expanded signal values');
+  });
+
+  it('counts signal values across separate loops and permits the exact aggregate limit', () => {
+    const outputs = Object.fromEntries(Array.from({ length: 99 }, (_, i) => [`Q${i}`, ['out']]));
+    const expectValues = Object.fromEntries(Object.keys(outputs).map(name => [name, 1]));
+    const loop = { for: { i: { from: 0, to: 499 } }, vectors: [{ drive: { IN: 1 }, expect: expectValues }] };
+    const vectors = [loop, loop];
+    const input = { ...bench([]), outputs, vectors };
+    expect(runTestbench(buffer, input).passed).toBe(1000);
+    expect(() => runTestbench(buffer, { ...input, vectors: [...vectors, { expect: { Q0: { var: 'missing' } } }] })).toThrow('Testbench exceeds 100000 expanded signal values');
+  });
+
+  it('bounds wide signals and worst-case wait checks before resolving values', () => {
+    const outputs = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`Q${i}`, Array(53).fill('out')]));
+    const expectValues = Object.fromEntries(Object.keys(outputs).map(name => [name, { var: 'missing' }]));
+    expect(() => runTestbench(buffer, { ...bench([]), outputs, vectors: [
+      { for: { i: { from: 0, to: 999 } }, vectors: [{ expect: expectValues }] },
+    ] })).toThrow('Testbench exceeds 1000000 signal bit operations');
+    const when = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`Q${i}`, 0]));
+    expect(() => runTestbench(buffer, { ...bench([]), outputs: Object.fromEntries(Object.keys(when).map(name => [name, ['out']])), vectors: [
+      { wait: { rising: 'Q0', when, maxTicks: 100000 }, expect: { Q0: { var: 'missing' } } },
+    ] })).toThrow('Testbench exceeds 1000000 signal bit operations');
+  });
+
   it.each([
     bench([{ expect: { UNKNOWN: 0 } }]),
     bench([{ drive: { MISSING: 0 }, expect: { OUT: 0 } }]),
