@@ -47,14 +47,14 @@ const expect = (label: string, got: unknown, want: unknown): void => {
 // Switch starts at 0 — AND output is always 0 regardless of clock.
 expect('switch=0: LED stays off for 8 ticks', collect(8), [0, 0, 0, 0, 0, 0, 0, 0]);
 
-// Toggle switch on. Now LED should track the clock: 2 low, 2 high, repeating
-// (rateHz=4, freqHz=1 → halfPeriod=2). The clock continues from whatever
-// phase it reached during the switch=0 sweep, so the trace starts with two
-// 1s rather than two 0s; the duty cycle and period are what matter.
+// Toggle switch on. At rateHz=4, freqHz=1 the half-period is 2 ticks.
+// The initial settle is time 0, so the first sweep ends at time 2 s with
+// the clock low. Paused switch settling leaves that phase intact; the next
+// tick is still low, followed by two high ticks.
 sim.setComponentInput('sw', 'Y', 1);
 sim.settle();
 const phase2 = collect(8);
-expect('switch=1: phase 2 traces a clean 50% duty cycle', phase2, [1, 1, 0, 0, 1, 1, 0, 0]);
+expect('switch=1: phase 2 traces a clean 50% duty cycle', phase2, [0, 1, 1, 0, 0, 1, 1, 0]);
 const ones = phase2.filter((v) => v === 1).length;
 expect('switch=1: 50% duty cycle over 8 ticks', ones, 4);
 
