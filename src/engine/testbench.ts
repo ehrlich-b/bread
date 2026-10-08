@@ -56,6 +56,8 @@ export interface TestbenchResult {
 
 const MAX_VECTORS = 10_000;
 const MAX_STEPS = 100_000;
+const MAX_SIGNAL_VALUES = 100_000;
+const MAX_SIGNAL_WORK = 1_000_000;
 const owns = (record: object, key: string): boolean => Object.hasOwn(record, key);
 
 export function parseTestbench(input: unknown): TestbenchJSON {
@@ -105,21 +107,52 @@ function prepare(bench: TestbenchJSON): PreparedVector[] {
     const signal = signals[name]!;
     return Array.isArray(signal) ? signal.length : 1;
   };
-  const values = (record: Record<string, Value>, vars: Record<string, number>, output: boolean): Record<string, string> =>
-    Object.fromEntries(Object.entries(record).map(([name, value]) => [name, bits(resolveValue(value, vars), width(name, output), output)]));
-  const visit = (steps: Step[], vars: Record<string, number>, depth: number): void => {
+  // Count Cartesian expansion without building scopes, ranges or value maps.
+  // Waiting is charged for its worst case, including both edge reads per tick.
+  let count = 0; let signalValues = 0; let signalWork = 0;
+  const measure = (steps: Step[], copies: number, depth: number): void => {
     if (depth > 16) throw new Error('Testbench loops nest too deeply (maximum 16)');
     for (const step of steps) {
       if ('for' in step) {
         const entries = Object.entries(step.for);
-        const expand = (index: number, scope: Record<string, number>): void => {
-          if (index === entries.length) { visit(step.vectors, scope, depth + 1); return; }
-          const [name, range] = entries[index]!;
+        if (entries.length > 16) throw new Error('Too many loop variables (maximum 16)');
+        let expanded = copies;
+        for (const [name, range] of entries) {
           if (!Array.isArray(range) && (range.to < range.from || range.to - range.from >= MAX_VECTORS)) throw new Error(`Invalid or oversized range for ${name}`);
+          expanded *= Array.isArray(range) ? range.length : range.to - range.from + 1;
+          if (expanded > MAX_VECTORS) throw new Error(`Testbench exceeds ${MAX_VECTORS} vectors`);
+        }
+        measure(step.vectors, expanded, depth + 1);
+        continue;
+      }
+      count += copies;
+      if (count > MAX_VECTORS) throw new Error(`Testbench exceeds ${MAX_VECTORS} vectors`);
+      const drive = Object.keys(step.drive ?? {});
+      const expected = Object.keys(step.expect ?? {});
+      const when = Object.keys(step.wait?.when ?? {});
+      signalValues += copies * (drive.length + expected.length + when.length + Number(!!step.clock) + Number(!!step.wait));
+      if (signalValues > MAX_SIGNAL_VALUES) throw new Error(`Testbench exceeds ${MAX_SIGNAL_VALUES} expanded signal values`);
+      const work = drive.reduce((sum, name) => sum + width(name, false), 0)
+        + expected.reduce((sum, name) => sum + width(name, true), 0)
+        + (step.clock ? 3 * width(step.clock, false) : 0)
+        + (step.wait ? step.wait.maxTicks * (2 * width(step.wait.rising, true) + when.reduce((sum, name) => sum + width(name, true), 0)) : 0);
+      signalWork += copies * work;
+      if (signalWork > MAX_SIGNAL_WORK) throw new Error(`Testbench exceeds ${MAX_SIGNAL_WORK} signal bit operations`);
+    }
+  };
+  measure(bench.vectors, 1, 0);
+  const values = (record: Record<string, Value>, vars: Record<string, number>, output: boolean): Record<string, string> =>
+    Object.fromEntries(Object.entries(record).map(([name, value]) => [name, bits(resolveValue(value, vars), width(name, output), output)]));
+  const visit = (steps: Step[], vars: Record<string, number>): void => {
+    for (const step of steps) {
+      if ('for' in step) {
+        const entries = Object.entries(step.for);
+        const expand = (index: number, scope: Record<string, number>): void => {
+          if (index === entries.length) { visit(step.vectors, scope); return; }
+          const [name, range] = entries[index]!;
           const choices = Array.isArray(range) ? range : Array.from({ length: range.to - range.from + 1 }, (_, i) => range.from + i);
           for (const choice of choices) expand(index + 1, { ...scope, [name]: choice });
         };
-        if (entries.length > 16) throw new Error('Too many loop variables (maximum 16)');
         expand(0, vars);
         continue;
       }
@@ -138,7 +171,7 @@ function prepare(bench: TestbenchJSON): PreparedVector[] {
       });
     }
   };
-  visit(bench.vectors, {}, 0);
+  visit(bench.vectors, {});
   if (!vectors.some(vector => Object.values(vector.expected).some(value => /[01XZ]/.test(value)))) throw new Error('Testbench needs at least one checked output');
   return vectors;
 }

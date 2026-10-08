@@ -107,13 +107,24 @@ export const createWorkerBus = (): WorkerBus => {
     slot.resolve(msg);
   });
 
+  let failure: Error | null = null;
+  const fail = (message: string): void => {
+    failure = new Error(`Simulation worker failed: ${message}. Reload to restart the simulation.`);
+    for (const slot of pending.values()) slot.reject(failure);
+    pending.clear();
+  };
+  worker.addEventListener('error', (event: ErrorEvent) => fail(event.message || 'Unknown worker error'));
+  worker.addEventListener('messageerror', () => fail('Could not receive a worker response'));
+
   const send = <R>(req: WorkerReq): Promise<R> => {
     return new Promise<R>((resolve, reject) => {
+      if (failure) { reject(failure); return; }
       pending.set(req.id, {
         resolve: resolve as (v: unknown) => void,
         reject,
       });
-      worker.postMessage(req);
+      try { worker.postMessage(req); }
+      catch (error) { pending.delete(req.id); reject(error); }
     });
   };
 
