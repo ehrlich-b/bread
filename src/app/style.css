@@ -49,6 +49,8 @@ header h1 {
   font-family: ui-monospace, SFMono-Regular, monospace;
 }
 
+#iso-status[role='alert'] { opacity: 1; }
+
 main {
   display: grid;
   grid-template-columns: 180px 1fr 280px;

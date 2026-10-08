@@ -18,11 +18,6 @@ import { mountTutorial } from '../ui/tutorial_view';
 import { mountSchematic } from '../ui/schematic';
 import { mountResponsivePanels } from '../ui/responsive';
 
-const isoStatus = document.getElementById('iso-status')!;
-if (!self.crossOriginIsolated) {
-  isoStatus.textContent = 'SharedArrayBuffer disabled (no cross-origin isolation)';
-}
-
 const log = (msg: string): void => {
   const list = document.getElementById('event-log')!;
   const li = document.createElement('li');
@@ -31,6 +26,14 @@ const log = (msg: string): void => {
 };
 
 const main = async (): Promise<void> => {
+  if (!self.crossOriginIsolated) {
+    const isoStatus = document.getElementById('iso-status')!;
+    isoStatus.setAttribute('role', 'alert');
+    isoStatus.textContent = 'Bread cannot start: this page needs cross-origin isolation for shared simulation memory. '
+      + 'Serve it over HTTPS (or localhost) with Cross-Origin-Opener-Policy: same-origin and '
+      + 'Cross-Origin-Embedder-Policy: require-corp. Use a host that supports these response headers.';
+    return;
+  }
   const bus = createWorkerBus();
   bus.on('event', (e) => log(`[${e.kind}] ${e.detail}`));
 

@@ -94,6 +94,16 @@ Messages are RPC-style with numeric request IDs. Notifications (events) flow wor
 
 `SharedArrayBuffer` carries net state for high-frequency reads. The UI samples at `requestAnimationFrame`; no per-frame messaging needed.
 
+This requires a secure context and cross-origin isolation. The deployment server
+must send `Cross-Origin-Opener-Policy: same-origin` and
+`Cross-Origin-Embedder-Policy: require-corp` for the page and worker assets;
+Vite supplies them in dev and preview, and the in-memory Playwright fixture
+supplies them for built-file tests. These test headers do not establish that a
+static deployment will work. Hosts without configurable response headers, such
+as GitHub Pages, need a proxy that adds them or a different host. The app checks
+`crossOriginIsolated` before creating the worker and shows an actionable startup
+alert when isolation is missing. See [Hosting](../README.md#hosting).
+
 Two protocol simplifications relative to the original v1 sketch are intentional:
 
 - **Whole-circuit `mutate` over an `IRPatch` op-list.** A 100-component circuit serializes in well under 50 ms, the editor sequences mutations through a single `inflight` slot in `ui/editor.ts`, and skipping the patch grammar keeps the worker boundary trivial. Patches remain a future option if profiling shows the round-trip cost matters.

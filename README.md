@@ -35,6 +35,24 @@ Import with `node --import tsx scripts/verilog-import.ts examples/verilog/counte
 With optional `iverilog`/`vvp` installed, `npm run test:verilog` runs the independent
 four-state oracle corpus. See [Verilog mapping and limits](docs/VERILOG.md).
 
+## Hosting
+
+The built app requires a secure context (HTTPS, or localhost during development)
+and cross-origin isolation for the worker's `SharedArrayBuffer` simulation memory.
+The host must send these HTTP response headers for the page and worker assets:
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+Vite's dev and preview servers supply them. Building `dist/` does not configure
+headers on your deployment host. Static hosts that cannot set these headers,
+such as GitHub Pages, cannot run Bread directly; use a host or proxy that can.
+Without isolation, Bread shows a startup alert and does not start its worker.
+The in-memory Playwright mode supplies these headers itself, so a passing suite
+does not verify a deployment host's configuration.
+
 ## Sharing circuits
 
 Click **Share**, then **Copy link**, or copy the selected link manually. Opening

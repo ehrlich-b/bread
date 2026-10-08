@@ -19,7 +19,7 @@ const contentTypes: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export async function routeDist(context: BrowserContext): Promise<void> {
+export async function routeDist(context: BrowserContext, isolated = true): Promise<void> {
   await context.route(`${IN_MEMORY_ORIGIN}/**`, async route => {
     const pathname = decodeURIComponent(new URL(route.request().url()).pathname);
     const file = resolve(dist, `.${pathname === '/' ? '/index.html' : pathname}`);
@@ -30,10 +30,10 @@ export async function routeDist(context: BrowserContext): Promise<void> {
       await route.fulfill({
         body: await readFile(file),
         contentType: contentTypes[extname(file)] ?? 'application/octet-stream',
-        headers: {
+        headers: isolated ? {
           'Cross-Origin-Opener-Policy': 'same-origin',
           'Cross-Origin-Embedder-Policy': 'require-corp',
-        },
+        } : {},
       });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
