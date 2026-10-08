@@ -87,7 +87,8 @@ function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
     // spec. inputNetIdx is filled in the net-wiring pass below.
     const inputIsLogic = new Uint8Array(inputPinIdx.length);
     for (let j = 0; j < inputPinIdx.length; j++) {
-      inputIsLogic[j] = pins[inputPinIdx[j]!]!.dir === 'in' ? 1 : 0;
+      const pin = pins[inputPinIdx[j]!]!;
+      inputIsLogic[j] = pin.dir === 'in' && !pin.readAsWire ? 1 : 0;
     }
     components.push({
       id: inst.id,

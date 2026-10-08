@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import type { CircuitJSON, NetState } from '../src/engine/ir';
 import { parseTestbench, runTestbench, type TestbenchResult } from '../src/engine/testbench';
 import { exportVerilog } from '../src/engine/verilog';
+import { importVerilog } from '../src/engine/verilog_import';
 
 export const ICARUS_SKIP = 'SKIP Verilog oracle: iverilog and vvp must be installed (optional development tools).';
 
@@ -116,11 +117,50 @@ export function compareVerilogOutput(generated: GeneratedVerilogTestbench, stdou
 
 export function runVerilogOracle(circuit: CircuitJSON, input: unknown, options: { source?: string } = {}): VerilogOracleResult {
   const generated = generateVerilogTestbench(circuit, input);
+  return runGeneratedOracle(generated, options.source);
+}
+
+// This oracle executes the hand-written source, never a re-export of the
+// imported circuit. Stimulus and sample times come from the shared runner.
+export function generateVerilogImportTestbench(source: string, input: unknown, topModule?: string): GeneratedVerilogTestbench {
+  const imported = importVerilog(source, { topModule }); const bench = parseTestbench(input);
+  if (Object.values(bench.inputs).some(signal => !Array.isArray(signal))) throw new Error('Import oracle inputs must bind wire lanes');
+  const inputs = [...new Set(Object.values(bench.inputs).flatMap(signal => Array.isArray(signal) ? signal : []))];
+  const pathFor = (net: string): string => {
+    const path = Object.entries(imported.nets).find(([, id]) => id === net)?.[0];
+    if (!path) throw new Error(`Import oracle: unknown Verilog net ${net}`); return `dut.${path}`;
+  };
+  const names = Object.keys(bench.outputs);
+  const expressions = names.map(name => `{${[...bench.outputs[name]!].reverse().map(pathFor).join(', ')}}`);
+  const steps: string[] = []; const samples: OracleSample[] = []; const previous = new Map<string, string>();
+  const bread = runTestbench(imported.circuit, bench, { observe(sim) {
+    inputs.forEach((net, i) => {
+      const value = String(sim.graph.nets[sim.graph.netById.get(net)!]!.forced).toLowerCase();
+      if (previous.get(net) !== value) { steps.push(`    drive_${i} = 1'b${value};`); previous.set(net, value); }
+    });
+    samples.push({ step: sim.step - 1, outputs: Object.fromEntries(names.map(name => [name, [...bench.outputs[name]!].reverse().map(net => String(sim.readNet(net))).join('')])) });
+    steps.push(`    #1; $display("BREAD ${samples.length - 1}${' %b'.repeat(names.length)}", ${expressions.join(', ')});`);
+  } });
+  const failed = bread.results.find(result => !result.passed);
+  if (failed) throw new Error(`Imported testbench failed at vector ${failed.vector}: ${failed.reason ?? JSON.stringify(failed)}`);
+  return { source, samples, bread, testbench: [
+    '`timescale 1ns/1ps', '`default_nettype none', 'module bread_tb;',
+    `  ${imported.topModule} dut ();`,
+    ...inputs.flatMap((net, i) => [`  reg drive_${i} = 1'bz;`, `  assign ${pathFor(net)} = drive_${i};`]),
+    '  initial begin', ...steps, '    $finish;', '  end', 'endmodule', '`default_nettype wire', '',
+  ].join('\n') };
+}
+
+export function runVerilogImportOracle(source: string, input: unknown, topModule?: string): VerilogOracleResult {
+  return runGeneratedOracle(generateVerilogImportTestbench(source, input, topModule));
+}
+
+function runGeneratedOracle(generated: GeneratedVerilogTestbench, source?: string): VerilogOracleResult {
   const scratch = resolve('.scratch'); mkdirSync(scratch, { recursive: true });
   const directory = mkdtempSync(resolve(scratch, 'verilog-'));
   try {
     const design = resolve(directory, 'design.v'); const bench = resolve(directory, 'testbench.v'); const output = resolve(directory, 'simulation');
-    writeFileSync(design, options.source ?? generated.source); writeFileSync(bench, generated.testbench);
+    writeFileSync(design, source ?? generated.source); writeFileSync(bench, generated.testbench);
     const run = (tool: string, args: string[]): string => {
       const result = spawnSync(tool, args, { encoding: 'utf8', timeout: 60_000, maxBuffer: 32 * 1024 * 1024,
         env: { ...process.env, TMPDIR: directory } });

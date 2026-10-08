@@ -9,6 +9,7 @@ import { decodeWordContents, wordRomDimensions } from './behavioral/mem_rom';
 import type { CircuitJSON, ComponentInstanceJSON, PinSpec } from './ir';
 import { loadCircuit } from './loader';
 import { getPrimitive } from './primitives/registry';
+import { expressionVerilog, type ExpressionParams } from './primitives/verilog_expr';
 
 export interface VerilogSource {
   component: string;
@@ -38,7 +39,7 @@ class Names {
   }
 }
 
-const quote = (text: string): string => JSON.stringify(text).replace(/[\u2028\u2029]/g, c => c === '\u2028' ? '\\u2028' : '\\u2029');
+const quote = (value: unknown): string => JSON.stringify(value).replace(/[\u2028\u2029]/g, c => c === '\u2028' ? '\\u2028' : '\\u2029');
 const joinPath = (path: string, name: string): string => path ? `${path}.${name}` : name;
 const leaf = (type: string) => getPrimitive(type) ?? getBehavioral(type);
 
@@ -149,6 +150,7 @@ function emitModule(plan: ModulePlan, plans: Map<string, ModulePlan>, top = fals
   for (const source of plan.sources) declarations.push(`input wire ${source.port}`);
   const lines = [`// Circuit ${quote(json.name)}`, `module ${plan.name}(${declarations.length ? '\n  ' + declarations.join(',\n  ') + '\n' : ''});`];
   const add = (line: string): void => { lines.push(`  ${line}`); };
+  add(`// bread:sources ${quote(plan.sources.map(s => s.port))}`);
   for (const net of json.nets) {
     if (!top) add(`wire ${nets.get(net.id)}; // net ${quote(net.id)}`);
   }
@@ -169,25 +171,43 @@ function emitModule(plan: ModulePlan, plans: Map<string, ModulePlan>, top = fals
       }
       if (inst.params && Object.keys(inst.params).length) add('// Omitted: composite instance parameters, also ignored by the bread loader.');
       add(`${child.name} ${plan.instances.get(inst.id)} (${connections.join(', ')});`);
-    } else emitLeaf(inst, plan, add);
+    } else {
+      const bindings = Object.fromEntries(plan.pins.get(inst.id)!.map(p => [p.name, wires.get(`${inst.id}.${p.name}`)!]));
+      const temps: Record<string, string> = {};
+      const source = plan.sources.find(s => s.component === inst.id);
+      const body = renderVerilogLeaf(inst, bindings, suffix => temps[suffix] = plan.names.take('v_', `${inst.id}_${suffix}`), source);
+      add(`// bread:cell ${quote({ id: inst.id, type: inst.type, params: inst.params, bindings, temps, source })}`);
+      for (const line of body) add(line);
+      add('// bread:endcell');
+    }
   }
   lines.push('endmodule');
   return lines.join('\n');
 }
 
-function emitLeaf(inst: ComponentInstanceJSON, plan: ModulePlan, add: (line: string) => void): void {
+// Import verifies a cell's complete token stream against this same renderer.
+// An annotation cannot conceal edited or additional Verilog logic.
+export function renderVerilogLeaf(inst: ComponentInstanceJSON, bindings: Record<string, string>, allocate: (suffix: string) => string, source?: VerilogSource): string[] {
+  const lines: string[] = [];
+  const add = (line: string): void => { lines.push(line); };
   const params = inst.params ?? {};
-  const pins = plan.pins.get(inst.id)!;
-  const wire = (pin: string): string => plan.wires.get(`${inst.id}.${pin}`)!;
+  const pins = getPinsForType(inst.type, params)!;
+  const wire = (pin: string): string => bindings[pin]!;
   // A pure logic input reads Z as X, unlike an inout memory data pin.
-  const input = (pin: string): string => `(${wire(pin)} ^ 1'b0)`;
+  const input = (pin: string): string => params.verilogData && pin === 'D' ? wire(pin) : `(${wire(pin)} ^ 1'b0)`;
   const assign = (pin: string, expr: string): void => add(`assign ${wire(pin)} = ${expr};`);
-  const temp = (suffix: string): string => plan.names.take('v_', `${inst.id}_${suffix}`);
+  const temp = allocate;
   const inputs = pins.filter(p => p.dir === 'in').map(p => input(p.name));
   const width = Number(params.width);
   const bus = (prefix: string, count: number, logic = true): string => `{${Array.from({ length: count }, (_, i) => (logic ? input : wire)(`${prefix}${count - i - 1}`)).join(', ')}}`;
   const known = (expr: string): string => `(^${expr} !== 1'bx)`;
   switch (inst.type) {
+    case 'prim.VERILOG': {
+      const expression = expressionVerilog(params as unknown as ExpressionParams, wire);
+      const count = Number(params.width ?? 1);
+      add(`assign {${Array.from({ length: count }, (_, i) => wire(`Y${count - i - 1}`)).join(', ')}} = ${expression};`);
+      break;
+    }
     case 'prim.AND': case 'prim.NAND': case 'prim.OR': case 'prim.NOR': case 'prim.XOR': case 'prim.XNOR': {
       const operator = inst.type.includes('AND') ? '&' : inst.type.includes('X') ? '^' : '|';
       const invert = ['prim.NAND', 'prim.NOR', 'prim.XNOR'].includes(inst.type);
@@ -275,11 +295,10 @@ function emitLeaf(inst: ComponentInstanceJSON, plan: ModulePlan, add: (line: str
       break;
     }
     case 'io.switch': case 'gen.clock': case 'gen.555': {
-      const source = plan.sources.find(s => s.component === inst.id)!;
-      add(source.kind === 'switch'
+      add(source!.kind === 'switch'
         ? '// UI switch exported as an external input; drive 0 for bread power-on state.'
-        : `// Approximation: ${source.kind === '555' ? '555 analog timing (TRIG/THRESH/DISCH/CTRL/RESET) omitted; ' : ''}external clock input replaces ${source.freqHz} Hz tick/rate timing. Start low.`);
-      assign(source.pin, source.port);
+        : `// Approximation: ${source!.kind === '555' ? '555 analog timing (TRIG/THRESH/DISCH/CTRL/RESET) omitted; ' : ''}external clock input replaces ${source!.freqHz} Hz tick/rate timing. Start low.`);
+      assign(source!.pin, source!.port);
       break;
     }
     case 'io.led': case 'io.7seg': add('// Omitted: visual display state; connected logic nets remain available.'); break;
@@ -321,4 +340,5 @@ function emitLeaf(inst: ComponentInstanceJSON, plan: ModulePlan, add: (line: str
       add('// Unsupported: no Verilog mapping for this registered leaf. Each output drives X.');
       for (const pin of pins) if (pin.dir !== 'in') assign(pin.name, "1'bx");
   }
+  return lines;
 }
