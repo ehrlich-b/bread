@@ -107,7 +107,7 @@ test('Share refuses impractical URLs and preserves the address and circuit', asy
 
 
 test('shared circuit IDs render as data and never execute markup', async ({ page }) => {
-  const id = '<img src=x onerror="globalThis.__breadShareExecuted=1">';
+  const id = '<img src=x onerror="__breadShareExecuted=1">';
   const circuit: CircuitJSON = { version: 1, kind: 'circuit', name: 'literal IDs',
     components: [{ id, type: 'prim.BUF', position: [140, 100] }, { id: 'other', type: 'prim.BUF', position: [280, 100] }], nets: [],
   };
@@ -118,8 +118,8 @@ test('shared circuit IDs render as data and never execute markup', async ({ page
   }, hash);
   const components = page.locator('[data-comp-type="prim.BUF"]');
   await expect(components).toHaveCount(2);
-  await components.nth(0).click();
-  await components.nth(1).click({ modifiers: ['Shift'] });
+  await components.nth(0).locator('.gate-body').click();
+  await components.nth(1).locator('.gate-body').click({ modifiers: ['Shift'] });
   await expect(page.locator('#inspector')).toContainText(id);
   await expect(page.locator('#inspector img')).toHaveCount(0);
   expect(await page.evaluate(() => (window as Window & { __breadShareExecuted?: number }).__breadShareExecuted)).toBe(0);
