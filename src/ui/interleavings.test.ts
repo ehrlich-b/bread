@@ -2,23 +2,28 @@ import { afterEach, expect, it, vi } from 'vitest';
 import '../engine/index';
 import type { CircuitJSON } from '../engine/ir';
 import { loadCircuit } from '../engine/loader';
-import type { LoadSnapshot, WorkerBus } from './bus';
+import { runTestbench, type TestbenchResult } from '../engine/testbench';
+import type { WorkerReq } from '../worker/protocol';
+import { createWorkerBus, type LoadSnapshot, type WorkerBus } from './bus';
 import { mountChips } from './chips';
 import { EditorModel } from './editor';
 import { mountFileControls } from './file';
 import * as permalink from './permalink';
+import { mountTestbench } from './testbench';
 
 // Exercise the mounted handlers without a browser or a DOM dependency.
 class Element extends EventTarget {
   children: Element[] = [];
   dataset: Record<string, string> = {};
+  attributes: Record<string, string> = {};
   style: Record<string, string> = {};
   textContent = ''; value = ''; disabled = false; open = false;
   files: Array<{ text(): Promise<string> }> = [];
   set innerHTML(_value: string) { this.children = []; }
   append(...children: Element[]): void { this.children.push(...children); }
   appendChild(child: Element): Element { this.append(child); return child; }
-  setAttribute(): void {}
+  setAttribute(name: string, value: string): void { this.attributes[name] = value; }
+  replaceChildren(...children: Element[]): void { this.children = [...children]; }
   remove(): void {}
   focus(): void {}
   select(): void {}
@@ -47,7 +52,7 @@ const setup = (circuit = empty()) => {
   };
   const mutate = vi.fn(async (next: CircuitJSON) => snapshot(next));
   const bus = { mutate, readNet: () => 0 } as unknown as WorkerBus;
-  return { host: new Element(), editor: new EditorModel(bus, circuit, snapshot(circuit)), mutate };
+  return { host: new Element(), editor: new EditorModel(bus, circuit, snapshot(circuit)), mutate, bus };
 };
 const flush = async (): Promise<void> => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
@@ -264,5 +269,85 @@ it('loads a named example and reports an unknown example', async () => {
   changeHash('#example=does_not_exist');
   await vi.waitFor(() => expect(editor.state.error).toContain('Unknown shared example'));
   expect(editor.project).toEqual(before);
+  dispose();
+});
+
+const probedBuffer: CircuitJSON = {
+  version: 1, kind: 'circuit', name: 'Buffer', components: [{ id: 'buf', type: 'prim.BUF' }],
+  nets: [{ id: 'in', endpoints: ['buf.A'] }, { id: 'out', endpoints: ['buf.Y'] }],
+  probes: [{ id: 'q', label: 'Q', nets: ['out'] }],
+};
+const failingBench = { version: 1, name: 'Failure', inputs: { IN: ['in'] }, outputs: { OUT: ['out'] }, vectors: [{ drive: { IN: 1 }, expect: { OUT: 0 } }] };
+
+it.each(['run', 'step', 'toggleSwitch'])('automatic failure focus respects a later explicit %s', async action => {
+  const { host, editor, bus } = setup({ ...probedBuffer, components: [...probedBuffer.components, { id: 'sw', type: 'io.switch' }] });
+  const events: string[] = [];
+  let finish!: (result: TestbenchResult) => void;
+  bus.pause = async () => { events.push('pause'); };
+  bus.run = async rate => { events.push(`run ${rate}`); };
+  bus.step = async () => { events.push('step'); };
+  bus.setInput = async () => { events.push('toggleSwitch'); };
+  bus.testbench = async () => { events.push('testbench'); return new Promise(resolve => { finish = resolve; }); };
+  const focused = vi.fn(); editor.onWaveformFocus(focused);
+  const dispose = mountTestbench(host as unknown as HTMLElement, editor);
+  host.find(e => e.attributes['aria-label'] === 'Testbench JSON')!.value = JSON.stringify(failingBench);
+  host.find(e => e.textContent === 'Run testbench')!.click();
+  await flush(); expect(events).toEqual(['pause', 'testbench']);
+  const later = action === 'run' ? editor.run(2000) : action === 'step' ? editor.step() : editor.toggleSwitch('sw');
+  finish(runTestbench(probedBuffer, failingBench, { capture: true }));
+  await later; await flush(); await editor.whenIdle();
+  expect(events).toEqual(['pause', 'testbench', action === 'run' ? 'run 2000' : action]);
+  expect(focused).not.toHaveBeenCalled();
+  expect(host.find(e => e.attributes['aria-label'] === 'Testbench result')!.textContent).toContain('FAIL Failure');
+  // A later explicit request to inspect the failure may still pause and focus.
+  host.find(e => e.textContent === 'Show failing vector 1')!.click();
+  await flush(); await editor.whenIdle();
+  expect(events.at(-1)).toBe('pause');
+  expect(focused).toHaveBeenCalledTimes(1);
+  dispose();
+});
+
+it('automatically focuses a failure when no later command supersedes it', async () => {
+  const { host, editor, bus } = setup(probedBuffer);
+  const result = runTestbench(probedBuffer, failingBench, { capture: true });
+  bus.pause = vi.fn(async () => {});
+  bus.testbench = async () => result;
+  const focused = vi.fn(); editor.onWaveformFocus(focused);
+  const dispose = mountTestbench(host as unknown as HTMLElement, editor);
+  host.find(e => e.attributes['aria-label'] === 'Testbench JSON')!.value = JSON.stringify(failingBench);
+  host.find(e => e.textContent === 'Run testbench')!.click();
+  await flush(); await editor.whenIdle();
+  expect(focused).toHaveBeenCalledWith(result.waveform, result.results[0]!.step);
+  dispose();
+});
+
+it('releases the testbench panel and editor queue after an unstructured worker failure', async () => {
+  const { host, editor } = setup(probedBuffer);
+  const sent: WorkerReq[] = [];
+  const worker = new EventTarget();
+  vi.stubGlobal('Worker', class {
+    constructor() { return Object.assign(worker, { postMessage: (message: WorkerReq) => {
+      sent.push(message);
+      if (message.type === 'pause') queueMicrotask(() => worker.dispatchEvent(Object.assign(new Event('message'), { data: { type: 'ack', id: message.id } })));
+    } }); }
+  });
+  const bus = createWorkerBus();
+  editor.bus.pause = bus.pause;
+  editor.bus.testbench = bus.testbench;
+  editor.bus.run = bus.run;
+  const dispose = mountTestbench(host as unknown as HTMLElement, editor);
+  host.find(e => e.attributes['aria-label'] === 'Testbench JSON')!.value = JSON.stringify(failingBench);
+  const run = host.find(e => e.textContent === 'Run testbench')!;
+  run.click(); await flush();
+  expect(sent.map(message => message.type)).toEqual(['pause', 'testbench']);
+  let laterError: Error | undefined;
+  const later = editor.run(2000).catch(error => { laterError = error; });
+  worker.dispatchEvent(Object.assign(new Event('error'), { message: 'Worker out of memory' }));
+  await flush();
+  expect(run.disabled).toBe(false);
+  expect(host.find(e => e.attributes['aria-label'] === 'Testbench result')!.textContent).toBe('');
+  expect(host.find(e => e.attributes.role === 'alert')!.textContent).toContain('Worker out of memory');
+  expect(laterError).toBeInstanceOf(Error);
+  await later; await editor.whenIdle();
   dispose();
 });

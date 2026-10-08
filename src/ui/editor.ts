@@ -64,6 +64,8 @@ export class EditorModel {
   private waveformFocus = new Set<(snapshot: WaveformSnapshot, step: number) => void>();
   private inflight: Promise<void> = Promise.resolve();
   private documentRevision = 0;
+  private queuedCommands = 0;
+  get commandRevision(): number { return this.queuedCommands; }
   private pendingComponentIds: Set<string> = new Set();
   // Each entry is the circuit *before* a user-initiated mutation; pop one to
   // undo. redoStack mirrors it for forward replays. Bounded so very long
@@ -485,6 +487,7 @@ export class EditorModel {
 
   // Worker commands commit in user action order.
   private async enqueue(action: () => Promise<void>): Promise<void> {
+    this.queuedCommands++;
     const prev = this.inflight;
     let release!: () => void;
     this.inflight = new Promise<void>((res) => { release = res; });

@@ -34,22 +34,33 @@ export const mountTestbench = (host: HTMLElement, editor: EditorModel): (() => v
     try { bench = parseTestbench(JSON.parse(text.value)); }
     catch (e) { error.textContent = e instanceof Error ? e.message : String(e); return; }
     run.disabled = true; status.textContent = 'Running testbench…';
-    void editor.runTestbench(bench).then(result => {
+    const request = editor.runTestbench(bench);
+    const commandRevision = editor.commandRevision;
+    void request.then(result => {
       if (disposed || version !== generation) return;
       const failed = result.results.length - result.passed;
       status.textContent = `${failed ? 'FAIL' : 'PASS'} ${result.name}: ${result.passed}/${result.total} vectors${failed ? ` · ${failed} failed` : ''}`;
-      const focus = async (vector: VectorResult): Promise<void> => {
+      const focus = async (vector: VectorResult, automatic: boolean): Promise<void> => {
         let waveform = result.waveform;
-        if (!waveform) return;
-        await editor.pause();
-        if (disposed || version !== generation) return;
+        if (!waveform || (automatic && editor.commandRevision !== commandRevision)) return;
+        // The testbench already paused. Automatic focus must yield to commands
+        // requested since it started; explicit inspection may pause again.
+        const pause = automatic ? Promise.resolve() : editor.pause();
+        const focusRevision = editor.commandRevision;
+        await pause;
+        if (disposed || version !== generation || editor.commandRevision !== focusRevision) return;
         // Replay an evicted failure so every failing vector remains inspectable
         // without making the ordinary waveform ring unbounded.
-        if (vector.step < waveform.ticks[0]!) waveform = (await editor.runTestbench(bench, vector.vector)).waveform;
+        if (vector.step < waveform.ticks[0]!) {
+          const replay = editor.runTestbench(bench, vector.vector);
+          const replayRevision = editor.commandRevision;
+          waveform = (await replay).waveform;
+          if (editor.commandRevision !== replayRevision) return;
+        }
         if (!disposed && version === generation && waveform) editor.focusWaveform(waveform, vector.step);
       };
-      const show = (vector: VectorResult): void => {
-        void focus(vector).catch(e => { if (!disposed && version === generation) error.textContent = e instanceof Error ? e.message : String(e); });
+      const show = (vector: VectorResult, automatic = false): void => {
+        void focus(vector, automatic).catch(e => { if (!disposed && version === generation) error.textContent = e instanceof Error ? e.message : String(e); });
       };
       for (const vector of result.results) {
         const row = document.createElement('li'); row.dataset.passed = String(vector.passed);
@@ -67,7 +78,7 @@ export const mountTestbench = (host: HTMLElement, editor: EditorModel): (() => v
         results.append(row);
       }
       const failure = result.results.find(vector => !vector.passed);
-      if (failure) show(failure);
+      if (failure) show(failure, true);
     }).catch(e => {
       if (!disposed && version === generation) { status.textContent = ''; error.textContent = e instanceof Error ? e.message : String(e); }
     }).finally(() => { if (!disposed) run.disabled = false; });
