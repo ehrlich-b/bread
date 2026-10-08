@@ -120,7 +120,8 @@ export interface RuntimeComponent {
   outputPinIdx: number[];
   // For each pin (full pins[] index), the net it's wired to. -1 if unconnected.
   pinNetIdx: number[];
-  // Pre-allocated input scratch the simulator fills before each evaluate().
+  // Pre-allocated input scratch for normal evaluators; compiled READ uses
+  // net bytes directly.
   // length = inputPinIdx.length. Per-component (not shared) so each component's
   // hidden class stays stable on V8.
   inputBuf: NetState[];
@@ -131,10 +132,11 @@ export interface RuntimeComponent {
   // 1 if the input pin direction is pure 'in' (apply readAsLogic on Z); 0 if
   // 'inout' (pass Z through). Same indexing as inputBuf.
   inputIsLogic: Uint8Array;
-  // Pre-allocated proposed-output buffer. Each evaluate() writes here; commit
-  // copies into outputBuf and marks any net whose driver changed.
+  // Pre-allocated proposed-output buffer for normal evaluators. Compiled
+  // evaluation uses packed words; commit marks nets whose driver changed.
   proposedBuf: DriverValue[];
   // Current driving value per output/inout pin (length = outputPinIdx.length).
+  // The simulator binds these mutable slots to its flat driver-byte storage.
   outputBuf: DriverValue[];
   // Net index per output slot — same flatten as inputNetIdx but for outputs.
   outputNetIdx: Uint32Array;

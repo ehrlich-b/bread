@@ -1,7 +1,7 @@
 # Roadmap
 
-M0–M5 are shipped. M6's JavaScript optimization pass is complete; its speed
-target remains unverified. M7 is shipped.
+M0–M5 are shipped. M6 has two measured JavaScript optimization passes;
+unrestricted speed targets remain open. M7 is shipped.
 
 ## Shipped milestones
 
@@ -31,7 +31,7 @@ save/reopen.
 
 ## M6 — Performance
 
-Completed JavaScript changes:
+First JavaScript pass (2026-10-07):
 
 - Resolved nets use `Uint8Array` values. Typed-array sidecars index pins and mark dirty/changed state; component records and evaluator buffers remain objects/arrays.
 - All 19 built-in primitives dispatch through fixed call sites in the READ phase. Custom primitives and behavioral components retain the registry fallback.
@@ -41,7 +41,7 @@ Completed JavaScript changes:
 Target: **100+ kHz JavaScript / 1+ MHz WASM**. A historical unrestricted
 JavaScript sample reached **88 kHz**. The 2026-10-07 efficiency-core median
 was **16.627 kHz**; these execution conditions are not comparable. The
-100 kHz target is unverified and WASM is not implemented.
+100 kHz target is unverified on this revision; a full WASM simulator is not implemented.
 
 ### Benchmark method and results
 
@@ -84,12 +84,85 @@ all 64 four-state full-adder input combinations, including startup/reset and
 the full contention/oscillation event sequence. Validation uses typecheck,
 Vitest (436 tests) and the production build.
 
-The final Node profile, including startup/warmup, attributes 86.5% inclusive
+The first pass’s final Node profile, including startup/warmup, attributes 86.5% inclusive
 time to `tick`, 66.5% to `settle` and 15.6% to `computeNetValue`; these overlap.
 A future WASM experiment should move scheduler, evaluation and resolution
 behind a burst-level call and compare equivalent semantics. No WASM speedup
 has been measured. Bounded diagnostic retention and interactive profiling
 remain open.
+
+### Second JavaScript pass (2026-10-08)
+
+Small built-ins now read four-state bytes through generated truth tables;
+DFF tables include Q/previous-clock state and share matching configurations.
+Wider small adders use numeric four-state sum/majority evaluation. Driver
+values, output/net mappings and listener lists use flat typed arrays, with
+mutable inspection views preserving existing graph access. Packed words skip
+unchanged output commits. Generation marks remove dirty-list clearing and
+contention-set churn, including tested uint32 rollover. READ/COMMIT phases,
+FIFO scheduling, oscillation limits and diagnostic ordering stay intact;
+custom leaves and larger primitives retain normal evaluator dispatch.
+
+Five paired trials per condition compare the frozen `f6c3595` scheduler with
+this pass in one process. Each receives 20,000 warmup and 200,000 measured
+ticks, alternating first execution in 2,000-tick blocks. Timing excludes
+all-net/event checks after each block; both versions emit 33,652 events.
+Clock Hz remains ticks/s divided by two.
+
+| Execution condition | `f6c3595` median (Hz) | This pass median (Hz) | Gain |
+| --- | ---: | ---: | ---: |
+| Background, nice(15), efficiency-core conditions | 16,260 | 36,279 | 2.231× |
+| Background tier removed, nice(15) retained | 15,805 | 35,376 | 2.238× |
+
+Unrestricted performance-core trials were unavailable under the mandatory
+nice(15) rule. The second row changes only the macOS background tier; it does
+not establish unrestricted throughput or the 100 kHz target.
+
+```sh
+taskpolicy -b nice -n 15 node --import tsx scripts/bench_eater_paired.ts
+taskpolicy -b nice -n 15 env BREAD_BENCH_FOREGROUND=1 node --import tsx scripts/bench_eater_paired.ts
+```
+
+The trace lock remains byte-identical. Differential tests compare every net,
+driver, component state and observer event against `f6c3595` over 64 seeded
+random circuits × 64 ticks, including paused/input changes, feedback,
+contention, weak pulls, floating pins, inout, storage and oscillation. They
+also cover all 64 driver-presence masks with six external forces and held
+mutable graph views. Existing full-net golden traces remain unchanged. Typecheck, all 857 Vitest
+tests, build, blink, the three testbench corpus files, Verilog oracles and
+all 94 in-memory Playwright checks pass.
+
+The fresh Node profile includes startup/warmup: `tick` is 71.0% inclusive,
+`settle` 70.7%, fallback evaluation 4.4%, and `computeNetByte` 2.4%; these
+fractions overlap. Most remaining work is inside the compiled scheduler.
+
+### WASM feasibility
+
+The installed Clang/LLVM 22.1.8 and `wasm-ld` compiled a freestanding C
+[WASM module](https://lld.llvm.org/WebAssembly.html) without installing a
+toolchain or dependency. Five interleaved trials of the isolated stateless
+READ kernel (245 SAP-1 leaves, artificial clock-bit toggles, 2,000 batches
+per boundary call) measured medians of **233,145 JS / 761,974 WASM READ
+batches/s**, or **3.268×**. Checksums and every proposed word match. This
+probe omits scheduling, DFF state, memory, resolution and diagnostics; its
+rates are not simulated clock Hz.
+
+A full C/LLVM core would marshal the graph once into linear memory, own
+queues, driver resolution, storage and clock/memory behavior, and export
+`settle`/`tickBurst(n)` with batched snapshots/events. It must preserve separate
+settle/tick counters, four-state/weak-driver rules, stable phases and caps;
+unsupported custom leaves can use the JS engine. Inference from the final
+profile: matching the kernel’s gain across all of `settle` would imply about
+**3.2× tick throughput**. Full-core gain and **1+ MHz** remain unmeasured;
+a resolver-only port addresses less than 3.4% of profiled tick time.
+
+Reproduce the optional kernel probe with an existing LLVM WASM toolchain:
+
+```sh
+taskpolicy -b nice -n 15 mkdir -p .scratch
+taskpolicy -b nice -n 15 clang --target=wasm32 -nostdlib -O3 -Wl,--no-entry -Wl,--export=read_batch -Wl,--export-memory -Wl,--initial-memory=262144 scripts/wasm_read_probe.c -o .scratch/wasm-read.wasm
+taskpolicy -b nice -n 15 node --import tsx scripts/bench_wasm_read.ts
+```
 
 ## M7 — Polish
 
