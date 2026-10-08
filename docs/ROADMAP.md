@@ -99,6 +99,7 @@ Implemented:
 - Atomic bus connections with bit-mapping preview; configurable word ROMs and live binary/hex readouts.
 - Fit circuit and editable labels that persist through save/reopen.
 - Canvas net/bus probes saved in version-1 JSON, with undo/redo; an 8,192-tick waveform ring, distinct 0/1/X/Z traces, hex bus segments, zoom, scroll and a tick cursor integrated with run/pause/step. Probe-only edits preserve running state; capture is absent with no probes.
+- [Declarative testbench files](TESTBENCH.md): schema-validated JSON signal bindings, four-state vectors and masks, clock pulses, bounded edge waits and exhaustive loops. Node CLI and worker-backed UI panel share the engine runner; adder, register/bus and SAP-1 Fibonacci corpus runs in Vitest.
 
 Same-session background Node benchmarks measured median clock throughput of
 **22,763 Hz without probes** and **22,396 Hz with eight OUT-bit probes**
@@ -108,7 +109,7 @@ and rendering; the simulator tick path is unchanged when no probes exist.
 Planned:
 
 - Grouped wire rendering.
-- Declarative testbench files, best-effort Verilog export, permalink sharing.
+- Best-effort Verilog export, permalink sharing.
 - More keyboard shortcuts and an Eater CPU tutorial.
 
 ## Later possibilities

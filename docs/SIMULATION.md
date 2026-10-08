@@ -139,7 +139,12 @@ To preserve determinism:
 - Iterate dirty queues in insertion order, not arbitrary order.
 - Hash maps keyed by integer IDs are deterministic by construction; `Map<string, ...>` over instance names is allowed because we control insertion order.
 - No `Math.random()` in component evaluators. If randomness is ever needed (e.g. metastability modeling), it goes through a seeded PRNG owned by the engine.
-- WASM and JS implementations must produce identical traces on identical input. CI runs both against the same testbench corpus.
+- A future WASM engine must produce identical traces to JS on identical input, using the same testbench corpus in CI.
+
+The JS [testbench corpus](TESTBENCH.md) is in `examples/testbenches/` and runs
+in Vitest: exhaustive full adder, clocked register/shared bus, and ordered
+SAP-1 Fibonacci OUT instructions. There is currently no WASM implementation;
+future parity checks must use these same declarative inputs and expectations.
 
 ## What the engine does not do
 

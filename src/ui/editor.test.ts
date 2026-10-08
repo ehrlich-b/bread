@@ -4,6 +4,8 @@ import type { CircuitJSON } from '../engine/ir';
 import { loadCircuit } from '../engine/loader';
 import type { LoadSnapshot, WorkerBus } from './bus';
 import { EditorModel } from './editor';
+import fullBench from '../../examples/testbenches/full_adder.json';
+import { parseTestbench } from '../engine/testbench';
 
 // Model a worker round trip without a browser or app-state injection. Each
 // request validates the circuit through the real loader before it succeeds.
@@ -32,6 +34,7 @@ const setup = (): { editor: EditorModel; mutate: WorkerBus['mutate'] & ReturnTyp
     mutate,
     load: async (next) => snapshotFor(next),
     run: async () => {}, pause: async () => {}, step: async () => {},
+    testbench: async () => { throw new Error('Unexpected testbench call'); },
     setInput: async () => {}, setNetInput: async () => {}, on: () => () => {}, readNet: () => 'X',
     netIds: [], componentIds: [],
   };
@@ -39,6 +42,29 @@ const setup = (): { editor: EditorModel; mutate: WorkerBus['mutate'] & ReturnTyp
 };
 
 describe('editor actions waiting for the worker', () => {
+  it('tests the document after earlier edits commit and before later edits, without changing its snapshot', async () => {
+    const { editor, mutate } = setup();
+    const calls: string[] = [];
+    vi.spyOn(editor.bus, 'pause').mockImplementation(async () => { calls.push('pause'); });
+    const testbench = vi.spyOn(editor.bus, 'testbench').mockImplementation(async circuit => {
+      calls.push(circuit.components[0]!.label!);
+      return { name: 'Queued', total: 1, passed: 1, results: [], waveform: null };
+    });
+    const first = editor.updateComponent('a', { label: 'tested' });
+    const test = editor.runTestbench(parseTestbench(fullBench));
+    const later = editor.updateComponent('a', { label: 'later' });
+    await first;
+    await expect(test).resolves.toMatchObject({ name: 'Queued', passed: 1 });
+    expect(calls).toEqual(['pause', 'tested']);
+    expect(testbench).toHaveBeenCalledTimes(1);
+    await later;
+    expect(editor.project.components[0]!.label).toBe('later');
+    const snapshot = editor.state.snapshot;
+    await editor.runTestbench(parseTestbench(fullBench));
+    expect(editor.state.snapshot).toBe(snapshot);
+    expect(mutate).toHaveBeenCalledTimes(2);
+  });
+
   it('waits for committed export data and releases the export barrier after a rejected edit', async () => {
     const { editor, mutate } = setup();
     let finish!: () => void;
