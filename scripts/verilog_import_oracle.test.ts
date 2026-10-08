@@ -21,6 +21,31 @@ it.each(['full_adder', 'register_bus_4bit', 'sap1_fibonacci', 'sap1_count_up', '
 });
 
 describe.skipIf(!hasIcarusVerilog())('original hand-written Verilog vs imported Bread', () => {
+  it('matches nonblocking assignment priority, merged enables and old-state reads in Icarus', () => {
+    const source = `module writes(input clk, input [1:0] a, input b,c, input [3:0] d,
+      output reg [7:0] q=8'h21,r=8'h43);
+      always @(posedge clk) begin
+        q <= q + 8'd1;
+        if (a) begin q <= d + 4'd15; r <= q; end
+        if (b) begin if (a) q <= d + 4'd1; else r <= d; end
+        if (a) q <= d + 4'd2;
+        if (c) r <= q;
+        ${'if (c) r <= q; '.repeat(20)}
+      end endmodule`;
+    const lanes = (name: string, count: number) => Array.from({ length: count }, (_, i) => `${name}[${i}]`);
+    const result = runVerilogImportOracle(source, { version: 1, name: 'Nonblocking priority',
+      inputs: { clk: ['clk'], a: lanes('a', 2), b: ['b'], c: ['c'], d: lanes('d', 4) },
+      outputs: { q: lanes('q', 8), r: lanes('r', 8) },
+      vectors: [{ drive: { clk: 0, a: 0, b: 0, c: 0, d: 0 }, expect: { q: 33, r: 67 } },
+        { for: { a: [0, 1, 2, 3, 4, 5, 6, 7], b: [0, 1, 2, 3], c: [0, 1, 2, 3], d: [0, 1, 2, 3] }, vectors: [
+          { drive: { clk: 0, a: { table: ['00', '01', 'X0', 'X1', 'Z0', 'Z1', 'XZ', 'ZZ'], index: 'a' },
+            b: { table: [0, 1, 'X', 'Z'], index: 'b' }, c: { table: [0, 1, 'X', 'Z'], index: 'c' },
+            d: { table: [0, 15, 'X', 'Z'], index: 'd' } } },
+          { drive: { clk: 1 } },
+        ] }],
+    });
+    expect(result.vectors).toBe(1025); expect(result.comparisons).toBeGreaterThan(16_000);
+  });
   it('preserves bufif uncertain drives through resolution and re-export', () => {
     const source = `module buffers(input a,en,d, output y,z,lone,low,high,pair);
       bufif1 b(y,a,en); bufif0 c(z,a,en); assign y=d; assign z=d;

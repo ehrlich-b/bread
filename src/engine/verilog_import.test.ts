@@ -57,6 +57,50 @@ describe('structural Verilog import', () => {
     set(sim, { clk: 0, en: 'X', 'd[0]': 1 }); set(sim, { clk: 1 }); expect(sim.readNet('q[0]')).toBe(0);
     set(sim, { clk: 0, reset: 1 }); set(sim, { clk: 1 }); expect(sim.readNet('q[1]')).toBe(0);
   });
+  it('merges repeated conditional writes without expanding unrelated registers', () => {
+    const start = performance.now();
+    const imported = importVerilog(`module m(input clk,en,d, output reg q=0,r=0);
+      always @(posedge clk) begin if (en) q <= d; ${'if (en) r <= d; '.repeat(20_000)} end endmodule`);
+    expect(imported.circuit.components.filter(c => c.type === 'prim.DFF')).toHaveLength(2);
+    expect(imported.circuit.components.filter(c => c.type === 'prim.VERILOG')).toHaveLength(2);
+    expect(performance.now() - start).toBeLessThan(3000);
+    const sim = new Simulator(loadCircuit(imported.circuit));
+    for (const [en, d, expected] of [[1, 'Z', 'Z'], ['X', 1, 'Z'], [0, 1, 'Z'], [1, 0, 0]] as const) {
+      set(sim, { clk: 0, en, d }); set(sim, { clk: 1 });
+      expect(sim.readNet('q')).toBe(expected); expect(sim.readNet('r')).toBe(expected);
+    }
+  });
+  it('preserves last scheduled writes, nested branches and reads of old register values', () => {
+    const sim = simulate(`module m(input clk,a,b,d, output reg q=0,r=0);
+      always @(posedge clk) begin
+        if (a) begin q <= d; r <= q; end
+        if (b) begin if (a) q <= ~d; else r <= d; end
+        if (a) q <= 1'bz;
+      end endmodule`);
+    set(sim, { clk: 0, a: 1, b: 1, d: 1 }); set(sim, { clk: 1 });
+    expect(sim.readNet('q')).toBe('Z'); expect(sim.readNet('r')).toBe(0);
+    set(sim, { clk: 0, a: 0, b: 1, d: 1 }); set(sim, { clk: 1 });
+    expect(sim.readNet('q')).toBe('Z'); expect(sim.readNet('r')).toBe(1);
+    set(sim, { clk: 0, a: 'X', b: 'Z', d: 0 }); set(sim, { clk: 1 });
+    expect(sim.readNet('q')).toBe('Z'); expect(sim.readNet('r')).toBe(1);
+  });
+  it.each(['instance', 'net'])('checks the %s budget during clocked elaboration at the block position', limit => {
+    const regs = Array.from({ length: 100 }, (_, i) => `q${i}`);
+    const statements = regs.map(name => limit === 'instance' ? `if (a) ${name} <= d;` :
+      `if (a) ${name} <= d; if (b) ${name} <= ~d; if (c) ${name} <= d;`).join('\n');
+    const source = `module m(input clk,a,b,c, input [255:0] d, output reg [255:0] ${regs.join(',')});\n\n  always @(posedge clk) begin\n${statements}\nend endmodule`;
+    const start = performance.now();
+    const flatten = vi.spyOn(loader, 'loadCircuit').mockImplementation(() => { throw new Error('flattening started before budget check'); });
+    try {
+      expect(() => importVerilog(source)).toThrow(`Line 3, column 3: flattened hierarchy exceeds ${limit === 'instance' ? '25,000 instance' : '100,000 net'} limit`);
+      expect(flatten).not.toHaveBeenCalled();
+    } finally { flatten.mockRestore(); }
+    expect(performance.now() - start).toBeLessThan(3000);
+  });
+  it('validates conditions and overwritten values even when their logic is merged', () => {
+    expect(() => importVerilog('module m(input clk,d,output reg q); always @(posedge clk) if (missing) q <= d; else q <= d; endmodule')).toThrow('undeclared signal missing');
+    expect(() => importVerilog('module m(input clk,d,output reg q); always @(posedge clk) begin q <= missing; q <= d; end endmodule')).toThrow('undeclared signal missing');
+  });
   it('requires a top for independent modules and validates unused definitions', () => {
     const source = 'module a(input x,output y); assign y=x; endmodule module b(input x,output y); assign y=x; endmodule';
     expect(() => importVerilog(source)).toThrow('ambiguous top'); expect(importVerilog(source, { topModule: 'b' }).topModule).toBe('b');
