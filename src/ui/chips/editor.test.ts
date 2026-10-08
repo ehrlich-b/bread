@@ -71,6 +71,68 @@ describe('chip authoring document history and edit propagation', () => {
     expect(editor.state.error).toContain('unknown port');
     await editor.undo(); await editor.saveChip(); expect(editor.state.editingChip).toBeNull();
   });
+  it('retargets parent probes atomically with a chip save and preserves unchanged probes', async () => {
+    const definition: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Buffer',
+      components: [{ id: 'a', type: 'prim.BUF' }, { id: 'b', type: 'prim.BUF' }],
+      nets: [{ id: 'in', endpoints: ['a.A'] }, { id: 'middle', endpoints: ['a.Y', 'b.A'] }, { id: 'out', endpoints: ['b.Y'] }],
+      ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }, { name: 'OUT', dir: 'out', internalNet: 'out' }],
+    };
+    const project: CircuitJSON = {
+      version: 1, kind: 'circuit', name: 'Parent', components: [{ id: 'u', type: 'user.Buffer' }], nets: [], definitions: [definition],
+      probes: [{ id: 'deleted', label: 'Internal output', nets: ['u__out', 'u__middle'] }],
+    };
+    const { editor } = setup(project);
+    await editor.addPinProbe('u.OUT', false);
+    await editor.addPinProbe('u.IN', false);
+    const original = editor.project;
+    await editor.editChip('user.Buffer');
+    await editor.removePort('OUT');
+    await editor.removeComponent('b');
+    await editor.exposePin('a.Y', 'OUT', 'out');
+    await editor.saveChip();
+    expect(editor.state.editingChip).toBeNull();
+    expect(editor.project.probes).toEqual([
+      { id: 'deleted', label: 'Internal output', nets: ['u__middle', 'u__middle'] },
+      { id: 'probe1', label: 'u.OUT', nets: ['u__middle'] },
+      { id: 'probe2', label: 'u.IN', nets: ['u__in'] },
+    ]);
+    expect(editor.state.note).toContain('retargeted u.OUT');
+    expect(editor.state.error).toBeNull();
+    const saved = editor.project;
+    await editor.undo();
+    expect(editor.project).toBe(original);
+    expect(editor.state.editingChip).toBe('user.Buffer');
+    expect(editor.state.note).toBeNull();
+    await editor.redo(); expect(editor.project).toBe(saved);
+    await editor.undo(); await editor.cancelChip();
+    expect(editor.project).toBe(original);
+    expect(loadCircuit(editor.project).netById.has('u__out')).toBe(true);
+  });
+
+  it('removes a dangling internal probe after saving a nested chip edit', async () => {
+    const inner: CircuitJSON = {
+      version: 1, kind: 'composite', name: 'user.Inner',
+      components: [{ id: 'buf', type: 'prim.BUF' }],
+      nets: [{ id: 'in', endpoints: ['buf.A'] }, { id: 'out', endpoints: ['buf.Y'] }],
+      ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }],
+    };
+    const outer: CircuitJSON = { version: 1, kind: 'composite', name: 'user.Outer', components: [{ id: 'v', type: 'user.Inner' }], nets: [{ id: 'in', endpoints: ['v.IN'] }], ports: [{ name: 'IN', dir: 'in', internalNet: 'in' }] };
+    const project: CircuitJSON = {
+      version: 1, kind: 'circuit', name: 'Nested', components: [{ id: 'u', type: 'user.Outer' }], nets: [], definitions: [inner, outer],
+      probes: [{ id: 'gone', label: 'Internal', nets: ['u__v__out'] }],
+    };
+    const { editor } = setup(project);
+    await editor.editChip('user.Inner');
+    await editor.removeNet('out');
+    await editor.saveChip();
+    expect(editor.project.probes).toEqual([]);
+    expect(editor.state.note).toContain('removed Internal');
+    const saved = editor.project;
+    await editor.undo(); expect(editor.project).toBe(project);
+    await editor.redo(); expect(editor.project).toBe(saved);
+  });
+
   it('retains chip definitions on New and restores an entire previous project through undo', async () => {
     const { editor } = setup(); await makeNand(editor); const old = editor.project;
     await editor.newCircuit(); expect(editor.project.components).toEqual([]); expect(editor.project.definitions).toEqual(old.definitions);

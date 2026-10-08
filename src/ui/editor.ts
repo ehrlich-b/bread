@@ -31,6 +31,7 @@ export interface EditorState {
   placement: Placement | null;
   editingChip: string | null;
   error: string | null;
+  note: string | null;
   busWiring: boolean;
   probing: 'net' | 'bus' | null;
 }
@@ -39,6 +40,7 @@ interface EditorDocument {
   project: CircuitJSON;
   draft: CircuitJSON | null;
   editing: string | null;
+  note?: string;
 }
 
 const MAX_UNDO_DEPTH = 200;
@@ -46,6 +48,7 @@ const MAX_UNDO_DEPTH = 200;
 export class EditorModel {
   private document: EditorDocument;
   private error: string | null = null;
+  private note: string | null = null;
   private portInputs = new Map<string, NetState>();
   private switchValues = new Map<string, NetState>();
   private get circuit(): CircuitJSON { return this.document.draft ?? this.document.project; }
@@ -86,6 +89,7 @@ export class EditorModel {
       placement: this.placement,
       editingChip: this.document.editing,
       error: this.error,
+      note: this.note,
       busWiring: this.busWiring,
       probing: this.probing,
     };
@@ -281,7 +285,13 @@ export class EditorModel {
       const previous = doc.project.definitions?.find((d) => d.name === doc.editing);
       const definition: CircuitJSON = { ...body, name: doc.editing, kind: 'composite', metadata: { ...body.metadata, revision: Number(previous?.metadata?.revision ?? 1) + 1 } };
       const definitions = (library ?? []).map((d) => d.name === doc.editing ? definition : d);
-      return { project: { ...doc.project, definitions }, draft: null, editing: null };
+      const project = reconcileProbes(doc.project, { ...doc.project, definitions });
+      const changes = (doc.project.probes ?? []).flatMap(probe => {
+        const next = project.probes?.find(p => p.id === probe.id);
+        if (!next) return [`removed ${probe.label}`];
+        return probe.nets.some((net, bit) => net !== next.nets[bit]) ? [`retargeted ${probe.label}`] : [];
+      });
+      return { project, draft: null, editing: null, note: changes.length ? `Updated parent probes: ${changes.join('; ')}. Undo restores the previous chip and probes.` : undefined };
     });
   }
 
@@ -456,7 +466,9 @@ export class EditorModel {
         this.portInputs.clear();
       }
       onCommit(this.document);
-      this.document = next;
+      const { note, ...document } = next;
+      this.document = document;
+      this.note = note ?? null;
       this.snapshot = snapshot;
       if (!snapshot.preserved) this.switchValues.clear();
       // Testing a chip starts with released inputs. Preserve explicit drives
