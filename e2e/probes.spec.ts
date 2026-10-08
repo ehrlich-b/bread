@@ -44,27 +44,51 @@ test('canvas probes persist through undo, redo, save and reopen; pause and step 
 
 test('SAP-1 waveform captures the ordered Fibonacci OUT values, including both initial ones', async ({ page }) => {
   test.setTimeout(45_000);
+  await page.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    let delaying = false;
+    let acknowledge: (() => void) | null = null;
+    Worker.prototype.postMessage = function (message) {
+      if (message.type === 'run') {
+        delaying = true;
+        const releaseTick = message.rateHz * 10;
+        const release = (event: MessageEvent) => {
+          if (event.data.type !== 'metrics' || event.data.ticks < releaseTick) return;
+          this.removeEventListener('message', release);
+          delaying = false; acknowledge?.(); acknowledge = null;
+        };
+        this.addEventListener('message', release);
+      }
+      // Hold the acknowledgement until ten seconds of requested ticks have
+      // elapsed. The worker keeps recording while delivery is backpressured.
+      if (message.type === 'waveform_ack' && delaying) acknowledge = () => post.call(this, message);
+      else post.call(this, message);
+    };
+  });
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/'); await button(page, 'Pause').click();
   await page.locator('[data-file-action="examples"]').selectOption('ben_eater_8bit');
   await expect(page.locator('[data-comp-id="display"]')).toBeVisible();
   await button(page, 'Fit circuit').click();
-  // Speed the ordinary configurable clock up so a complete cycle fits the
-  // bounded recording, using the same public inspector workflow as a user.
+  // At 100 ticks/s the entire 45-second test fits inside the 8,192-sample
+  // ring, even if delivery or Pause is delayed. A 50 Hz clock toggles each tick.
+  await page.getByLabel('Simulation ticks per second', { exact: true }).fill('100');
   await page.locator('[data-comp-id="clk_gen"] .gate-body').click();
-  await page.locator('[data-field="params"]').fill('{"freqHz":500}');
+  await page.locator('[data-field="params"]').fill('{"freqHz":50}');
   await button(page, 'Apply').click();
   await attach(page, 'display.OUT0', true);
   await attach(page, 'display.CLK');
   await attach(page, 'display./OI');
   await expect(waveform(page, 'display.OUT[7:0]')).toBeVisible();
   expect(JSON.parse(await exportJSON(page)).probes[0].nets).toEqual(['display__nlo0', 'display__nlo1', 'display__nlo2', 'display__nlo3', 'display__nhi0', 'display__nhi1', 'display__nhi2', 'display__nhi3']);
+  await expect(page.getByLabel('Waveform capture', { exact: true })).toContainText('ticks 0–0');
   await page.locator('[data-comp-id="sw_reset"] .switch-handle').click();
   await button(page, 'Run').click();
   await expect(waveform(page, 'display.OUT[7:0]').locator('[data-value="E9"]')).toHaveCount(1, { timeout: 20_000 });
   await button(page, 'Pause').click();
   await expect(page.getByLabel('Waveform capture', { exact: true })).toContainText('Paused');
   await button(page, 'Fit waveform').click();
+  await expect(page.getByLabel('Waveform capture', { exact: true })).toContainText('ticks 0–');
   // Read the rendered segments at each OUT load edge. Consecutive identical
   // register values share a segment, while the CLK and /OI probes preserve
   // both OUT instructions which write the first 1.
