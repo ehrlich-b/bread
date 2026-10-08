@@ -3,11 +3,13 @@ import { LONG_PRESS_MS } from './gestures';
 import { mountTouch } from './touch';
 
 class Surface extends EventTarget {
+  readonly ownerDocument = document;
   readonly captures = new Set<number>();
   readonly pins: Surface[] = [];
   component = false;
   box = { x: 0, y: 0, width: 10, height: 10 };
   closest(selector: string): Surface | null { return selector === '[data-comp-id]' && this.component ? this : null; }
+  contains(target: Surface): boolean { return target === this || target.component || this.pins.includes(target); }
   querySelectorAll(): Surface[] { return this.pins; }
   getBoundingClientRect() { return this.box; }
   setPointerCapture(id: number): void { this.captures.add(id); }
@@ -17,7 +19,8 @@ class Surface extends EventTarget {
 
 const mount = () => {
   vi.useFakeTimers();
-  const document = new EventTarget(); vi.stubGlobal('document', document);
+  const document = Object.assign(new EventTarget(), { elementFromPoint: vi.fn<() => Surface | null>(() => null) });
+  vi.stubGlobal('document', document);
   let now = 0; vi.spyOn(performance, 'now').mockImplementation(() => now);
   const svg = new Surface();
   const actions = { begin: vi.fn(), tap: vi.fn(), drag: vi.fn(), pinchStart: vi.fn(), pinch: vi.fn(), hold: vi.fn(), cancel: vi.fn() };
@@ -31,7 +34,7 @@ const mount = () => {
     return event;
   };
   const advance = (ms: number): void => { now += ms; vi.advanceTimersByTime(ms); };
-  return { svg, actions, remember, dispose, send, advance };
+  return { svg, document, actions, remember, dispose, send, advance };
 };
 
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -127,6 +130,17 @@ describe('canvas touch pointer lifecycle', () => {
       const component = new Surface(); component.component = true;
       h.send('pointerdown', 2, 118, 105, component); h.send('pointerup', 2, 118, 105, component);
       expect(h.actions.tap).toHaveBeenLastCalledWith(component, { x: 118, y: 105 });
+    } finally { h.dispose(); }
+  });
+
+  it('recovers a body hit when the browser adjusts the touch target to a pin', () => {
+    const h = mount(); const body = new Surface(); body.component = true;
+    const pin = new Surface(); pin.component = true; h.svg.pins.push(pin);
+    h.document.elementFromPoint.mockReturnValue(body);
+    try {
+      h.send('pointerdown', 1, 118, 105, pin); h.send('pointerup', 1, 118, 105, pin);
+      expect(h.actions.begin).toHaveBeenCalledWith(body, { x: 118, y: 105 });
+      expect(h.actions.tap).toHaveBeenCalledWith(body, { x: 118, y: 105 });
     } finally { h.dispose(); }
   });
 });

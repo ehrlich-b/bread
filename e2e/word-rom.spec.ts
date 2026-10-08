@@ -1,5 +1,5 @@
 // Ordinary automated browser regressions. Manual CPU assembly is separate.
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 const canvas = (page: Page) => page.locator('svg[data-role="canvas"]');
 async function place(page: Page, type: string, x: number, y: number) {
   await page.locator(`[data-palette-type="${type}"]`).click(); await canvas(page).click({ position: { x, y } });

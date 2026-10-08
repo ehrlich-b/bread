@@ -1,7 +1,7 @@
 // Automated browser regressions using palette, visible pins and chip controls.
 // Genuine manual construction is recorded separately by the local QA task.
 import * as fs from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const canvas = (page: Page) => page.locator('svg[data-role="canvas"]');
 async function place(page: Page, type: string, x: number, y: number): Promise<void> {

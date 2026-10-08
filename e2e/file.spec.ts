@@ -4,7 +4,7 @@
 // shares the same JSON serialization, so testing the fallback covers both.
 
 import * as fs from 'node:fs/promises';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {

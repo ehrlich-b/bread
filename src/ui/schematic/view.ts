@@ -197,22 +197,27 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
   let grouped = true;
   let lastTouch = -Infinity;
   const rememberTouch = (): void => { lastTouch = performance.now(); };
-  const rememberMouse = (event: PointerEvent): void => {
-    if (event.pointerType !== 'touch') lastTouch = -Infinity;
+  const rememberPointer = (event: PointerEvent): void => {
+    const target = event.target as Element | null;
+    // A fresh pointer on a menu button is a deliberate action, unlike the
+    // compatibility click retargeted there when a canvas long press ends.
+    if (event.pointerType !== 'touch' || !target?.closest('svg[data-role="canvas"]')) lastTouch = -Infinity;
   };
   // A tap is dispatched through the existing click handlers below. Suppress
   // the browser's subsequent compatibility click, even after a re-render.
   const suppressTouchClick = (event: MouseEvent): void => {
     if (!event.isTrusted) return;
     const target = event.target as Element | null;
-    if (target !== host && !target?.closest('svg[data-role="canvas"]')) return;
+    const recentTouch = performance.now() - lastTouch < 700;
+    if (target !== host && !target?.closest('svg[data-role="canvas"]')
+      && !(recentTouch && target?.closest('.touch-actions'))) return;
     const pointerType = (event as PointerEvent).pointerType;
-    if (pointerType === 'touch' || (!pointerType && event.detail > 0 && performance.now() - lastTouch < 700)) {
+    if (pointerType === 'touch' || (!pointerType && event.detail > 0 && recentTouch)) {
       event.preventDefault(); event.stopImmediatePropagation();
     }
   };
   host.addEventListener('click', suppressTouchClick, { capture: true });
-  host.addEventListener('pointerdown', rememberMouse, { capture: true });
+  host.addEventListener('pointerdown', rememberPointer, { capture: true });
   const toggleGrouping = (): boolean => { grouped = !grouped; return grouped; };
   let dispose = renderOnce(host, editor, grouped, toggleGrouping, rememberTouch);
   const unsub = editor.subscribe(() => {
@@ -223,7 +228,7 @@ export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => v
     dispose();
     unsub();
     host.removeEventListener('click', suppressTouchClick, { capture: true });
-    host.removeEventListener('pointerdown', rememberMouse, { capture: true });
+    host.removeEventListener('pointerdown', rememberPointer, { capture: true });
   };
 };
 

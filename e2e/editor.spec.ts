@@ -1,7 +1,7 @@
 // Editor surface area: palette, click-to-place. The blink demo is the default
 // circuit on first load; these tests add components on top of it.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');

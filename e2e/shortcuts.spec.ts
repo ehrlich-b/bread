@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const canvas = (page: Page) => page.locator('svg[data-role="canvas"]');
 const metrics = (page: Page) => page.getByLabel('Simulation throughput', { exact: true });

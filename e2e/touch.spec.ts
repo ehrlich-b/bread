@@ -1,4 +1,4 @@
-import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Locator, type Page } from './fixtures';
 import type { CircuitJSON } from '../src/engine/ir';
 
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
@@ -40,8 +40,10 @@ async function drag(page: Page, target: Locator, dx: number, dy: number): Promis
   try {
     const from = await center(target);
     await touch(session, 'touchStart', [{ ...from, id: 1 }]);
-    for (let step = 1; step <= 6; step++) {
-      await touch(session, 'touchMove', [{ x: from.x + dx * step / 6, y: from.y + dy * step / 6, id: 1 }]);
+    // Cross the drag threshold on the first move; slow CDP round trips must
+    // not turn a sub-threshold move into an unintended long press.
+    for (let step = 1; step <= 3; step++) {
+      await touch(session, 'touchMove', [{ x: from.x + dx * step / 3, y: from.y + dy * step / 3, id: 1 }]);
     }
     await touch(session, 'touchEnd', []);
   } finally { await session.detach(); }
@@ -112,6 +114,7 @@ test('touch places, selects, moves, wires, probes and runs a small circuit', asy
   await expect(page.locator('polyline.wire[data-net-id]')).toHaveCount(2);
 
   await hold(page, await center(page.locator('[data-pin="buf1.Y"]')));
+  await expect(page.locator('[data-pin="buf1.Y"]')).not.toHaveAttribute('data-probed', 'true');
   await page.getByRole('dialog', { name: 'Canvas actions' }).getByRole('button', { name: 'Probe pin', exact: true }).tap();
   await expect(page.locator('[data-pin="buf1.Y"]')).toHaveAttribute('data-probed', 'true');
   await expect(page.getByLabel('Waveform buf1.Y', { exact: true })).toBeVisible();

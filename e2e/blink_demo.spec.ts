@@ -3,7 +3,7 @@
 // switch click handler, the worker round-trip, and the SAB-driven LED updates
 // are all exercised end-to-end.
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import sap1 from '../examples/ben_eater_8bit.json' with { type: 'json' };
 
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });

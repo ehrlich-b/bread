@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const button = (page: Page, name: string) => page.getByRole('button', { name, exact: true });
 const waveform = (page: Page, label: string) => page.getByLabel(`Waveform ${label}`, { exact: true });
