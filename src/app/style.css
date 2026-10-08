@@ -297,15 +297,24 @@ button[aria-pressed='true'] {
   stroke-width: 2;
   fill: none;
   transition: stroke 80ms linear;
-  pointer-events: none;
+  pointer-events: stroke;
+  cursor: crosshair;
+}
+
+.wire-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+  cursor: crosshair;
 }
 
 .wire-0 { stroke: #52525b; }
 .wire-1 { stroke: var(--accent); }
 .wire-Z { stroke: #6b7280; stroke-dasharray: 4 3; }
 .wire-X { stroke: #facc15; }
-.wire-pending { stroke: var(--accent); stroke-dasharray: 4 4; opacity: 0.7; }
-.wire[data-role='wire-bit'] { pointer-events: stroke; cursor: crosshair; }
+.wire-pending { stroke: var(--accent); stroke-dasharray: 4 4; opacity: 0.7; pointer-events: none; }
 .wire-bus { stroke: #a78bfa; stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; pointer-events: stroke; }
 .wire-bus.wire-Z { stroke: #6b7280; stroke-dasharray: 6 4; }
 .wire-bus.wire-X { stroke: #facc15; }
