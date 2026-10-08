@@ -8,6 +8,51 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('svg[data-role="canvas"]')).toBeVisible();
 });
 
+for (const rotation of [0, 90, 180, 270]) {
+  test(`wires meet rendered buffer and DFF pins at ${rotation} degrees`, async ({ page }) => {
+    const circuit = { version: 1, kind: 'circuit', name: 'rotation geometry',
+      components: [
+        { id: 'buffer_source', type: 'prim.BUF', position: [20, 80] },
+        { id: 'buffer', type: 'prim.BUF', position: [150, 80], rotation },
+        { id: 'buffer_sink', type: 'prim.BUF', position: [400, 80] },
+        { id: 'dff_source', type: 'prim.BUF', position: [20, 220] },
+        { id: 'dff', type: 'prim.DFF', position: [150, 220], rotation },
+        { id: 'dff_sink', type: 'prim.BUF', position: [400, 220] },
+      ],
+      nets: [
+        { id: 'buffer_in', endpoints: ['buffer_source.Y', 'buffer.A'] },
+        { id: 'buffer_out', endpoints: ['buffer.Y', 'buffer_sink.A'] },
+        { id: 'dff_in', endpoints: ['dff_source.Y', 'dff.D'] },
+        { id: 'dff_out', endpoints: ['dff.Q', 'dff_sink.A'] },
+      ],
+    };
+    await page.locator('input[data-file-action="load-input"]').setInputFiles({
+      name: 'rotation.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(circuit)),
+    });
+    await expect(page.locator('[data-comp-id="dff"]')).toBeVisible();
+    await expect(page.locator('polyline.wire')).toHaveCount(4);
+    const geometry = await page.locator('svg[data-role="canvas"]').evaluate(svg => {
+      const connections = [
+        { net: 'buffer_in', pin: 'buffer.A', end: -1 }, { net: 'buffer_out', pin: 'buffer.Y', end: 0 },
+        { net: 'dff_in', pin: 'dff.D', end: -1 }, { net: 'dff_out', pin: 'dff.Q', end: 0 },
+      ];
+      return connections.map(({ net, pin, end }) => {
+        const handle = svg.querySelector<SVGCircleElement>(`[data-pin="${pin}"]`)!;
+        const wire = svg.querySelector<SVGPolylineElement>(`polyline[data-net-id="${net}"]`)!;
+        const point = wire.points.getItem(end === 0 ? 0 : wire.points.numberOfItems - 1);
+        // Browser-computed transforms include the SVG body rotation and viewport.
+        const rendered = new DOMPoint(handle.cx.baseVal.value, handle.cy.baseVal.value).matrixTransform(handle.getScreenCTM()!);
+        const endpoint = new DOMPoint(point.x, point.y).matrixTransform(wire.getScreenCTM()!);
+        return { pin, rendered: [rendered.x, rendered.y], endpoint: [endpoint.x, endpoint.y] };
+      });
+    });
+    for (const { pin, rendered, endpoint } of geometry) {
+      expect(endpoint[0], `${pin} x`).toBeCloseTo(rendered[0]!, 3);
+      expect(endpoint[1], `${pin} y`).toBeCloseTo(rendered[1]!, 3);
+    }
+  });
+}
+
 test('palette renders all entries grouped by category', async ({ page }) => {
   // Categories: I/O, Gates, Storage, Sources, Logic blocks, TTL, Memory, Eater.
   await expect(page.locator('.palette-group')).toHaveCount(8);

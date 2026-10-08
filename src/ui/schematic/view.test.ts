@@ -234,6 +234,41 @@ describe('schematic circuit IDs', () => {
   });
 });
 
+describe('schematic rotated wire endpoints', () => {
+  for (const type of ['prim.BUF', 'prim.DFF']) {
+    it.each([0, 90, 180, 270])(`matches rendered ${type} pin geometry at %s degrees`, rotation => {
+      const input = type === 'prim.BUF' ? 'A' : 'D';
+      const output = type === 'prim.BUF' ? 'Y' : 'Q';
+      const h = mount({
+        ...switches,
+        components: [{ id: 'source', type: 'prim.BUF', position: [0, 100] }, { id: 'rotated', type, position: [100, 100], rotation }, { id: 'sink', type: 'prim.BUF', position: [300, 100] }],
+        nets: [{ id: 'input', endpoints: ['source.Y', `rotated.${input}`] }, { id: 'output', endpoints: [`rotated.${output}`, 'sink.A'] }],
+      });
+      try {
+        const group = h.host.querySelector('[data-comp-id="rotated"]')!;
+        const cx = type === 'prim.BUF' ? 20 : 35;
+        const cy = type === 'prim.BUF' ? 20 : 30;
+        expect(group.getAttribute('transform')).toBe(rotation === 0 ? 'translate(100 100)' : `translate(100 100) rotate(${rotation} ${cx} ${cy})`);
+        // SVG quarter-turn matrices in screen coordinates (positive y down).
+        const [a, b, c, d] = new Map([
+          [0, [1, 0, 0, 1]], [90, [0, 1, -1, 0]],
+          [180, [-1, 0, 0, -1]], [270, [0, -1, 1, 0]],
+        ]).get(rotation)!;
+        for (const [net, pinName, end] of [['input', input, -1], ['output', output, 0]] as const) {
+          const pin = group.querySelector(`[data-pin="rotated.${pinName}"]`)!;
+          const dx = Number(pin.getAttribute('cx')) - cx;
+          const dy = Number(pin.getAttribute('cy')) - cy;
+          const rendered = [100 + cx + a! * dx + c! * dy, 100 + cy + b! * dx + d! * dy];
+          const points = h.host.querySelector(`[data-net-id="${net}"]`)!.getAttribute('points')!.split(' ');
+          const endpoint = points.at(end)!.split(',').map(Number);
+          expect(endpoint[0]).toBeCloseTo(rendered[0]!);
+          expect(endpoint[1]).toBeCloseTo(rendered[1]!);
+        }
+      } finally { h.unmount(); }
+    });
+  }
+});
+
 it('renders a wiring handle for a __proto__ input when a NOT chip is created and reopened', async () => {
   const source: CircuitJSON = {
     version: 1, kind: 'circuit', name: 'prototype port',
