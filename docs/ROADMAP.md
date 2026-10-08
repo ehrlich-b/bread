@@ -97,6 +97,7 @@ Implemented:
 
 - [Reusable chip authoring](CHIP_AUTHORING.md): select fragments, name ports, nest/edit/test definitions and save project libraries.
 - Atomic bus connections with bit-mapping preview; configurable word ROMs and live binary/hex readouts.
+- Visual wire bundles inferred from consecutive bits, including Connect bus wiring and partial fan-out. Thick bus-colored trunks show width and live hex/X/Z values; **Group wires** restores individual wires. Pins and bit fan-out paths retain probing and wiring edits, with ordinary JSON nets and undo/redo.
 - Fit circuit and editable labels that persist through save/reopen.
 - [Permalink sharing](../README.md#sharing-circuits) with raw-deflate/base64url version-1 hashes, damage detection, validated and ordered loads, named example links and a 16,000-character full-URL limit. Seven bundled circuit links fit; the original Digital CPU uses JSON export or its named example link.
 - [Keyboard shortcuts](../README.md#keyboard-shortcuts) for run/pause, step, undo/redo, deletion, rotation, mode cancellation, fit and help, guarded while typing or using dialogs.
@@ -111,7 +112,6 @@ and rendering; the simulator tick path is unchanged when no probes exist.
 
 Planned:
 
-- Grouped wire rendering.
 - Best-effort Verilog export.
 
 ## Later possibilities
