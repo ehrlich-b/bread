@@ -13,6 +13,7 @@ Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 - [Declarative JSON testbenches](docs/TESTBENCH.md) with exhaustive loops, four-state checks and clocked vectors. Run from Node or the Testbench panel; failures show expected/actual bits and can focus probe waveforms. Bundled adder, register/bus and SAP-1 benches run in CI.
 - Web Worker simulation with `SharedArrayBuffer` net-state reads, configurable tick rate and measured worker throughput.
 - Eight `eater.*` SAP-1 modules and the bundled `examples/ben_eater_8bit.json`. Release RESET to run Fibonacci: 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, then restart on carry.
+- Open **Tutorial** or use the app’s [`#tutorial`](#tutorial) link for seven guided steps through the clock, probes, bus/register load, ALU, RAM/PC, microcode and Fibonacci waveforms, checked against simulator state.
 - [Bryan's original 2022 Digital CPU](docs/ORIGINAL_CPU_PORT.md), converted from pinned sources by rerunnable Python scripts. Select **Bryan's Digital CPU (generated port)** in Examples, click **Fit circuit**, then **Run** to output 1 through 10. Its CALLRET, countdown, Fibonacci and PUSH/POP programs pass instruction-by-instruction comparisons against an independent ISA interpreter. The source loader's 31-byte limit is preserved.
 
 The [editor-built four-bit CPU](docs/CPU_ASCENT.md) uses 14 reusable modules. Arithmetic and HALT work in the editor; automated ISA tests also cover load/store and conditional loops. UI checks for those programs and high-speed responsiveness remain open.
