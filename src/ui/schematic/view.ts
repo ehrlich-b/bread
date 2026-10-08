@@ -32,6 +32,8 @@ import { shortcutBlocked } from '../shortcuts';
 import { waveformValue } from '../waveform';
 import { resolveRenderer, type PinOffset } from './renderers';
 import { groupWires, type WireGroup } from './wire_groups';
+import { mountTouch } from './touch';
+import type { TouchPoint } from './gestures';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const GRID = 10;
@@ -193,25 +195,46 @@ const transformFor = (inst: ComponentInstanceJSON, sz: { w: number; h: number })
 
 export const mountSchematic = (host: HTMLElement, editor: EditorModel): (() => void) => {
   let grouped = true;
+  let lastTouch = -Infinity;
+  const rememberTouch = (): void => { lastTouch = performance.now(); };
+  const rememberMouse = (event: PointerEvent): void => {
+    if (event.pointerType !== 'touch') lastTouch = -Infinity;
+  };
+  // A tap is dispatched through the existing click handlers below. Suppress
+  // the browser's subsequent compatibility click, even after a re-render.
+  const suppressTouchClick = (event: MouseEvent): void => {
+    if (!event.isTrusted) return;
+    const target = event.target as Element | null;
+    if (target !== host && !target?.closest('svg[data-role="canvas"]')) return;
+    const pointerType = (event as PointerEvent).pointerType;
+    if (pointerType === 'touch' || (!pointerType && event.detail > 0 && performance.now() - lastTouch < 700)) {
+      event.preventDefault(); event.stopImmediatePropagation();
+    }
+  };
+  host.addEventListener('click', suppressTouchClick, { capture: true });
+  host.addEventListener('pointerdown', rememberMouse, { capture: true });
   const toggleGrouping = (): boolean => { grouped = !grouped; return grouped; };
-  let dispose = renderOnce(host, editor, grouped, toggleGrouping);
+  let dispose = renderOnce(host, editor, grouped, toggleGrouping, rememberTouch);
   const unsub = editor.subscribe(() => {
     dispose();
-    dispose = renderOnce(host, editor, grouped, toggleGrouping);
+    dispose = renderOnce(host, editor, grouped, toggleGrouping, rememberTouch);
   });
   return () => {
     dispose();
     unsub();
+    host.removeEventListener('click', suppressTouchClick, { capture: true });
+    host.removeEventListener('pointerdown', rememberMouse, { capture: true });
   };
 };
 
-const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, toggleGrouping: () => boolean): (() => void) => {
+const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, toggleGrouping: () => boolean, rememberTouch: () => void): (() => void) => {
   const { circuit, snapshot, switchValues, placement, selection } = editor.state;
   host.innerHTML = '';
   host.classList.toggle('placing', placement !== null);
 
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.setAttribute('aria-label', 'Circuit canvas');
   svg.dataset.role = 'canvas';
   applyViewBox(svg);
   host.appendChild(svg);
@@ -285,6 +308,8 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
   // click on the same component <g>. Prevents the post-drag click from
   // re-selecting after we just committed a move.
   let dragJustEnded = false;
+  let touchMenu: HTMLDivElement | null = null;
+  const closeTouchMenu = (): void => { touchMenu?.remove(); touchMenu = null; };
 
   const cancelWire = (): void => {
     if (wireFrom) {
@@ -424,6 +449,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
     if (shortcutBlocked(e) || e.repeat || e.altKey) return;
     if (e.key === 'Escape') {
       e.preventDefault();
+      closeTouchMenu();
       cancelWire();
       if (editor.state.placement) editor.clearPlacement();
       if (editor.state.probing) editor.setProbing(null);
@@ -620,6 +646,100 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
   const leds = buildLedRefs(circuit, snapshot, componentGroups);
   const segs = buildSegRefs(circuit, snapshot, componentGroups);
 
+  // Touch never changes the mouse drag threshold or keyboard contracts.
+  // Keep previews local until release; a second finger or cancellation rolls
+  // a component preview back without creating an undo entry.
+  let touchDrag: {
+    start: TouchPoint; sx: number; sy: number; panX: number; panY: number;
+    component?: { inst: ComponentInstanceJSON; group: SVGGElement; size: { w: number; h: number } };
+  } | null = null;
+  const cancelTouchDrag = (): void => {
+    const component = touchDrag?.component;
+    if (component) component.group.setAttribute('transform', transformFor(component.inst, component.size));
+    touchDrag = null;
+  };
+  const showTouchMenu = (target: Element, point: TouchPoint): void => {
+    closeTouchMenu();
+    const menu = document.createElement('div'); menu.className = 'touch-actions';
+    menu.setAttribute('role', 'dialog'); menu.setAttribute('aria-label', 'Canvas actions');
+    const button = (label: string, action: () => void): HTMLButtonElement => {
+      const el = document.createElement('button'); el.type = 'button'; el.textContent = label;
+      el.addEventListener('click', () => { closeTouchMenu(); action(); }); menu.append(el); return el;
+    };
+    const id = target.closest('[data-comp-id]')?.getAttribute('data-comp-id');
+    const endpoint = target.closest('[data-pin]')?.getAttribute('data-pin');
+    const net = target.closest('[data-net-id]')?.getAttribute('data-net-id');
+    if (id) {
+      button('Select', () => editor.select(id));
+      button('Rotate', () => { void editor.rotateComponent(id).catch(() => {}); });
+      button('Delete', () => { void editor.removeComponent(id).catch(() => {}); });
+    }
+    if (endpoint) {
+      button('Probe pin', () => { void editor.addPinProbe(endpoint, false).catch(() => {}); });
+      button('Probe bus', () => { void editor.addPinProbe(endpoint, true).catch(() => {}); });
+    } else if (net) {
+      button('Probe net', () => { void editor.addNetProbe(net).catch(() => {}); });
+    } else {
+      button('Probe pin', () => editor.setProbing('net'));
+    }
+    if (!id) {
+      button('Undo', () => { void editor.undo().catch(() => {}); }).disabled = !editor.canUndo();
+      button('Redo', () => { void editor.redo().catch(() => {}); }).disabled = !editor.canRedo();
+    }
+    button('Cancel action', () => {
+      cancelWire(); editor.clearPlacement(); editor.setProbing(null); editor.setBusWiring(false);
+    });
+    button('Close actions', () => {});
+    touchMenu = menu; host.append(menu);
+    const bounds = host.getBoundingClientRect(); const size = menu.getBoundingClientRect();
+    menu.style.left = `${clamp(point.x - bounds.x, 0, Math.max(0, bounds.width - size.width - 2))}px`;
+    menu.style.top = `${clamp(point.y - bounds.y, 0, Math.max(0, bounds.height - size.height - 2))}px`;
+  };
+  const disposeTouch = mountTouch(svg, {
+    begin: (target, point) => {
+      closeTouchMenu(); cancelTouchDrag();
+      const ctm = svg.getScreenCTM(); if (!ctm) return;
+      if (target.closest('[data-pin]') || target.closest('[data-role="switch-handle"]')) return;
+      const id = target.closest('[data-comp-id]')?.getAttribute('data-comp-id');
+      const inst = circuit.components.find(component => component.id === id);
+      const renderer = inst && resolveRenderer(inst.type, inst.params, circuit.definitions);
+      touchDrag = { start: point, sx: ctm.a, sy: ctm.d, panX: viewPanX, panY: viewPanY };
+      if (!editor.state.placement && inst && renderer) {
+        touchDrag.component = { inst, group: componentGroups.get(inst.id)!, size: renderer.size };
+      }
+    },
+    tap: (target, point) => {
+      target.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: point.x, clientY: point.y }));
+    },
+    drag: (_target, _start, point, commit) => {
+      if (!touchDrag) return;
+      const drag = touchDrag;
+      const dx = (point.x - drag.start.x) / drag.sx; const dy = (point.y - drag.start.y) / drag.sy;
+      if (drag.component) {
+        const { inst, group, size } = drag.component; const initial = positionOf(inst);
+        const x = commit ? Math.round((initial[0] + dx) / GRID) * GRID : initial[0] + dx;
+        const y = commit ? Math.round((initial[1] + dy) / GRID) * GRID : initial[1] + dy;
+        group.setAttribute('transform', transformFor({ ...inst, position: [x, y] }, size));
+        if (commit) {
+          touchDrag = null;
+          if (x !== initial[0] || y !== initial[1]) void editor.updateComponent(inst.id, { position: [x, y] }).catch(() => {});
+        }
+      } else {
+        viewPanX = drag.panX - dx; viewPanY = drag.panY - dy; applyViewBox(svg);
+        if (commit) touchDrag = null;
+      }
+    },
+    pinchStart: () => { closeTouchMenu(); cancelTouchDrag(); cancelWire(); },
+    pinch: ({ from, to, scale }) => {
+      const anchor = clientToLocal(svg, from.x, from.y); if (!anchor) return;
+      zoomBy(svg, scale, anchor.x, anchor.y);
+      const next = clientToLocal(svg, to.x, to.y); if (!next) return;
+      viewPanX += anchor.x - next.x; viewPanY += anchor.y - next.y; applyViewBox(svg);
+    },
+    hold: showTouchMenu,
+    cancel: cancelTouchDrag,
+  }, rememberTouch);
+
   let disposed = false;
   let rafHandle = 0;
   const tick = (): void => {
@@ -663,6 +783,7 @@ const renderOnce = (host: HTMLElement, editor: EditorModel, grouped: boolean, to
   return () => {
     disposed = true;
     cancelAnimationFrame(rafHandle);
+    disposeTouch(); closeTouchMenu();
     disposeBusDialog?.();
     document.removeEventListener('keydown', onKey);
   };

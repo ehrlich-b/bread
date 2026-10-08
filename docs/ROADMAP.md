@@ -101,6 +101,7 @@ Implemented:
 - Fit circuit and editable labels that persist through save/reopen.
 - [Permalink sharing](../README.md#sharing-circuits) with raw-deflate/base64url version-1 hashes, damage detection, validated and ordered loads, named example links and a 16,000-character full-URL limit. Seven bundled circuit links fit; the original Digital CPU uses JSON export or its named example link.
 - [Keyboard shortcuts](../README.md#keyboard-shortcuts) for run/pause, step, undo/redo, deletion, rotation, mode cancellation, fit and help, guarded while typing or using dialogs.
+- [Touch controls](../README.md#touch-controls): Pointer Events for one-finger canvas pan, pinch zoom, tap placement/selection/wiring, component dragging and long-press actions. Phones and tablets use a canvas-first layout with collapsible panels. Gesture and pointer-lifecycle unit tests cover thresholds, cancellation and preview rollback; mobile Playwright checks cover editing, simulation and expanded layouts at 390×844 and 768×1024.
 - Canvas net/bus probes saved in version-1 JSON, with undo/redo; an 8,192-tick waveform ring, distinct 0/1/X/Z traces, hex bus segments, zoom, scroll and a tick cursor integrated with run/pause/step. Probe-only edits preserve running state; capture is absent with no probes.
 - [Declarative testbench files](TESTBENCH.md): schema-validated JSON signal bindings, four-state vectors and masks, clock pulses, bounded edge waits and exhaustive loops. Node CLI and worker-backed UI panel share the engine runner; adder, register/bus and SAP-1 Fibonacci corpus runs in Vitest.
 - An Eater CPU tutorial, opened with **Tutorial** or `#tutorial`: seven guided steps covering step/run, a CLK probe, A-register loading, addition, RAM/PC fetch, one ADD instruction’s microcode and Fibonacci OUT waveforms. Canvas highlights and completion checks use real control signals, register values and recorded edges; Back, Skip, Restart and Reset work with optional browser-local progress. The final step can run the bundled Fibonacci testbench.
@@ -117,7 +118,7 @@ Planned:
 ## Later possibilities
 
 WASM-isolated user behavioral chips, Verilog import, a visual breadboard skin,
-touch support, cloud save/sharing and collaboration. These are not promised.
+cloud save/sharing and collaboration. These are not promised.
 Analog simulation, CPU-specific engine instructions, PCB layout and real
 hardware programming remain out of scope.
 

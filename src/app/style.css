@@ -108,7 +108,33 @@ main {
   width: 100%;
   height: 100%;
   max-height: 70vh;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
+
+.workspace-panel { display: block; min-width: 0; }
+.workspace-panel > summary { display: none; }
+.panel-tutorial:has(#tutorial[hidden]) { display: none; }
+.panel-waveforms { grid-column: 1 / -1; }
+.touch-actions {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  width: 180px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: .5rem;
+  background: var(--bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+}
+.touch-actions button { min-height: 44px; }
 
 aside {
   display: flex;
@@ -406,6 +432,7 @@ aside > * { flex-shrink: 0; }
 
 main:has(#tutorial:not([hidden])) { grid-template-columns: 260px minmax(0, 1fr) 280px; }
 main:has(#tutorial:not([hidden])) #palette { display: none; }
+main:has(#tutorial:not([hidden])) .panel-palette { display: none; }
 #tutorial { border: 1px solid var(--accent); border-radius: 4px; padding: .6rem; font-size: .85rem; height: fit-content; max-height: 70vh; overflow: auto; }
 #tutorial h2 { margin: 0 0 .5rem; font-size: 1rem; }
 #tutorial p { line-height: 1.5; }
@@ -423,3 +450,62 @@ main:has(#tutorial:not([hidden])) #palette { display: none; }
 .tutorial-actions button { font-size: .75rem; padding: .3rem .45rem; }
 [data-tutorial-focus='true'] .gate-body { stroke: #facc15; stroke-width: 3; }
 [data-tutorial-focus='true'] > .label { fill: #facc15; font-weight: bold; }
+
+@media (max-width: 1024px) {
+  header { flex-wrap: wrap; gap: .5rem; padding: .5rem .75rem; }
+  #iso-status { overflow-wrap: anywhere; }
+  main, main:has(#tutorial:not([hidden])) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .6rem;
+    padding: .6rem;
+    align-content: start;
+  }
+  main *, header * { box-sizing: border-box; }
+  main > *, aside > * { min-width: 0; }
+  aside { display: contents; }
+  #schematic { order: 0; height: clamp(280px, 45svh, 480px); }
+  #schematic svg { display: block; max-height: none; }
+  #controls { order: 1; }
+  .panel-palette { order: 2; }
+  .panel-tutorial { order: 3; }
+  .panel-inspector { order: 4; }
+  .panel-waveforms { order: 5; }
+  .panel-testbench { order: 6; }
+  .panel-file { order: 7; }
+  .panel-chips { order: 8; }
+  .panel-events { order: 9; }
+  .workspace-panel { display: block; min-width: 0; overflow-wrap: anywhere; }
+  .workspace-panel > summary {
+    display: list-item;
+    min-height: 44px;
+    padding: .65rem .5rem;
+    cursor: pointer;
+    border: 1px solid #8885;
+    border-radius: 4px;
+  }
+  .workspace-panel[open] > summary { margin-bottom: .4rem; }
+  #palette, main:has(#tutorial:not([hidden])) #palette { display: flex; max-height: 40svh; }
+  main:has(#tutorial:not([hidden])) .panel-palette { display: block; }
+  #tutorial { max-height: none; }
+  button { min-height: 44px; }
+  input, textarea, select, .inspector-form input, .inspector-form textarea, .inspector-form select,
+  #testbench textarea, .json-dialog textarea, .share-dialog input {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
+  }
+  .inspector-form label { grid-template-columns: 5rem minmax(0, 1fr); }
+  .inspector-readonly { overflow-wrap: anywhere; }
+  #file select { width: 100%; }
+  .palette-entry { white-space: normal; }
+  .signal-readout > div { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  .waveform-body { grid-template-columns: minmax(0, 180px) minmax(0, 1fr); }
+  .waveform-label-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .waveform-label-row output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .port-row { grid-template-columns: minmax(0, 1fr) 65px minmax(0, 1fr); }
+  .port-editor { grid-template-columns: minmax(0, 1fr) 70px; }
+  .chip-actions { flex-wrap: wrap; }
+  .json-dialog, .chip-dialog { box-sizing: border-box; max-width: calc(100vw - 1rem); max-height: 85svh; overflow: auto; }
+  .schematic-fit { right: 8px; top: 8px; }
+  .schematic-group { right: 108px; top: 8px; }
+}

@@ -16,6 +16,7 @@ import { mountWaveform } from '../ui/waveform_view';
 import { mountTestbench } from '../ui/testbench';
 import { mountTutorial } from '../ui/tutorial_view';
 import { mountSchematic } from '../ui/schematic';
+import { mountResponsivePanels } from '../ui/responsive';
 
 const isoStatus = document.getElementById('iso-status')!;
 if (!self.crossOriginIsolated) {
@@ -47,6 +48,7 @@ const main = async (): Promise<void> => {
   mountInspector(document.getElementById('inspector')!, editor);
   mountWaveform(document.getElementById('waveforms')!, editor);
   mountTestbench(document.getElementById('testbench')!, editor);
+  mountResponsivePanels(editor);
 
   // Default to running so the LED actually blinks on first load.
   await editor.run(1000);
