@@ -86,6 +86,7 @@ function tokenize(source: string, budget = { count: 0 }, origin = { line: 1, col
 type Expr = { token: Token } & (
   | { kind: 'ref'; name: string; high?: number; low?: number }
   | { kind: 'literal'; bits: string }
+  | { kind: 'nets'; bits: string[] }
   | { kind: 'concat'; args: Expr[] }
   | { kind: 'unary'; operator: string; arg: Expr }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
@@ -312,18 +313,19 @@ class Builder {
   }
   private alias(a: string, b: string): void { const ar = this.find(a); const br = this.find(b); if (ar !== br) this.parent.set(br, ar); }
   private connect(bit: string, endpoint: string): void { this.endpoints.get(this.find(bit))!.push(endpoint); }
-  private add(type: string, params?: Record<string, unknown>, id?: string): ComponentInstanceJSON {
-    if (this.json.components.length >= 25_000) fail(this.module.token, 'flattened hierarchy exceeds 25,000 instance limit');
+  private add(type: string, params?: Record<string, unknown>, id?: string, token = this.module.token): ComponentInstanceJSON {
+    if (this.json.components.length >= 25_000) fail(token, 'flattened hierarchy exceeds 25,000 instance limit');
     let name = id;
     if (name === undefined) do { name = `v${this.sequence++}`; } while (this.used.has(name) || this.reserved.has(name));
     if (!name || name.includes('.') || this.used.has(name)) fail(this.module.token, `duplicate/invalid instance ${name}`);
     this.used.add(name); const component = { id: name, type, ...(params ? { params } : {}) }; this.json.components.push(component); return component;
   }
-  private expression(e: Expr, inputs: string[][], depth = 0): Expression {
+  private expression(e: Expr, inputs: string[][], depth = 0, budget = { nodes: 0 }): Expression {
     if (depth > 64) fail(e.token, 'expression nesting exceeds 64');
-    const convert = (arg: Expr): Expression => this.expression(arg, inputs, depth + 1);
+    if (++budget.nodes > 4096) fail(e.token, 'expression exceeds 4,096 node limit');
+    const convert = (arg: Expr): Expression => this.expression(arg, inputs, depth + 1, budget);
     switch (e.kind) {
-      case 'ref': { const bits = reference(this.module, e); const index = inputs.length; inputs.push(bits); return { op: 'input', index, width: bits.length }; }
+      case 'ref': case 'nets': { const bits = e.kind === 'nets' ? e.bits : reference(this.module, e); const index = inputs.length; inputs.push(bits); return { op: 'input', index, width: bits.length }; }
       case 'literal': return { op: 'literal', bits: e.bits };
       case 'concat': return { op: 'concat', args: e.args.map(convert) };
       case 'unary': return { op: 'unary', operator: e.operator, arg: convert(e.arg) };
@@ -331,10 +333,10 @@ class Builder {
       case 'mux': case 'if': return { op: e.kind, condition: convert(e.condition), yes: convert(e.yes), no: convert(e.no) };
     }
   }
-  private assign(target: string[], e: Expr, label?: string): void {
+  private assign(target: string[], e: Expr, label?: string, token = e.token): void {
     const inputs: string[][] = []; const expression = this.expression(e, inputs);
     if (expressionWidth(expression) > 256 || target.length > 256 || inputs.reduce((n, bits) => n + bits.length, 0) > 16384) fail(e.token, 'expression exceeds width/input lane limit');
-    const component = this.add('prim.VERILOG', { width: target.length, inputWidths: inputs.map(b => b.length), expression });
+    const component = this.add('prim.VERILOG', { width: target.length, inputWidths: inputs.map(b => b.length), expression }, undefined, token);
     component.label = label ?? (target.length === 1 ? target[0]! : `${target[0]}…${target.at(-1)}`);
     inputs.forEach((bits, index) => bits.forEach((bit, i) => this.connect(bit, `${component.id}.I${index}_${i}`)));
     target.forEach((bit, i) => this.connect(bit, `${component.id}.Y${i}`));
@@ -342,11 +344,11 @@ class Builder {
   private input(e: Expr): string[] {
     if (e.kind === 'ref' || e.kind === 'concat' && e.args.every(a => a.kind === 'ref')) return reference(this.module, e);
     const inputs: string[][] = []; const expr = this.expression(e, inputs); const width = expressionWidth(expr);
-    const nets = Array.from({ length: width }, () => this.newNet('__expr'));
+    const nets = Array.from({ length: width }, () => this.newNet('__expr', e.token));
     this.assign(nets, e, 'port expression'); return nets;
   }
-  private newNet(prefix: string): string {
-    if (this.parent.size >= 100_000) fail(this.module.token, 'flattened hierarchy exceeds 100,000 net limit');
+  private newNet(prefix: string, token = this.module.token): string {
+    if (this.parent.size >= 100_000) fail(token, 'flattened hierarchy exceeds 100,000 net limit');
     let name: string; do { name = `${prefix}${this.sequence++}`; } while (this.parent.has(name));
     this.parent.set(name, name); this.endpoints.set(name, []); return name;
   }
@@ -437,16 +439,54 @@ class Builder {
       };
       visit(always.statement);
       if (!targets.size) fail(always.token, 'always block has no register assignment');
-      const next = (s: Statement, name: string, hold: Expr): Expr => {
-        if (s.kind === 'assign') return s.target.kind === 'ref' && s.target.name === name ? s.value : hold;
-        if (s.kind === 'block') return s.statements.reduce((value, statement) => next(statement, name, value), hold);
-        return { token: s.condition.token, kind: 'if', condition: s.condition, yes: next(s.yes, name, hold), no: s.no ? next(s.no, name, hold) : hold };
+      const keys = new WeakMap<Expr, string>();
+      const same = (a: Expr, b: Expr): boolean => {
+        const key = (e: Expr): string => {
+          let value = keys.get(e);
+          if (value === undefined) { value = JSON.stringify(e, (name, value) => name === 'token' ? undefined : value); keys.set(e, value); }
+          return value;
+        };
+        return a === b || key(a) === key(b);
       };
-      for (const [name, target] of targets) {
+      const merges = new WeakMap<Expr, { condition: Expr; yes: Expr; no: Expr }>();
+      // Sparse updates keep unrelated registers out of each branch. Each
+      // merge reads temporary nets rather than copying earlier expression
+      // trees; the component/net budget is checked as those nets are produced.
+      const next = (s: Statement, hold: (name: string) => Expr): Map<string, Expr> => {
+        if (s.kind === 'assign') {
+          this.expression(s.value, []);
+          return new Map([[(s.target as Extract<Expr, { kind: 'ref' }>).name, s.value]]);
+        }
+        const values = new Map<string, Expr>();
+        if (s.kind === 'block') {
+          for (const statement of s.statements) for (const [name, value] of next(statement, name => values.get(name) ?? hold(name))) values.set(name, value);
+          return values;
+        }
+        this.expression(s.condition, []);
+        const yesValues = next(s.yes, hold); const noValues = s.no ? next(s.no, hold) : new Map<string, Expr>();
+        for (const name of new Set([...yesValues.keys(), ...noValues.keys()])) {
+          let yes = yesValues.get(name) ?? hold(name); let no = noValues.get(name) ?? hold(name);
+          if (same(yes, no)) { values.set(name, yes); continue; }
+          const previousYes = merges.get(yes); const previousNo = merges.get(no);
+          if (previousYes && same(previousYes.condition, s.condition)) yes = previousYes.yes;
+          if (previousNo && same(previousNo.condition, s.condition)) {
+            if (same(previousNo.yes, yes)) { values.set(name, no); continue; }
+            no = previousNo.no;
+          }
+          const bits = signalBits(m.signals.get(name)!).map(() => this.newNet('__next', always.token));
+          this.assign(bits, { token: s.condition.token, kind: 'if', condition: s.condition, yes, no }, `${name} next`, always.token);
+          const value: Expr = { token: s.condition.token, kind: 'nets', bits };
+          merges.set(value, { condition: s.condition, yes, no }); values.set(name, value);
+        }
+        return values;
+      };
+      const values = next(always.statement, name => targets.get(name)!);
+      for (const name of targets.keys()) {
         if (driven.has(name)) fail(always.token, `multiple always drivers for reg ${name}`); driven.add(name);
         const signal = m.signals.get(name)!; const bits = signalBits(signal);
-        const data = bits.map(() => this.newNet('__data'));
-        this.assign(data, next(always.statement, name, target), `${name} next`);
+        const value = values.get(name)!;
+        const data = value.kind === 'nets' ? value.bits : bits.map(() => this.newNet('__data', always.token));
+        if (value.kind !== 'nets') this.assign(data, value, `${name} next`, always.token);
         let initial: string | undefined;
         if (signal.initial) {
           const inputs: string[][] = []; const e = this.expression(signal.initial, inputs);
@@ -455,7 +495,7 @@ class Builder {
           if (!/^[01]+$/.test(initial)) fail(signal.token, 'reg initialization supports only 0/1');
         }
         bits.forEach((bit, i) => {
-          const component = this.add('prim.DFF', { verilogData: true, ...(initial ? { initialQ: Number(initial[bits.length - i - 1]) } : {}) });
+          const component = this.add('prim.DFF', { verilogData: true, ...(initial ? { initialQ: Number(initial[bits.length - i - 1]) } : {}) }, undefined, always.token);
           this.connect(data[i]!, `${component.id}.D`); this.connect(clock[0]!, `${component.id}.CLK`); this.connect(bit, `${component.id}.Q`);
         });
       }
@@ -508,7 +548,7 @@ class Builder {
     const usesSource = (e: Expr): boolean => {
       switch (e.kind) {
         case 'ref': return m.sourcePorts.includes(e.name);
-        case 'literal': return false;
+        case 'literal': case 'nets': return false;
         case 'unary': return usesSource(e.arg);
         case 'binary': return usesSource(e.left) || usesSource(e.right);
         case 'concat': return e.args.some(usesSource);

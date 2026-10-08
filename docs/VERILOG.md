@@ -129,8 +129,10 @@ procedural loops/case statements, functions/tasks, delays/strength syntax,
 blocking assignments, asynchronous or negative-edge hand-written processes,
 dynamic selects, replication and other operators. No statement is silently
 discarded. Limits are 16 MB of UTF-8 source, 250,000 tokens, 256-bit vectors,
-64 levels of expression/statement nesting and module hierarchy, and 16,384
-input lanes per expression. Elaboration checks a memoized expansion budget
+64 levels of expression/statement nesting and module hierarchy, 4,096 nodes
+and 16,384 input lanes per expression. Clocked blocks merge repeated writes
+using last-assignment priority and bounded temporary expressions; each generated
+component and net counts toward the budget before allocation. Elaboration checks a memoized expansion budget
 before flattening: at most 25,000 instances (including intermediate module
 instances) and 100,000 nets (before port stitching, including floating leaf
 pins) in each module's expanded hierarchy. Unused modules are checked too.
