@@ -299,3 +299,40 @@ it('matches the frozen evaluator across every compiled input arity and all eight
     before.tick(); after.tick(); compare(tick);
   }
 });
+
+it('matches the frozen scheduler when a contention observer mutates state during settle', () => {
+  const circuit: CircuitJSON = {
+    version: 1, kind: 'circuit', name: 'observer-state-differential',
+    components: [
+      { id: 'zero', type: 'prim.CONST_0' }, { id: 'buf', type: 'prim.BUF' },
+      { id: 'switch', type: 'io.switch' },
+    ],
+    nets: [
+      { id: 'input', endpoints: ['zero.Y', 'buf.A'] },
+      { id: 'fight', endpoints: ['buf.Y'] },
+      { id: 'signal', endpoints: ['switch.Y'] },
+    ],
+  };
+  const run = (Sim: typeof Simulator | typeof ReferenceSimulator) => {
+    const delivered: SimEvent[] = [];
+    const sim = new Sim(loadCircuit(circuit), { onEvent: event => {
+      delivered.push(event);
+      if (event.kind === 'contention') sim.setComponentInput('switch', 'Y', 1);
+    } });
+    sim.setInput('fight', 1);
+    sim.settle();
+    const first = sim.readNet('signal');
+    sim.settle();
+    sim.tick();
+    return {
+      first, nets: sim.graph.netValues,
+      drivers: sim.graph.components.map(comp => comp.outputBuf),
+      states: sim.graph.components.map(comp => comp.state),
+      events: sim.events, delivered, step: sim.step,
+    };
+  };
+  const before = run(ReferenceSimulator);
+  expect(before.first).toBe(1);
+  expect(before.delivered).toHaveLength(1);
+  expect(run(Simulator)).toEqual(before);
+});

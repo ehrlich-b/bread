@@ -38,11 +38,12 @@ export class Simulator {
 
   private readonly maxIterations: number;
   private readonly onEvent?: (event: SimEvent) => void;
-  // Generation marks bound each FIFO queue to the component count. Keep
-  // fixed storage and swap counts instead of truncating/growing JS arrays.
+  // All enqueue paths share the next batch and its generation, so each
+  // fixed-capacity FIFO holds at most one entry per component.
   private dirtyA: Uint32Array;
   private dirtyB: Uint32Array;
   private dirtyCount = 0;
+  private settling = false;
   // A component is queued if its mark equals dirtyGeneration. Advancing
   // the generation clears a whole READ batch without scanning its members.
   private readonly inDirty: Uint32Array;
@@ -130,6 +131,18 @@ export class Simulator {
   // Run iterations until the dirty queue empties or MAX_ITERATIONS trips.
   // One settle = one user-visible step.
   settle(): void {
+    // Observer/evaluator calls cannot swap an active batch's storage. Their
+    // input changes are queued for the outer settle's next READ instead.
+    if (this.settling) return;
+    this.settling = true;
+    try {
+      this.settleStep();
+    } finally {
+      this.settling = false;
+    }
+  }
+
+  private settleStep(): void {
     let iter = 0;
     let now = this.dirtyA;
     let next = this.dirtyB;
@@ -140,7 +153,7 @@ export class Simulator {
       this.contendedThisSettle.fill(0);
       this.contentionGeneration = 1;
     }
-    // Stable for this settle. Diagnostic step numbers count all settlements;
+    // Stable for each READ. Diagnostic step numbers count all settlements;
     // evaluator time counts only simulation ticks.
     const ctx: EvalCtx = { step: this.tickStep, rateHz: this.rateHz };
 
@@ -150,6 +163,17 @@ export class Simulator {
         this.step++;
         return;
       }
+
+      // Retire the READ batch's marks before user code can enqueue again.
+      // Public input setters must append to next, never to the batch being
+      // read; otherwise its stale count can exceed the fixed capacity.
+      const generation = this.nextDirtyGeneration();
+      this.dirtyA = next;
+      this.dirtyB = now;
+      this.dirtyCount = 0;
+      // A re-entrant tick advances time for the next READ, keeping this
+      // iteration's evaluator context consistent across its components.
+      ctx.step = this.tickStep;
 
       // ---- READ phase ---------------------------------------------------
       // Evaluate every dirty component using the current net state. Each
@@ -237,7 +261,6 @@ export class Simulator {
         for (let n = 0; n < nets.length; n++) { netChanged[n] = 1; changedQueue[changedCount++] = n; }
         this.initialResolution = false;
       }
-      const generation = this.nextDirtyGeneration();
       for (let i = 0; i < commitCount; i++) {
         const compIdx = commitQueue[i]!;
         const compiled = (tables.offsets[compIdx] !== 0 || tables.arithmetic[compIdx] !== 0) && components[compIdx]!.evalKind === tables.kinds[compIdx];
@@ -263,14 +286,24 @@ export class Simulator {
       }
 
       // Re-resolve every changed net; if the resolved value moved, wake its
-      // listeners for the next iteration.
+      // listeners for the next iteration. Include any work queued in READ.
+      nextCount = this.dirtyCount;
       for (let q = 0; q < changedCount; q++) {
         const netIdx = changedQueue[q]!;
         netChanged[netIdx] = 0;
         const driver = tables.singleDrivers[netIdx]!;
-        const newValue = driver >= 0 && tables.forced[netIdx] === 2
-          ? RESOLVED_DRIVERS[tables.driven[driver]!]!
-          : this.computeNetByte(netIdx);
+        let newValue: number;
+        if (driver >= 0 && tables.forced[netIdx] === 2) {
+          newValue = RESOLVED_DRIVERS[tables.driven[driver]!]!;
+        } else if (this.onEvent) {
+          // Only this resolver path can call an observer. Synchronize its
+          // enqueue count while retaining local counts for the fast path.
+          this.dirtyCount = nextCount;
+          newValue = this.computeNetByte(netIdx);
+          nextCount = this.dirtyCount;
+        } else {
+          newValue = this.computeNetByte(netIdx);
+        }
         if (newValue === netValues[netIdx]) continue;
         netValues[netIdx] = newValue;
         const end = tables.listenerOffsets[netIdx + 1]!;
@@ -376,13 +409,15 @@ export class Simulator {
 
   private recordOscillation(now: Uint32Array, count: number): void {
     const sample = Array.from(now.subarray(0, Math.min(count, 8)), i => this.graph.components[i]!.id);
+    // Halt the offending batch before notifying user code, so new observer
+    // work remains queued for the next settle rather than being discarded.
+    this.nextDirtyGeneration();
+    this.dirtyCount = 0;
     this.recordEvent({
       kind: 'oscillation',
       detail: `MAX_ITERATIONS=${this.maxIterations} exceeded; ${count} components still dirty (sample: ${sample.join(', ')})`,
       step: this.step,
     });
-    this.nextDirtyGeneration();
-    this.dirtyCount = 0;
   }
 
   private recordEvent(event: SimEvent): void {
