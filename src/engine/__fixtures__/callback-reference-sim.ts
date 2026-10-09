@@ -1,11 +1,13 @@
-import { bindDriverViews, compileTables, driverByte, DRIVER_STATES, RESOLVED_DRIVERS, RESOLVED_MASKS } from './compiled';
-import type { DriverValue, EvalCtx, NetState, RuntimeComponent, RuntimeGraph } from './ir';
-import { LOGIC_NET_STATES, NET_STATES } from './nets';
+// Frozen bf70267 simulator for callback, re-entrancy and exception tests.
+// Only relative imports and the class name differ from the original.
+import { bindDriverViews, compileTables, driverByte, DRIVER_STATES, RESOLVED_DRIVERS, RESOLVED_MASKS } from '../compiled';
+import type { DriverValue, EvalCtx, NetState, RuntimeComponent, RuntimeGraph } from '../ir';
+import { LOGIC_NET_STATES, NET_STATES, netStateByte } from '../nets';
 import {
   evaluateAnd, evaluateOr, evaluateNand, evaluateNor, evaluateXor, evaluateXnor,
   evaluateNot, evaluateBuf, evaluateDff, evaluateLatch, evaluateTristate, evaluateMux2,
   evaluateDemux2, evaluateDecoder, evaluateAdder, evaluateConst0, evaluateConst1, evaluatePullup, evaluatePulldown,
-} from './primitives/dispatch';
+} from '../primitives/dispatch';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
@@ -24,7 +26,7 @@ export interface SimulatorOptions {
   onEvent?: (event: SimEvent) => void;
 }
 
-export class Simulator {
+export class CallbackReferenceSimulator {
   readonly graph: RuntimeGraph;
   // Recent diagnostic history. Observers receive every emitted event.
   readonly events: SimEvent[] = [];
@@ -38,8 +40,7 @@ export class Simulator {
 
   private readonly maxIterations: number;
   private readonly onEvent?: (event: SimEvent) => void;
-  // Growable queues preserve synchronous re-entry and pending work on errors.
-  // Public callbacks can append to a batch while it is being evaluated.
+  // Two dirty queues, swapped per iteration. Insertion order is iteration order.
   private dirtyA: number[] = [];
   private dirtyB: number[] = [];
   // A component is queued if its mark equals dirtyGeneration. Advancing
@@ -164,26 +165,15 @@ export class Simulator {
         if (tableOffset && comp.evalKind === tables.kinds[compIdx]) {
           const base = compIdx * 5;
           const count = tables.inputCounts[compIdx]!;
-          // Dispatch once by arity instead of guarding all five input loads.
-          // Zero-input source tables use vector 0.
-          let vector = 0;
-          switch (count) {
-            case 1: vector = netValues[tables.inputs[base]!]!; break;
-            case 2: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2); break;
-            case 3: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
-              | (netValues[tables.inputs[base + 2]!]! << 4); break;
-            case 4: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
-              | (netValues[tables.inputs[base + 2]!]! << 4) | (netValues[tables.inputs[base + 3]!]! << 6); break;
-            case 5: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
-              | (netValues[tables.inputs[base + 2]!]! << 4) | (netValues[tables.inputs[base + 3]!]! << 6)
-              | (netValues[tables.inputs[base + 4]!]! << 8); break;
-          }
+          let vector = (count > 0 ? netValues[tables.inputs[base]!]! : 0)
+            | (count > 1 ? netValues[tables.inputs[base + 1]!]! << 2 : 0)
+            | (count > 2 ? netValues[tables.inputs[base + 2]!]! << 4 : 0)
+            | (count > 3 ? netValues[tables.inputs[base + 3]!]! << 6 : 0)
+            | (count > 4 ? netValues[tables.inputs[base + 4]!]! << 8 : 0);
           if (tables.kinds[compIdx] === 9) {
             const state = comp.state as { q: NetState; prevClk: NetState };
-            const q = state.q;
-            const prevClk = state.prevClk;
-            vector |= (typeof q === 'number' ? q : q === 'Z' ? 2 : 3) << (count * 2);
-            vector |= (typeof prevClk === 'number' ? prevClk : prevClk === 'Z' ? 2 : 3) << ((count + 1) * 2);
+            vector |= netStateByte(state.q) << (count * 2);
+            vector |= netStateByte(state.prevClk) << ((count + 1) * 2);
           }
           const word = tables.words[tableOffset + vector]!;
           if (tables.kinds[compIdx] === 9) comp.state = {

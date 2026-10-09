@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import './behavioral/index';
+import { CallbackReferenceSimulator } from './__fixtures__/callback-reference-sim';
 import type { CircuitJSON } from './ir';
 import { loadCircuit } from './loader';
 import { Simulator } from './sim';
@@ -18,7 +19,9 @@ const observerCircuit: CircuitJSON = {
   ],
 };
 
-describe('Simulator: callback scheduling', () => {
+describe.each([
+  ['bf70267', CallbackReferenceSimulator], ['current', Simulator],
+] as const)('Simulator: callback scheduling (%s)', (_version, Simulator) => {
   it('retains a component change made by a contention observer during settle', () => {
     let handled = 0;
     const sim = new Simulator(loadCircuit(observerCircuit), { onEvent: event => {
@@ -36,7 +39,7 @@ describe('Simulator: callback scheduling', () => {
       .toEqual({ first: 1, final: 1, state: { Y: 1 }, handled: 1 });
   });
 
-  it.each(['settle', 'tick'] as const)('defers a re-entrant %s while retaining forced-net listeners and state changes', method => {
+  it.each(['settle', 'tick'] as const)('runs a re-entrant %s synchronously while retaining forced-net listeners and state changes', method => {
     const circuit: CircuitJSON = {
       ...observerCircuit,
       components: [
@@ -61,8 +64,7 @@ describe('Simulator: callback scheduling', () => {
       handled++;
       sim.setInput('forced', 1);
       sim.setComponentInput('sw', 'Y', 1);
-      // Fill the entire next batch; repeated state changes and listeners
-      // must share its marks instead of appending duplicates past capacity.
+      // Queue every component, including repeated state changes and listeners.
       for (const comp of circuit.components) sim.setComponentInput(comp.id, 'observerWake', 1);
       sim[method]();
       sim.setComponentInput('sw', 'Y', 0);
@@ -70,7 +72,7 @@ describe('Simulator: callback scheduling', () => {
     } });
     sim.settle();
     expect(handled).toBe(1);
-    expect(sim.step).toBe(1);
+    expect(sim.step).toBe(2);
     expect(sim.readNet('clock_out')).toBe(method === 'tick' ? 1 : 0);
     expect(['signal', 'a_out', 'b_out'].map(id => sim.readNet(id))).toEqual([1, 1, 1]);
     sim.settle();
@@ -99,7 +101,7 @@ describe('Simulator: callback scheduling', () => {
     const graph = loadCircuit(observerCircuit);
     const sw = graph.components[2]!;
     let changed = false;
-    let sim: Simulator;
+    let sim: InstanceType<typeof Simulator>;
     sw.primitive = {
       ...sw.primitive,
       evaluate(_inputs, outputs, state) {
@@ -115,10 +117,10 @@ describe('Simulator: callback scheduling', () => {
     sim = new Simulator(graph);
     sim.settle();
     expect(sim.readNet('signal')).toBe(1);
-    expect(sim.step).toBe(1);
+    expect(sim.step).toBe(2);
   });
 
-  it('retains observer work after halting an oscillating batch', () => {
+  it('runs oscillation observers before clearing the offending batch', () => {
     let handled = 0;
     const sim = new Simulator(loadCircuit(observerCircuit), { maxIterations: 1, onEvent: event => {
       if (event.kind !== 'oscillation') return;
@@ -127,9 +129,14 @@ describe('Simulator: callback scheduling', () => {
       sim.settle();
     } });
     sim.settle();
-    expect(handled).toBe(1);
+    expect(handled).toBe(2);
+    expect(sim.events).toEqual(Array.from({ length: 2 }, () => ({
+      kind: 'oscillation',
+      detail: 'MAX_ITERATIONS=1 exceeded; 1 components still dirty (sample: buf)',
+      step: 0,
+    })));
     sim.settle();
     expect(sim.readNet('signal')).toBe(1);
-    expect(handled).toBe(1);
+    expect(handled).toBe(2);
   });
 });
