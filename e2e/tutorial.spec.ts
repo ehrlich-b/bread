@@ -11,7 +11,9 @@ async function ready(page: Page, number: number, title: string): Promise<void> {
   await expect(page.getByLabel('Simulation throughput', { exact: true })).toContainText('Paused');
 }
 async function steps(page: Page, count: number): Promise<void> {
-  for (let tick = 0; tick < count; tick++) await button(page, 'Step').click();
+  await test.step(`Advance ${count} ticks with Step`, async () => {
+    for (let tick = 0; tick < count; tick++) await button(page, 'Step').click();
+  });
 }
 async function checked(page: Page): Promise<void> {
   await expect(completion(page)).toContainText('Checked:');
@@ -29,7 +31,9 @@ async function probe(page: Page, endpoint: string, bus = false): Promise<void> {
 }
 
 test('the #tutorial tour walks clock, bus, ALU, memory, microcode and Fibonacci through real controls', async ({ page }) => {
-  test.setTimeout(60_000);
+  // Budget for seven circuit loads, 53 Step clicks, live Fibonacci, its
+  // testbench and a reload; keep individual assertion deadlines bounded.
+  test.setTimeout(120_000);
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/#tutorial');
   await ready(page, 1, 'Step and run the clock');
@@ -77,21 +81,27 @@ test('the #tutorial tour walks clock, bus, ALU, memory, microcode and Fibonacci 
   await expect(button(page, 'Check Fibonacci')).toBeDisabled();
   await probe(page, 'display.OUT0', true);
   await expect(button(page, 'Check Fibonacci')).toBeEnabled();
-  await release(page); await button(page, 'Run').click();
-  await expect(completion(page)).toContainText('233 in order.', { timeout: 20_000 });
-  await button(page, 'Pause').click();
-  await button(page, 'Fit waveform').click();
-  await expect(page.getByLabel('Waveform display.OUT[7:0]', { exact: true }).locator('[data-value="E9"]').first()).toBeVisible();
-  await button(page, 'Check Fibonacci').click();
-  await expect(page.getByLabel('Tutorial testbench result', { exact: true })).toHaveText('PASS Fibonacci: 41/41 vectors');
-  await expect(button(page, 'Finish tutorial')).toBeEnabled();
-  await button(page, 'Finish tutorial').click(); await expect(panel(page)).toBeHidden();
-  await expect(page.locator('[data-tutorial-focus="true"]')).toHaveCount(0);
-  await page.reload(); await ready(page, 7, 'Run Fibonacci on the waveform');
-  // Stored progress records prior checks; it cannot claim the fresh CPU ran.
-  await expect(button(page, 'Finish tutorial')).toBeDisabled();
-  await panel(page).getByText('Tutorial steps', { exact: true }).click();
-  await expect(panel(page).locator('li[data-result="complete"]')).toHaveCount(7);
+  await test.step('Record live Fibonacci through 233', async () => {
+    await release(page); await button(page, 'Run').click();
+    await expect(completion(page)).toContainText('233 in order.', { timeout: 20_000 });
+    await button(page, 'Pause').click();
+    await button(page, 'Fit waveform').click();
+    await expect(page.getByLabel('Waveform display.OUT[7:0]', { exact: true }).locator('[data-value="E9"]').first()).toBeVisible();
+  });
+  await test.step('Check all 41 Fibonacci testbench vectors', async () => {
+    await button(page, 'Check Fibonacci').click();
+    await expect(page.getByLabel('Tutorial testbench result', { exact: true })).toHaveText('PASS Fibonacci: 41/41 vectors');
+    await expect(button(page, 'Finish tutorial')).toBeEnabled();
+  });
+  await test.step('Finish and verify stored progress after reload', async () => {
+    await button(page, 'Finish tutorial').click(); await expect(panel(page)).toBeHidden();
+    await expect(page.locator('[data-tutorial-focus="true"]')).toHaveCount(0);
+    await page.reload(); await ready(page, 7, 'Run Fibonacci on the waveform');
+    // Stored progress records prior checks; it cannot claim the fresh CPU ran.
+    await expect(button(page, 'Finish tutorial')).toBeDisabled();
+    await panel(page).getByText('Tutorial steps', { exact: true }).click();
+    await expect(panel(page).locator('li[data-result="complete"]')).toHaveCount(7);
+  });
   expect(errors).toEqual([]);
 });
 
