@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import './behavioral/index';
+import '../stdlib/index';
 import { getBehavioral } from './behavioral/registry';
 import { ReferenceSimulator } from './__fixtures__/reference-sim';
 import type { CircuitJSON, ComponentInstanceJSON, DriverValue, NetState } from './ir';
@@ -116,7 +118,7 @@ describe('f6c3595 scheduler differential', () => {
     compare('power-on');
     expect(after.readNet('weakFight')).toBe('X');
     expect(after.readNet('__floating__floating__A')).toBe('Z');
-    for (let tick = 0; tick < 64; tick++) {
+    for (let tick = 0; tick < 256; tick++) {
       // Force both generation counters through uint32 rollover without
       // changing which components/nets their existing marks designate.
       if (tick === 32) {
@@ -205,4 +207,38 @@ it('preserves held driver buffers, direct forces and dispatch changes through gr
   assert.deepEqual(newBuffer, oldBuffer);
   assert.deepEqual(after.events, before.events);
   expect(newBuffer).toEqual([0]);
+});
+
+it.each(['ben_eater_8bit', 'sap1_count_up', 'original_digital_cpu_generated'])('matches the frozen scheduler throughout 1,024 active ticks of %s', example => {
+  const circuit = JSON.parse(readFileSync(new URL(`../../examples/${example}.json`, import.meta.url), 'utf8')) as CircuitJSON;
+  const large = example === 'original_digital_cpu_generated';
+  if (large) {
+    // LDAi 1; LDBi 1; ADD; OUT; JMP 4 keeps the larger CPU active.
+    circuit.components.find(comp => comp.id === 'v82')!.params!.contents = '02 01 04 01 06 1e 08 04';
+  }
+  const oldEvents: SimEvent[] = [], newEvents: SimEvent[] = [];
+  const before = new ReferenceSimulator(loadCircuit(circuit), { rateHz: large ? 100 : 1, onEvent: event => oldEvents.push(event) });
+  const after = new Simulator(loadCircuit(circuit), { rateHz: large ? 100 : 1, onEvent: event => newEvents.push(event) });
+  let eventCursor = 0;
+  const compare = (where: string) => {
+    assert.deepEqual(after.graph.netValues, before.graph.netValues, where);
+    assert.deepEqual(after.graph.components.map(comp => comp.outputBuf), before.graph.components.map(comp => comp.outputBuf), where);
+    assert.deepEqual(after.graph.components.map(comp => comp.state), before.graph.components.map(comp => comp.state), where);
+    assert.deepEqual(after.events, before.events, where);
+    assert.deepEqual(newEvents.slice(eventCursor), oldEvents.slice(eventCursor), where);
+    assert.equal(after.eventsEmitted, before.eventsEmitted, where);
+    assert.equal(after.step, before.step, where);
+    eventCursor = oldEvents.length;
+  };
+  for (const sim of [before, after]) {
+    sim.settle();
+    if (!large) { sim.setComponentInput('sw_reset', 'Y', 1); sim.settle(); }
+  }
+  compare('power-on/reset');
+  for (let tick = 0; tick < 1024; tick++) {
+    // Repeated empty settlements must not replay stale FIFO entries or clock edges.
+    if (tick % 17 === 0) { before.settle(); after.settle(); compare(`paused ${tick}`); }
+    before.tick(); after.tick();
+    compare(`tick ${tick}`);
+  }
 });

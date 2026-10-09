@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M5 are shipped. M6 has two measured JavaScript optimization passes;
+M0–M5 are shipped. M6 has three measured JavaScript optimization passes;
 unrestricted speed targets remain open. M7 is shipped.
 
 ## Shipped milestones
@@ -135,6 +135,17 @@ all 94 in-memory Playwright checks pass.
 The fresh Node profile includes startup/warmup: `tick` is 71.0% inclusive,
 `settle` 70.7%, fallback evaluation 4.4%, and `computeNetByte` 2.4%; these
 fractions overlap. Most remaining work is inside the compiled scheduler.
+
+Third JavaScript pass (2026-10-08): fixed-capacity dirty FIFOs remove array
+truncation/growth, and compiled DFF state conversion stays inline. Five paired
+trials against `bf70267`, in one background/nice(15) process with 20,000 warmup
+and 200,000 measured ticks per version, alternate 2,000-tick blocks. SAP-1
+median clock throughput rises **43,047 → 53,232 Hz (+23.7%)**; eight OUT-bit
+probes give **43,970 → 54,398 Hz (+23.7%)**, excluding UI delivery/rendering.
+The 1,175-leaf Digital CPU example with a derived looping ROM rises
+**14,821 → 18,706 ticks/s (+26.2%)**. Full-net trace bytes stay unchanged;
+differentials cover 64 random circuits × 256 ticks and three CPU examples.
+Unrestricted speed targets remain open.
 
 ### WASM feasibility
 

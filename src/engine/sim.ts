@@ -1,6 +1,6 @@
 import { bindDriverViews, compileTables, driverByte, DRIVER_STATES, RESOLVED_DRIVERS, RESOLVED_MASKS } from './compiled';
 import type { DriverValue, EvalCtx, NetState, RuntimeComponent, RuntimeGraph } from './ir';
-import { LOGIC_NET_STATES, NET_STATES, netStateByte } from './nets';
+import { LOGIC_NET_STATES, NET_STATES } from './nets';
 import {
   evaluateAnd, evaluateOr, evaluateNand, evaluateNor, evaluateXor, evaluateXnor,
   evaluateNot, evaluateBuf, evaluateDff, evaluateLatch, evaluateTristate, evaluateMux2,
@@ -38,9 +38,11 @@ export class Simulator {
 
   private readonly maxIterations: number;
   private readonly onEvent?: (event: SimEvent) => void;
-  // Two dirty queues, swapped per iteration. Insertion order is iteration order.
-  private dirtyA: number[] = [];
-  private dirtyB: number[] = [];
+  // Generation marks bound each FIFO queue to the component count. Keep
+  // fixed storage and swap counts instead of truncating/growing JS arrays.
+  private dirtyA: Uint32Array;
+  private dirtyB: Uint32Array;
+  private dirtyCount = 0;
   // A component is queued if its mark equals dirtyGeneration. Advancing
   // the generation clears a whole READ batch without scanning its members.
   private readonly inDirty: Uint32Array;
@@ -67,6 +69,8 @@ export class Simulator {
     this.maxIterations = opts.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.onEvent = opts.onEvent;
     this.rateHz = opts.rateHz ?? 1;
+    this.dirtyA = new Uint32Array(graph.components.length);
+    this.dirtyB = new Uint32Array(graph.components.length);
     this.inDirty = new Uint32Array(graph.components.length);
     this.contendedThisSettle = new Uint32Array(graph.nets.length);
     this.netChanged = new Uint8Array(graph.nets.length);
@@ -74,7 +78,7 @@ export class Simulator {
     // Keep the initial X snapshot until the first READ phase. Its COMMIT
     // resolves every net, including drivers which remain at their initial Z.
     for (let i = 0; i < graph.components.length; i++) {
-      this.dirtyA.push(i);
+      this.dirtyA[this.dirtyCount++] = i;
       this.inDirty[i] = 1;
       if (graph.components[i]!.primitive.tickActive) this.tickActive.push(i);
     }
@@ -129,6 +133,8 @@ export class Simulator {
     let iter = 0;
     let now = this.dirtyA;
     let next = this.dirtyB;
+    let nowCount = this.dirtyCount;
+    let nextCount = 0;
     this.contentionGeneration = (this.contentionGeneration + 1) >>> 0;
     if (this.contentionGeneration === 0) {
       this.contendedThisSettle.fill(0);
@@ -138,9 +144,9 @@ export class Simulator {
     // evaluator time counts only simulation ticks.
     const ctx: EvalCtx = { step: this.tickStep, rateHz: this.rateHz };
 
-    while (now.length > 0) {
+    while (nowCount > 0) {
       if (iter++ >= this.maxIterations) {
-        this.recordOscillation(now, next);
+        this.recordOscillation(now, nowCount);
         this.step++;
         return;
       }
@@ -156,7 +162,7 @@ export class Simulator {
       const tables = this.tables;
       const commitQueue = this.commitQueue;
       let commitCount = 0;
-      for (let i = 0; i < now.length; i++) {
+      for (let i = 0; i < nowCount; i++) {
         const compIdx = now[i]!;
         const comp = components[compIdx]!;
         const tableOffset = tables.offsets[compIdx]!;
@@ -170,8 +176,10 @@ export class Simulator {
             | (count > 4 ? netValues[tables.inputs[base + 4]!]! << 8 : 0);
           if (tables.kinds[compIdx] === 9) {
             const state = comp.state as { q: NetState; prevClk: NetState };
-            vector |= netStateByte(state.q) << (count * 2);
-            vector |= netStateByte(state.prevClk) << ((count + 1) * 2);
+            const q = state.q;
+            const prevClk = state.prevClk;
+            vector |= (typeof q === 'number' ? q : q === 'Z' ? 2 : 3) << (count * 2);
+            vector |= (typeof prevClk === 'number' ? prevClk : prevClk === 'Z' ? 2 : 3) << ((count + 1) * 2);
           }
           const word = tables.words[tableOffset + vector]!;
           if (tables.kinds[compIdx] === 9) comp.state = {
@@ -244,7 +252,6 @@ export class Simulator {
           }
         }
       }
-      now.length = 0;
 
       // Re-resolve every changed net; if the resolved value moved, wake its
       // listeners for the next iteration.
@@ -261,7 +268,7 @@ export class Simulator {
         for (let k = tables.listenerOffsets[netIdx]!; k < end; k++) {
           const comp = tables.listeners[k]!;
           if (this.inDirty[comp] === generation) continue;
-          next.push(comp);
+          next[nextCount++] = comp;
           this.inDirty[comp] = generation;
         }
       }
@@ -270,10 +277,13 @@ export class Simulator {
       const tmp = now;
       now = next;
       next = tmp;
+      nowCount = nextCount;
+      nextCount = 0;
     }
 
     this.dirtyA = now;
     this.dirtyB = next;
+    this.dirtyCount = 0;
     this.step++;
   }
 
@@ -330,7 +340,7 @@ export class Simulator {
 
   private markDirty(compIdx: number): void {
     if (this.inDirty[compIdx] === this.dirtyGeneration) return;
-    this.dirtyA.push(compIdx);
+    this.dirtyA[this.dirtyCount++] = compIdx;
     this.inDirty[compIdx] = this.dirtyGeneration;
   }
 
@@ -355,16 +365,15 @@ export class Simulator {
     return RESOLVED_MASKS[mask]!;
   }
 
-  private recordOscillation(now: number[], next: number[]): void {
-    const sample = now.slice(0, 8).map(i => this.graph.components[i]!.id);
+  private recordOscillation(now: Uint32Array, count: number): void {
+    const sample = Array.from(now.subarray(0, Math.min(count, 8)), i => this.graph.components[i]!.id);
     this.recordEvent({
       kind: 'oscillation',
-      detail: `MAX_ITERATIONS=${this.maxIterations} exceeded; ${now.length} components still dirty (sample: ${sample.join(', ')})`,
+      detail: `MAX_ITERATIONS=${this.maxIterations} exceeded; ${count} components still dirty (sample: ${sample.join(', ')})`,
       step: this.step,
     });
     this.nextDirtyGeneration();
-    now.length = 0;
-    next.length = 0;
+    this.dirtyCount = 0;
   }
 
   private recordEvent(event: SimEvent): void {
