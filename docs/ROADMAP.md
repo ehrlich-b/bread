@@ -1,6 +1,6 @@
 # Roadmap
 
-M0–M5 are shipped. M6 has three measured JavaScript optimization passes;
+M0–M5 are shipped. M6 has four measured JavaScript optimization passes;
 unrestricted speed targets remain open. M7 is shipped.
 
 ## Shipped milestones
@@ -145,6 +145,18 @@ probes give **43,970 → 54,398 Hz (+23.7%)**, excluding UI delivery/rendering.
 The 1,175-leaf Digital CPU example with a derived looping ROM rises
 **14,821 → 18,706 ticks/s (+26.2%)**. Full-net trace bytes stay unchanged;
 differentials cover 64 random circuits × 256 ticks and three CPU examples.
+Unrestricted speed targets remain open.
+
+Fourth JavaScript pass (2026-10-09): compiled READ dispatches once by input
+count instead of guarding five input loads. Five paired trials per condition
+against `449485e`, in one background/nice(15) process with 20,000 warmup and
+200,000 measured ticks per version, alternate 2,000-tick blocks. SAP-1 median
+clock throughput rises **63,842 → 68,635 Hz (+7.5%)**; eight OUT-bit probes
+give **64,933 → 68,414 Hz (+5.4%)**, excluding UI delivery/rendering. The
+1,175-leaf Digital CPU with the same derived looping ROM rises
+**21,480 → 22,741 ticks/s (+5.9%)**. Full-net trace bytes stay unchanged;
+an added differential covers every compiled input count across two exhaustive
+four-state sweeps (2,048 ticks), storage and mutable driver views.
 Unrestricted speed targets remain open.
 
 ### WASM feasibility

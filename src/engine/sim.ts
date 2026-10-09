@@ -169,11 +169,20 @@ export class Simulator {
         if (tableOffset && comp.evalKind === tables.kinds[compIdx]) {
           const base = compIdx * 5;
           const count = tables.inputCounts[compIdx]!;
-          let vector = (count > 0 ? netValues[tables.inputs[base]!]! : 0)
-            | (count > 1 ? netValues[tables.inputs[base + 1]!]! << 2 : 0)
-            | (count > 2 ? netValues[tables.inputs[base + 2]!]! << 4 : 0)
-            | (count > 3 ? netValues[tables.inputs[base + 3]!]! << 6 : 0)
-            | (count > 4 ? netValues[tables.inputs[base + 4]!]! << 8 : 0);
+          // Dispatch once by arity instead of guarding all five input loads.
+          // Zero-input source tables use vector 0.
+          let vector = 0;
+          switch (count) {
+            case 1: vector = netValues[tables.inputs[base]!]!; break;
+            case 2: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2); break;
+            case 3: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
+              | (netValues[tables.inputs[base + 2]!]! << 4); break;
+            case 4: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
+              | (netValues[tables.inputs[base + 2]!]! << 4) | (netValues[tables.inputs[base + 3]!]! << 6); break;
+            case 5: vector = netValues[tables.inputs[base]!]! | (netValues[tables.inputs[base + 1]!]! << 2)
+              | (netValues[tables.inputs[base + 2]!]! << 4) | (netValues[tables.inputs[base + 3]!]! << 6)
+              | (netValues[tables.inputs[base + 4]!]! << 8); break;
+          }
           if (tables.kinds[compIdx] === 9) {
             const state = comp.state as { q: NetState; prevClk: NetState };
             const q = state.q;

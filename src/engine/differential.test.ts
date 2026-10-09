@@ -242,3 +242,60 @@ it.each(['ben_eater_8bit', 'sap1_count_up', 'original_digital_cpu_generated'])('
     compare(`tick ${tick}`);
   }
 });
+
+it('matches the frozen evaluator across every compiled input arity and all eight output slots', () => {
+  const instances: ComponentInstanceJSON[] = [
+    { id: 'source', type: 'prim.CONST_0' },
+    ...Array.from({ length: 4 }, (_, i) => ({ id: `gate${i + 1}`, type: 'prim.NAND', params: { inputs: i + 1 } })),
+    { id: 'dff2', type: 'prim.DFF', params: { verilogData: true } },
+    { id: 'dff3', type: 'prim.DFF', params: { enable: true } },
+    { id: 'dff4', type: 'prim.DFF', params: { clrActiveLow: true, preActiveLow: true } },
+    { id: 'dff5', type: 'prim.DFF', params: { enable: true, clrActiveLow: true, preActiveLow: true, verilogData: true } },
+    { id: 'decoder', type: 'prim.DECODER', params: { bits: 3 } },
+    { id: 'demux', type: 'prim.DEMUX2', params: { width: 3 } },
+    { id: 'adder', type: 'prim.ADDER', params: { width: 7 } },
+  ];
+  const inputs = Array.from({ length: 5 }, (_, i) => ({ id: `input${i}`, endpoints: [] as string[] }));
+  const circuit: CircuitJSON = { version: 1, kind: 'circuit', name: 'compiled-arities', components: instances, nets: inputs };
+  for (const inst of instances) {
+    let slot = 0;
+    for (const pin of getPrimitive(inst.type)!.pins(inst.params ?? {})) {
+      if (pin.dir === 'in') inputs[slot++ % inputs.length]!.endpoints.push(`${inst.id}.${pin.name}`);
+      else circuit.nets.push({ id: `${inst.id}_${pin.name}`, endpoints: [`${inst.id}.${pin.name}`] });
+    }
+  }
+  const before = new ReferenceSimulator(loadCircuit(circuit)), after = new Simulator(loadCircuit(circuit));
+  const values: NetState[] = [0, 1, 'Z', 'X'];
+  const drivers: DriverValue[] = [0, 1, 'Z', 'X', 'L', 'H', '0Z', '1Z'];
+  const compare = (tick: number) => {
+    assert.deepEqual(after.graph.netValues, before.graph.netValues, `nets at tick ${tick}`);
+    assert.deepEqual(after.graph.components.map(comp => comp.outputBuf), before.graph.components.map(comp => comp.outputBuf), `drivers at tick ${tick}`);
+    assert.deepEqual(after.graph.components.map(comp => comp.state), before.graph.components.map(comp => comp.state), `states at tick ${tick}`);
+    assert.deepEqual(after.events, before.events, `events at tick ${tick}`);
+    assert.equal(after.eventsEmitted, before.eventsEmitted);
+    assert.equal(after.step, before.step);
+  };
+  before.settle(); after.settle(); compare(-1);
+  // Two exhaustive sweeps of all 4^5 inputs. The second reverses the
+  // trajectory to exercise different previous-clock/Q combinations.
+  for (let tick = 0; tick < 2048; tick++) {
+    const vector = tick < 1024 ? tick : 2047 - tick;
+    for (let pin = 0; pin < inputs.length; pin++) {
+      const value = values[(vector >>> (pin * 2)) & 3]!;
+      before.setInput(inputs[pin]!.id, value); after.setInput(inputs[pin]!.id, value);
+    }
+    if (tick % 13 === 0) {
+      // Mutable graph views must keep the packed word in sync, including
+      // weak/uncertain drivers and the top nibble of an eight-output leaf.
+      for (const sim of [before, after]) {
+        for (const comp of sim.graph.components) {
+          for (let pin = 0; pin < comp.outputBuf.length; pin++) comp.outputBuf[pin] = drivers[(tick + pin) & 7]!;
+          sim.setComponentInput(comp.id, 'differentialWake', (tick & 1) as 0 | 1);
+        }
+        sim.settle();
+      }
+      compare(tick);
+    }
+    before.tick(); after.tick(); compare(tick);
+  }
+});
