@@ -61,6 +61,7 @@ export const PALETTE: PaletteEntry[] = [
   { group: 'TTL', type: 'ttl.74LS273', label: '74LS273' },
   { group: 'TTL', type: 'ttl.74LS283', label: '74LS283' },
   { group: 'TTL', type: 'ttl.74LS193', label: '74LS193' },
+  { group: 'TTL', type: 'ttl.74LS374', label: '74LS374' },
 
   { group: 'Memory', type: 'mem.6116', label: '6116 SRAM' },
   { group: 'Memory', type: 'mem.28C16', label: '28C16 EEPROM' },
