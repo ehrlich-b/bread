@@ -1,0 +1,66 @@
+{
+  "$schema": "../../schema/circuit.schema.json",
+  "version": 1,
+  "kind": "composite",
+  "name": "ttl.74LS153",
+  "description": "Dual 4-to-1 data selector/multiplexer with per-section active-low strobe enable (/1G, /2G) and a shared binary select (B,A with A = LSB, address = B·2 + A). With the section enabled (/G=0) the output Y follows the selected data line (1C0..1C3 / 2C0..2C3); with /G=1 the output is forced low regardless of select/data. Built as two 4-to-1 MUX2 trees (A selects the low pair C0/C1 vs high pair C2/C3, then B selects between the pair results) each gated by NOT(/G) AND muxOut.",
+  "components": [
+    { "id": "inv1g", "type": "prim.NOT" },
+    { "id": "mux1lo", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux1hi", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux1f",  "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "and1",   "type": "prim.AND", "params": { "inputs": 2 } },
+
+    { "id": "inv2g", "type": "prim.NOT" },
+    { "id": "mux2lo", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux2hi", "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "mux2f",  "type": "prim.MUX2", "params": { "width": 1 } },
+    { "id": "and2",   "type": "prim.AND", "params": { "inputs": 2 } }
+  ],
+  "nets": [
+    { "id": "nA",   "endpoints": ["mux1lo.S", "mux1hi.S", "mux2lo.S", "mux2hi.S"] },
+    { "id": "nB",   "endpoints": ["mux1f.S",  "mux2f.S"] },
+
+    { "id": "n1G",  "endpoints": ["inv1g.A"] },
+    { "id": "n1Gn", "endpoints": ["inv1g.Y",  "and1.A"] },
+
+    { "id": "n1C0", "endpoints": ["mux1lo.A0"] },
+    { "id": "n1C1", "endpoints": ["mux1lo.B0"] },
+    { "id": "n1C2", "endpoints": ["mux1hi.A0"] },
+    { "id": "n1C3", "endpoints": ["mux1hi.B0"] },
+
+    { "id": "n1Lo", "endpoints": ["mux1lo.Y0", "mux1f.A0"] },
+    { "id": "n1Hi", "endpoints": ["mux1hi.Y0", "mux1f.B0"] },
+    { "id": "n1Sel", "endpoints": ["mux1f.Y0", "and1.B"] },
+    { "id": "n1Y",  "endpoints": ["and1.Y"] },
+
+    { "id": "n2G",  "endpoints": ["inv2g.A"] },
+    { "id": "n2Gn", "endpoints": ["inv2g.Y",  "and2.A"] },
+
+    { "id": "n2C0", "endpoints": ["mux2lo.A0"] },
+    { "id": "n2C1", "endpoints": ["mux2lo.B0"] },
+    { "id": "n2C2", "endpoints": ["mux2hi.A0"] },
+    { "id": "n2C3", "endpoints": ["mux2hi.B0"] },
+
+    { "id": "n2Lo", "endpoints": ["mux2lo.Y0", "mux2f.A0"] },
+    { "id": "n2Hi", "endpoints": ["mux2hi.Y0", "mux2f.B0"] },
+    { "id": "n2Sel", "endpoints": ["mux2f.Y0", "and2.B"] },
+    { "id": "n2Y",  "endpoints": ["and2.Y"] }
+  ],
+  "ports": [
+    { "name": "/1G", "dir": "in",  "internalNet": "n1G" },
+    { "name": "/2G", "dir": "in",  "internalNet": "n2G" },
+    { "name": "A",   "dir": "in",  "internalNet": "nA" },
+    { "name": "B",   "dir": "in",  "internalNet": "nB" },
+    { "name": "1C0", "dir": "in",  "internalNet": "n1C0" },
+    { "name": "1C1", "dir": "in",  "internalNet": "n1C1" },
+    { "name": "1C2", "dir": "in",  "internalNet": "n1C2" },
+    { "name": "1C3", "dir": "in",  "internalNet": "n1C3" },
+    { "name": "1Y",  "dir": "out", "internalNet": "n1Y" },
+    { "name": "2C0", "dir": "in",  "internalNet": "n2C0" },
+    { "name": "2C1", "dir": "in",  "internalNet": "n2C1" },
+    { "name": "2C2", "dir": "in",  "internalNet": "n2C2" },
+    { "name": "2C3", "dir": "in",  "internalNet": "n2C3" },
+    { "name": "2Y",  "dir": "out", "internalNet": "n2Y" }
+  ]
+}
