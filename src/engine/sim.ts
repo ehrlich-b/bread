@@ -169,13 +169,13 @@ export class Simulator {
         case 'prim.DFF': {
           kind = K_DFF;
           const p = (params ?? {}) as { clrActiveLow?: boolean; preActiveLow?: boolean };
-          if (p.clrActiveLow) this.compFlags[i] |= 2;
-          if (p.preActiveLow) this.compFlags[i] |= 4;
+          if (p.clrActiveLow) this.compFlags[i]! |= 2;
+          if (p.preActiveLow) this.compFlags[i]! |= 4;
           break;
         }
         case 'prim.TRISTATE': {
           kind = K_TRISTATE;
-          if ((params ?? {}).oeActiveLow as boolean | undefined) this.compFlags[i] |= 1;
+          if ((params ?? {}).oeActiveLow as boolean | undefined) this.compFlags[i]! |= 1;
           break;
         }
         case 'prim.CONST_0': kind = K_CONST; this.constVal[i] = 0; break;
