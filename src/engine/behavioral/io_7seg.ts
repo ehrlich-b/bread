@@ -24,17 +24,16 @@ const SEGMENT_NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'] as const;
 const io7seg: PrimitiveDef<SevenSegState, undefined> = {
   pins: () => SEGMENT_NAMES.map((name) => ({ name, dir: 'in' as const })),
   init: () => ({ a: 'X', b: 'X', c: 'X', d: 'X', e: 'X', f: 'X', g: 'X', dp: 'X' }),
-  evaluate(inputs) {
-    return {
-      a: inputs[0]!,
-      b: inputs[1]!,
-      c: inputs[2]!,
-      d: inputs[3]!,
-      e: inputs[4]!,
-      f: inputs[5]!,
-      g: inputs[6]!,
-      dp: inputs[7]!,
-    };
+  evaluate(inputs, _outputs, state) {
+    state.a = inputs[0]!;
+    state.b = inputs[1]!;
+    state.c = inputs[2]!;
+    state.d = inputs[3]!;
+    state.e = inputs[4]!;
+    state.f = inputs[5]!;
+    state.g = inputs[6]!;
+    state.dp = inputs[7]!;
+    return undefined;
   },
 };
 

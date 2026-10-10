@@ -51,7 +51,9 @@ const dff: PrimitiveDef<DffState, DffParams> = {
 
     outputs[0] = q;
     outputs[1] = invert(q);
-    return { q, prevClk: clk };
+    state.q = q;
+    state.prevClk = clk;
+    return state;
   },
 };
 
