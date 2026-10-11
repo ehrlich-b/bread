@@ -1,7 +1,7 @@
 # Roadmap
 
-M0–M5 are shipped. M6's JavaScript optimization pass is complete; its speed
-target remains unverified. M7 is shipped.
+M0–M5 and M7 are shipped. The two M6 JavaScript backends have an offline
+correctness and performance comparison; unrestricted speed targets remain open.
 
 ## Shipped milestones
 
@@ -31,65 +31,33 @@ save/reopen.
 
 ## M6 — Performance
 
-Completed JavaScript changes:
+The integration retains main's hand-inlined typed-array simulator from
+`6a5ffbd`. Native primitive evaluation, driver/listener sidecars and integer
+resolution remain in its hot loop. Clock time advances only on ticks;
+initialized/enabled DFFs, uncertain Verilog drivers, bounded diagnostics,
+mutable graph inspection and synchronous callbacks are supported.
 
-- Resolved nets use `Uint8Array` values. Typed-array sidecars index pins and mark dirty/changed state; component records and evaluator buffers remain objects/arrays.
-- All 19 built-in primitives dispatch through fixed call sites in the READ phase. Custom primitives and behavioral components retain the registry fallback.
-- The changed-net queue uses byte marks and a stable array; dirty queues reuse their arrays.
-- Unforced single-driver nets resolve directly, including weak pulls. Forced/multiple-driver nets retain contention resolution.
-
-Target: **100+ kHz JavaScript / 1+ MHz WASM**. A historical unrestricted
-JavaScript sample reached **88 kHz**. The 2026-10-07 efficiency-core median
-was **16.627 kHz**; these execution conditions are not comparable. The
-100 kHz target is unverified and WASM is not implemented.
-
-### Benchmark method and results
-
-Apple Mac, Node 25.6.1, low-priority efficiency-core execution via
-`taskpolicy -b nice -n 15`. `scripts/bench_eater.ts` runs the bundled Fibonacci
-circuit (307 leaf components, 344 nets), with 20,000 warmup ticks and 200,000
-measured ticks. Clock Hz is ticks/s divided by two. Each run emits 33,652 events.
+The competing compiled four-state backend remains isolated from the
+production engine. Frozen test fixtures preserve it for differential vectors
+and paired benchmarks. See [the simulator comparison](SIMULATOR_BENCHMARK.md)
+for the acceptance decision, workload definitions, seven paired trial samples
+and fresh-process retained-memory measurements.
 
 ```sh
-taskpolicy -b nice -n 15 node --import tsx scripts/bench_eater.ts
+BREAD_DIFFERENTIAL_BACKEND=truth-table npm test -- --maxWorkers=2 --minWorkers=1 src/engine/differential.test.ts src/engine/sim.callbacks.test.ts src/engine/sim.reentry.test.ts
+taskpolicy -b nice -n 15 node --expose-gc --import tsx scripts/bench_simulators.ts 7 100000
 ```
 
-Standalone results, three samples per version:
+The existing Eater, observed Eater, editor-checkpoint CPU and hierarchy tools
+remain available. Benchmarks run headlessly; throughput excludes browser
+rendering and delivery. The target is **100+ kHz JavaScript / 1+ MHz WASM**;
+clock Hz is half the ticks/s for the Eater example. These background nice(15)
+measurements do not establish unrestricted speed.
 
-| Version | Clock samples (Hz) | Median (Hz) | Baseline change |
-| --- | --- | --- | --- |
-| `93655c0` baseline | 14,816 / 15,204 / 16,225 | 15,204 | — |
-| Byte storage (`65584d8`) | 15,663 / 17,158 / 16,732 | 16,732 | +10.1% |
-| Final (`88c46ae`) | 15,992 / 17,815 / 16,627 | 16,627 | +9.4% |
-
-To control for changing laptop load, interleaved trials rotate versions in
-2,000-tick blocks within one process, excluding other versions' execution
-time. Each version receives the same warmup and measured tick counts.
-
-| Version | Paired clock samples (Hz) | Median (Hz) | Paired baseline change |
-| --- | --- | --- | --- |
-| `93655c0` baseline | 14,077 / 13,468 / 13,040 | 13,468 | — |
-| Byte storage + dispatch (`a9644f6`) | 15,381 / 15,442 / 14,069 | 15,381 | +14.2% |
-| Final, direct single-driver resolution | 17,190 / 17,280 / 15,754 | 17,190 | +27.6% (+11.8% over dispatch) |
-
-These clock-throughput figures exclude timed architectural observation.
-An earlier correctness-observed SAP-1 sample on macOS arm64, Node 25.6.1,
-measured 75,731 counted cycles/s and 15,146 instructions/s over 200,000 ticks,
-checking 2,222 outputs. Reproduce with `scripts/bench_eater_observed.ts`.
-The [four-bit CPU measurement](CPU_ASCENT.md) uses a different circuit and
-checks each instruction. None establishes interactive frame rate.
-
-Golden regressions compare every net byte over 2,048 Fibonacci cycles and
-all 64 four-state full-adder input combinations, including startup/reset and
-the full contention/oscillation event sequence. Validation uses typecheck,
-Vitest (436 tests) and the production build.
-
-The final Node profile, including startup/warmup, attributes 86.5% inclusive
-time to `tick`, 66.5% to `settle` and 15.6% to `computeNetValue`; these overlap.
-A future WASM experiment should move scheduler, evaluation and resolution
-behind a burst-level call and compare equivalent semantics. No WASM speedup
-has been measured. Bounded diagnostic retention and interactive profiling
-remain open.
+The standalone `scripts/bench_wasm_read.ts` and `scripts/wasm_read_probe.c`
+experiment is retained against the frozen compiler. It measures a stateless
+READ kernel rather than scheduling, memory, DFF state or resolution. A complete
+WASM simulator and its speed target remain unimplemented.
 
 ## M7 — Polish
 

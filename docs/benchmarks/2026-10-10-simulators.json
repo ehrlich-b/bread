@@ -1,0 +1,218 @@
+{
+  "host": {
+    "cpu": "Apple M4",
+    "platform": "darwin",
+    "arch": "arm64",
+    "node": "v26.10.0"
+  },
+  "results": [
+    {
+      "workload": "eater-0-probes",
+      "unit": "ticks/s",
+      "operations": 100000,
+      "warmup": 10000,
+      "trials": 7,
+      "block": 1000,
+      "checkedSnapshots": 2049,
+      "mainRate": 47446.767862689456,
+      "truthRate": 84763.26050666336,
+      "ratio": 1.786491774360005,
+      "samples": [
+        [
+          49171.108342464104,
+          48783.70248429331,
+          47212.04882306,
+          46511.38983356076,
+          45577.72954434539,
+          48332.192923158604,
+          47446.767862689456
+        ],
+        [
+          84959.65880486487,
+          84155.94903907584,
+          87574.43269586854,
+          80519.35207542761,
+          84763.26050666336,
+          85313.37973957567,
+          82909.55317416936
+        ]
+      ],
+      "memory": {
+        "main": {
+          "constructionMs": 18.57258300000001,
+          "heapBytes": 2097744,
+          "arrayBufferBytes": 30669,
+          "rssBytes": 80388568,
+          "peakRssKiB": 113728,
+          "components": 307,
+          "nets": 344
+        },
+        "truth-table": {
+          "constructionMs": 35.86125000000004,
+          "heapBytes": 2164536,
+          "arrayBufferBytes": 64545,
+          "rssBytes": 70508992,
+          "peakRssKiB": 103568,
+          "components": 307,
+          "nets": 344
+        }
+      }
+    },
+    {
+      "workload": "eater-8-probes",
+      "unit": "ticks/s",
+      "operations": 100000,
+      "warmup": 10000,
+      "trials": 7,
+      "block": 1000,
+      "checkedSnapshots": 2049,
+      "mainRate": 46537.849690853625,
+      "truthRate": 82973.03172438499,
+      "ratio": 1.7829150310030804,
+      "samples": [
+        [
+          44886.19359445637,
+          45282.74644008719,
+          46537.849690853625,
+          49155.971520115076,
+          46114.38650607893,
+          46848.76556969454,
+          52476.989194456655
+        ],
+        [
+          76445.20617845582,
+          78546.88267059356,
+          85066.19966071528,
+          86511.64186472757,
+          80978.83425032436,
+          82973.03172438499,
+          84441.32383087857
+        ]
+      ],
+      "memory": {
+        "main": {
+          "constructionMs": 29.762417000000028,
+          "heapBytes": 2127808,
+          "arrayBufferBytes": 161741,
+          "rssBytes": 80257496,
+          "peakRssKiB": 113264,
+          "components": 307,
+          "nets": 344
+        },
+        "truth-table": {
+          "constructionMs": 22.09854200000001,
+          "heapBytes": 2194448,
+          "arrayBufferBytes": 195617,
+          "rssBytes": 70836528,
+          "peakRssKiB": 104000,
+          "components": 307,
+          "nets": 344
+        }
+      }
+    },
+    {
+      "workload": "original-cpu-active-loop",
+      "unit": "ticks/s",
+      "operations": 100000,
+      "warmup": 10000,
+      "trials": 7,
+      "block": 1000,
+      "checkedSnapshots": 2049,
+      "mainRate": 8464.753865491284,
+      "truthRate": 14953.888273115044,
+      "ratio": 1.7666063905388156,
+      "samples": [
+        [
+          8305.981996258155,
+          10363.815619187415,
+          8144.018084804546,
+          8364.652160090032,
+          8516.44766326824,
+          8464.753865491284,
+          8730.209414290272
+        ],
+        [
+          14914.834436976475,
+          18504.782411680608,
+          13775.946064191196,
+          14641.82705968006,
+          15227.949562458425,
+          14953.888273115044,
+          15280.054551958276
+        ]
+      ],
+      "memory": {
+        "main": {
+          "constructionMs": 61.11191600000001,
+          "heapBytes": 8219424,
+          "arrayBufferBytes": 92042,
+          "rssBytes": 120665984,
+          "peakRssKiB": 151136,
+          "components": 1175,
+          "nets": 1815
+        },
+        "truth-table": {
+          "constructionMs": 124.28637500000002,
+          "heapBytes": 8491728,
+          "arrayBufferBytes": 170165,
+          "rssBytes": 108541800,
+          "peakRssKiB": 137568,
+          "components": 1175,
+          "nets": 1815
+        }
+      }
+    },
+    {
+      "workload": "hierarchy-128-nand",
+      "unit": "transitions/s",
+      "operations": 5000,
+      "warmup": 500,
+      "trials": 7,
+      "block": 1000,
+      "checkedSnapshots": 2049,
+      "mainRate": 21009.92984750844,
+      "truthRate": 24952.14913883716,
+      "ratio": 1.1876360044960468,
+      "samples": [
+        [
+          26294.056605557256,
+          22302.77240187949,
+          21009.92984750844,
+          20999.322830633944,
+          18686.792042708068,
+          21341.634785356724,
+          18062.05858903034
+        ],
+        [
+          28280.54298641789,
+          24952.14913883716,
+          25185.39054126461,
+          22897.69129264344,
+          24155.40132019945,
+          24234.27764764771,
+          29443.77736622426
+        ]
+      ],
+      "memory": {
+        "main": {
+          "constructionMs": 22.27866700000004,
+          "heapBytes": 989056,
+          "arrayBufferBytes": 6935,
+          "rssBytes": 76375496,
+          "peakRssKiB": 108752,
+          "components": 128,
+          "nets": 129
+        },
+        "truth-table": {
+          "constructionMs": 24.74208299999998,
+          "heapBytes": 961200,
+          "arrayBufferBytes": 17827,
+          "rssBytes": 75130360,
+          "peakRssKiB": 107520,
+          "components": 128,
+          "nets": 129
+        }
+      }
+    }
+  ]
+}
