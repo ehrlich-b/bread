@@ -34,6 +34,7 @@ when displayed.
 | Tristate and wired nets | Independent continuous drivers resolve on ordinary Verilog wires; released outputs are Z and conflicting strong drivers resolve to X. Open-collector outputs drive 0 or Z. |
 | Weak pulls | Weak-strength assignments approximate H/L resolution; hardware/tool support varies. |
 | DFF, latch, counter | Registers, level-sensitive latches and clocked processes. Known-edge behavior matches the directed tests; Verilog event ordering, uncertain edges, simultaneous data/control changes and some unknown asynchronous-control cases can differ. |
+| 74LS193 | Behavioral up/down counter with asynchronous load/reset and carry/borrow outputs. The mapping uses SystemVerilog `always_comb` for startup evaluation; use Icarus `-g2012`. Independent clocks and initialized storage require target-specific synthesis support. |
 | TTL and SAP-1 chips | Structural modules retain their JSON component/net hierarchy, with primitive mappings inside. Composite instance parameters are ignored by both loader and exporter. |
 | ROM, 74LS189, 6116, 28C16 | Initialized arrays, asynchronous reads, tristate/open-collector outputs and level-sensitive writes. Unknown address/data skips whole-word writes. Initialization and asynchronous writes need target-specific synthesis support; EEPROM programming timing/protection/endurance is omitted. |
 | Clock / 555 | External clock inputs replace autonomous tick/rate timing. The 555's analog network and reset behavior are omitted. |

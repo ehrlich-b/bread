@@ -7,7 +7,7 @@ Browser-based digital circuit simulator. Goal: run Ben Eater's 8-bit computer at
 Alpha. [Roadmap milestones M0–M5](docs/ROADMAP.md) are shipped:
 
 - Event-driven, two-phase engine with four-state logic, tristate resolution, oscillation detection and deterministic traces.
-- Primitive gates and storage, 16 TTL composites, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
+- Primitive gates and storage, 19 TTL composites and the behavioral 74LS193 counter, clocks, a live seven-segment display, SRAM and programmable EEPROMs. Every shipped component is available in the palette.
 - SVG schematic editor with placement, rotation, wiring, labels, bus connections, live signal inspection and undo/redo. Save/open files, copy/paste Circuit JSON or share a circuit permalink, including memory images, probes and project-local reusable chips. See [chip authoring](docs/CHIP_AUTHORING.md).
 - Persisted canvas probes and a bounded, four-state waveform viewer with hex buses, zoom, scroll and a tick cursor. Run, pause and step share the same recording.
 - [Declarative JSON testbenches](docs/TESTBENCH.md) with exhaustive loops, four-state checks and clocked vectors. Run from Node or the Testbench panel; failures show expected/actual bits and can focus probe waveforms. Bundled adder, register/bus and SAP-1 benches run in CI.
@@ -47,6 +47,7 @@ Requires Node.js 20+ and npm. Install dependencies with `npm ci`, then start Vit
 Run `npm run typecheck`, `npm test -- --maxWorkers=2 --minWorkers=1` and `npm run build` for local checks. For browser tests, install Chromium once with `npx playwright install chromium`, then run `npm run e2e`.
 
 When a local server cannot bind, run `npm run build && BREAD_E2E_IN_MEMORY=1 npm run e2e`. This runs the same specs against built files fulfilled by Playwright at a fake HTTPS origin, with no server or listening port. The default browser tests still use Vite.
+
 Export with `node --import tsx scripts/verilog.ts examples/full_adder.json full_adder.v`.
 Import with `node --import tsx scripts/verilog-import.ts examples/verilog/counter4.v counter4.json`.
 With optional `iverilog`/`vvp` installed, `npm run test:verilog` runs the independent

@@ -2,7 +2,7 @@
 
 The chips and atoms we ship. Each entry says which tier it lives in and what's needed to implement it.
 
-**Status (2026-05-03):** all primitives shipped. All 15 TTL composites shipped. 7 of 12 behavioral chips shipped (added `mem.74LS189` 16×4 RAM with open-collector inverted outputs). Remaining unshipped entries are flagged "M5" (memory chip: `mem.28C16`) or "M7" (extra IO) in the tables below.
+**Status (2026-10-10):** 19 TTL composites, the behavioral 74LS193 counter, programmable EEPROM/SRAM/word ROM, clocks and display/switch IO are shipped. The palette completeness tests check every registered type. Planned IO entries remain marked M7.
 
 ## Primitives (TS, ~20 types) — all shipped
 
@@ -52,13 +52,20 @@ These cover everything Ben Eater's 8-bit machine uses except memory and the cloc
 | `ttl.74LS273` | shipped | 74LS273 | Octal D flip-flop, async clear    | 8 × DFF (shared CP, shared /MR) |
 | `ttl.74LS283` | shipped | 74LS283 | 4-bit binary adder                | ADDER (width=4) |
 
+| `ttl.74LS74` | shipped | 74LS74 | Dual DFF with asynchronous preset/clear | 2 × DFF |
+| `ttl.74LS76` | shipped | 74LS76 | Dual JK with asynchronous preset/clear | DFF + JK logic |
+| `ttl.74LS153` | shipped | 74LS153 | Dual 4:1 multiplexer | MUX2 + enable gating |
+| `ttl.74LS374` | shipped | 74LS374 | Octal DFF with tristate outputs | DFF + TRISTATE |
+
 ## Behavioral chips (TS, in `src/engine/behavioral/`)
 
 Things we don't model as primitive graphs.
 
 | ID | Status | Real chip | Why behavioral |
 |---|---|---|---|
-| `mem.28C16`    | M5      | 28C16   | 2K × 8 EEPROM. Storage as `Uint8Array(2048)`. Programmable via UI (paste hex, upload `.bin`). |
+| `mem.28C16`    | shipped | 28C16   | 2K × 8 EEPROM. Storage as `Uint8Array(2048)`. Programmable via UI (paste hex, upload `.bin`). |
+| `ttl.74LS193` | shipped | 74LS193 | Four-bit up/down counter with independent clocks, asynchronous load/reset and carry/borrow outputs. |
+| `mem.ROM` | shipped | — | Configurable address/data widths and a project-saved word image. |
 | `mem.6116`     | shipped | 6116    | 2K × 8 SRAM. Storage as `Uint8Array(2048)`. Volatile; resets to 0 on power-on. Bidirectional `DQ0..7` pins; `/CE` `/OE` `/WE` truth table per datasheet. Writes with any X data bit are skipped. |
 | `mem.74LS189`  | shipped | 74LS189 | 16 × 4 RAM with **open-collector inverted outputs**. Storage as `Uint8Array(16)` (low 4 bits per byte). Outputs drive strong-0 when the stored bit is 1 and Z otherwise; the user adds an external pullup network (Eater wraps these in 74LS04s + pullups in his RAM module). Writes with any X data bit are skipped. |
 | `gen.555`      | shipped | 555     | Astable square-wave clock generator. Param: `freqHz`. Preserves simulated-time phase when the worker's `rateHz` changes. RESET (datasheet pin 4) is treated as tied high; only the OUT pin is exposed. |
