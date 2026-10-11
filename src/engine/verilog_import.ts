@@ -360,7 +360,7 @@ class Builder {
       if (['prim.MUX2', 'prim.DEMUX2', 'prim.ADDER', 'prim.COUNTER', 'prim.VERILOG'].includes(c.type) && typeof c.params?.width === 'number' && c.params.width > count
         || c.type === 'prim.DECODER' && typeof c.params?.bits === 'number' && 2 ** c.params.bits > count) fail(t, 'bread:cell parameter exceeds available pin bindings');
       const pins = getPinsForType(c.type, c.params);
-      if (!pins || !c.type.startsWith('prim.') && !c.type.startsWith('mem.') && !c.type.startsWith('io.') && !c.type.startsWith('gen.')) fail(t, `unsupported bread:cell ${c.type}`);
+      if (!pins || !c.type.startsWith('prim.') && !c.type.startsWith('mem.') && !c.type.startsWith('io.') && !c.type.startsWith('gen.') && c.type !== 'ttl.74LS193') fail(t, `unsupported bread:cell ${c.type}`);
       if (Object.keys(c.bindings).length !== pins.length || pins.some(p => !Object.hasOwn(c.bindings, p.name))) fail(t, `invalid ${c.type} pin bindings`);
       for (const name of [...Object.values(c.bindings), ...Object.values(c.temps)]) if (typeof name !== 'string' || !simpleIdentifier.test(name)) fail(t, 'invalid bread:cell wire name');
       for (const name of Object.values(c.bindings)) if (!this.parent.has(name)) fail(t, `undeclared bread:cell wire ${name}`);

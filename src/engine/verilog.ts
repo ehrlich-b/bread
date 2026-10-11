@@ -295,6 +295,26 @@ export function renderVerilogLeaf(inst: ComponentInstanceJSON, bindings: Record<
       add(`always @(posedge ${wire('CLK')}) ${q} <= ${input('CLR')} ? ${width}'d0 : (${load});`);
       break;
     }
+    case 'ttl.74LS193': {
+      const q = temp('q'); const cpu = temp('prev_cpu'); const cpd = temp('prev_cpd');
+      const data = temp('data');
+      add('// Approximation: independent-clock edge scheduling and target-dependent zero power-on initialization.');
+      add(`reg [3:0] ${q} = 4'd0; reg ${cpu} = 1'bx, ${cpd} = 1'bx;`);
+      add(`wire [3:0] ${data} = ${bus('D', 4)};`);
+      const up = `(${cpu} === 1'b0 && ${input('CPU')} === 1'b1)`;
+      const down = `(${cpd} === 1'b0 && ${input('CPD')} === 1'b1)`;
+      add('always_comb begin');
+      add(`  if (${input('MR')} === 1'b1) ${q} <= 4'd0;`);
+      add(`  else if (${input('/PL')} === 1'b0) begin if (${known(data)}) ${q} <= ${data}; end`);
+      add(`  else if (${input('MR')} !== 1'b0 || ${input('/PL')} !== 1'b1) ${q} <= 4'bxxxx;`);
+      add(`  else if (${up} != ${down}) ${q} <= ${up} ? ${q} + 4'd1 : ${q} - 4'd1;`);
+      add(`  ${cpu} <= ${input('CPU')}; ${cpd} <= ${input('CPD')};`);
+      add('end');
+      for (let i = 0; i < 4; i++) assign(`Q${i}`, `${q}[${i}]`);
+      assign('/TCU', `${known(q)} ? ((${q} === 4'd15 && ${input('CPU')} === 1'b1) ? 1'b0 : 1'b1) : 1'bx`);
+      assign('/TCd', `${known(q)} ? ((${q} === 4'd0 && ${input('CPD')} === 1'b1) ? 1'b0 : 1'b1) : 1'bx`);
+      break;
+    }
     case 'io.switch': case 'gen.clock': case 'gen.555': {
       add(source!.kind === 'switch'
         ? '// UI switch exported as an external input; drive 0 for bread power-on state.'

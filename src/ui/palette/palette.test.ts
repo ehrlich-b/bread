@@ -9,7 +9,7 @@
 // called, so this runs under vitest's node environment with no DOM.
 
 import { describe, expect, it } from 'vitest';
-import { listAllTypes } from '../../engine';
+import { listAllTypes, listComposites } from '../../engine';
 import { PALETTE } from './index';
 
 describe('palette completeness', () => {
@@ -35,10 +35,10 @@ describe('palette completeness', () => {
     expect(missing).toEqual([]);
   });
 
-  it('intentionally excludes eater.* composites from the palette', () => {
+  it('includes all shipped eater.* composites in the palette', () => {
     const eaterComposite = (t: string): boolean => t.startsWith('eater.');
     const paletteTypes = PALETTE.map((e) => e.type);
-    expect(paletteTypes.filter(eaterComposite)).toEqual([]);
+    expect(paletteTypes.filter(eaterComposite).sort()).toEqual(listComposites().filter(eaterComposite).sort());
   });
 
   it('every palette entry points at a real shipped type', () => {
