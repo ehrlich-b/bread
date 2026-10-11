@@ -1,4 +1,5 @@
-import type { DriverValue, EvalCtx, NetState, RuntimeGraph, RuntimeNet } from './ir';
+import { getPrimitive } from './primitives/registry';
+import type { DriverValue, EvalCtx, NetState, PrimitiveDef, RuntimeGraph } from './ir';
 
 // Default oscillation cap. Combinational chains of depth d settle in d
 // iterations; ring oscillators run forever.
@@ -27,7 +28,8 @@ export interface SimulatorOptions {
 // Driver values (what a component outputs):  0,1, 2=Z, 3=X, 4=L, 5=H
 // Net/input values (resolved):               0,1, 2=Z, 3=X
 
-const TO_DRIVER: Record<string, number> = { Z: 2, X: 3, L: 4, H: 5 };
+const DRIVER_VALUES: readonly DriverValue[] = [0, 1, 'Z', 'X', 'L', 'H', '0Z', '1Z'];
+const TO_DRIVER: Record<string, number> = { Z: 2, X: 3, L: 4, H: 5, '0Z': 6, '1Z': 7 };
 const TO_NET: Record<string, number> = { Z: 2, X: 3 };
 export const decodeNet = (v: number): NetState =>
   v === 2 ? 'Z' : v === 3 ? 'X' : ((v as 0 | 1) || 0) as NetState;
@@ -77,22 +79,26 @@ export class Simulator {
   private dirtyA: number[] = [];
   private dirtyB: number[] = [];
   // Bitmap: 1 if component is currently in either dirty queue.
-  private readonly inDirty: Uint8Array;
+  private readonly inDirty: Uint32Array;
+  private dirtyGeneration = 1;
   // Nets that already emitted a contention event during the current settle().
   // Cleared at the start of each settle so repeats during one step don't spam.
-  private readonly contendedThisSettle: Set<number> = new Set();
+  private readonly contendedThisSettle: Uint32Array;
+  private contentionGeneration = 1;
   // Components flagged tickActive in their def — re-dirtied at every tick().
   private readonly tickActive: number[] = [];
   // Net-changed mark + commit-order queue, replacing a per-iteration Set.
   private readonly netChanged: Uint8Array;
   private readonly changedNetsQueue: number[] = [];
+  private readonly commitQueue: number[] = [];
+  private readonly nativeDefs: Array<PrimitiveDef<unknown, unknown> | undefined>;
 
   // ---- Native fast-path state (SoA over the component list) ----------------
   // native[i]: 1 if component i is evaluated by the inlined integer path.
   private readonly native: Uint8Array;
   // kindOf[i]: native kind id for component i (0 = slow path).
   private readonly kindOf: Int16Array;
-  // flags[i]: bit0 oeActiveLow (TRISTATE), bit1 clrActiveLow (DFF), bit2 preActiveLow (DFF).
+  // flags[i]: bit0 TRISTATE /OE, bit1 DFF /CLR, bit2 DFF /PRE, bit3 DFF EN, bit4 Verilog bufif.
   private readonly compFlags: Uint8Array;
   // width/arity for MUX2/ADDER/nary gates.
   private readonly compWidth: Int16Array;
@@ -109,10 +115,6 @@ export class Simulator {
   private readonly outBuf: Uint8Array;
   private readonly inOff: Int32Array;
   private readonly outOff: Int32Array;
-  // DFF state (q, prevClk) kept off the component object so the hot loop never
-  // allocates or shape-shifts the public state.
-  private readonly dq: Uint8Array;
-  private readonly dprev: Uint8Array;
 
   // ---- Flat net driver/listener lists --------------------------------------
   // drivers for net i: [ndOff[i], ndOff[i+1]); pairs (ndComp[k], ndOut[k]).
@@ -136,7 +138,9 @@ export class Simulator {
     this.rateHz = opts.rateHz ?? 1;
     const nComp = graph.components.length;
     const nNet = graph.nets.length;
-    this.inDirty = new Uint8Array(nComp);
+    this.inDirty = new Uint32Array(nComp);
+    this.contendedThisSettle = new Uint32Array(nNet);
+    this.nativeDefs = new Array(nComp);
     this.netChanged = new Uint8Array(nNet);
     this.native = new Uint8Array(nComp);
     this.kindOf = new Int16Array(nComp);
@@ -147,9 +151,7 @@ export class Simulator {
     this.compOutCount = new Int16Array(nComp);
     this.inOff = new Int32Array(nComp);
     this.outOff = new Int32Array(nComp);
-    this.dq = new Uint8Array(nComp).fill(3); // 'X'
-    this.dprev = new Uint8Array(nComp).fill(3);
-    this.netV = new Uint8Array(nNet).fill(3);
+    this.netV = graph.netValues;
     this.forcedV = new Uint8Array(nNet).fill(2);
 
     let totalIn = 0;
@@ -179,12 +181,14 @@ export class Simulator {
         case 'prim.DFF': {
           kind = K_DFF;
           const p = (params ?? {}) as { clrActiveLow?: boolean; preActiveLow?: boolean };
+          if (params?.enable) this.compFlags[i]! |= 8;
           if (p.clrActiveLow) this.compFlags[i]! |= 2;
           if (p.preActiveLow) this.compFlags[i]! |= 4;
           break;
         }
         case 'prim.TRISTATE': {
           kind = K_TRISTATE;
+          if (params?.verilogBufif) this.compFlags[i]! |= 16;
           if ((params ?? {}).oeActiveLow as boolean | undefined) this.compFlags[i]! |= 1;
           break;
         }
@@ -194,7 +198,9 @@ export class Simulator {
         case 'prim.PULLDOWN': kind = K_CONST; this.constVal[i] = 4; break;
         default: kind = 0; break;
       }
+      if (comp.primitive !== getPrimitive(t)) kind = 0;
       if (kind !== 0) {
+        this.nativeDefs[i] = comp.primitive;
         this.native[i] = 1;
         this.kindOf[i] = kind;
         if (kind >= K_AND && kind <= K_XNOR) this.compWidth[i] = comp.inputNetIdx.length;
@@ -204,6 +210,30 @@ export class Simulator {
     this.inBuf = new Uint8Array(totalIn).fill(3);
     this.propBuf = new Uint8Array(totalOut).fill(2);
     this.outBuf = new Uint8Array(totalOut).fill(2);
+
+    for (let ci = 0; ci < nComp; ci++) {
+      const output = graph.components[ci]!.outputBuf;
+      const offset = this.outOff[ci]!;
+      for (let pin = 0; pin < output.length; pin++) {
+        const slot = offset + pin;
+        Object.defineProperty(output, pin, {
+          enumerable: true, configurable: true,
+          get: () => DRIVER_VALUES[this.outBuf[slot]!]!,
+          set: (value: DriverValue) => { this.outBuf[slot] = encDriver(value); },
+        });
+      }
+    }
+    for (let ni = 0; ni < nNet; ni++) {
+      const net = graph.nets[ni]!;
+      Object.defineProperties(net, {
+        value: { enumerable: true, configurable: true,
+          get: () => decodeNet(this.netV[ni]!),
+          set: (value: NetState) => { this.netV[ni] = encNet(value); } },
+        forced: { enumerable: true, configurable: true,
+          get: () => DRIVER_VALUES[this.forcedV[ni]!]!,
+          set: (value: DriverValue) => { this.forcedV[ni] = encDriver(value); } },
+      });
+    }
 
     // Flatten net drivers/listeners.
     const dc: number[] = [];
@@ -248,7 +278,6 @@ export class Simulator {
     const newValue = this.computeIntNetValue(idx);
     if (newValue === this.netV[idx]) return;
     this.netV[idx] = newValue;
-    net.value = decodeNet(newValue);
     for (const comp of net.listenerComps) this.markDirty(comp);
   }
 
@@ -287,7 +316,11 @@ export class Simulator {
     let iter = 0;
     let now = this.dirtyA;
     let next = this.dirtyB;
-    this.contendedThisSettle.clear();
+    this.contentionGeneration = (this.contentionGeneration + 1) >>> 0;
+    if (this.contentionGeneration === 0) {
+      this.contendedThisSettle.fill(0);
+      this.contentionGeneration = 1;
+    }
     // Stable for this settle. Diagnostic step numbers count all settlements;
     // evaluator time counts only simulation ticks.
     const ctx: EvalCtx = { step: this.tickStep, rateHz: this.rateHz };
@@ -307,8 +340,6 @@ export class Simulator {
     const inBuf = this.inBuf;
     const propBuf = this.propBuf;
     const outBuf = this.outBuf;
-    const dq = this.dq;
-    const dprev = this.dprev;
     const netV = this.netV;
     const changedQueue = this.changedNetsQueue;
     const netChanged = this.netChanged;
@@ -326,10 +357,11 @@ export class Simulator {
       // write into their own pre-allocated string proposedBuf. outputBuf/
       // outBuf (the values currently being driven onto each net) only updates
       // in COMMIT, so no peer sees this iteration's outputs while it evaluates.
-      const nowLen = now.length;
-      for (let i = 0; i < nowLen; i++) {
+      const commitQueue = this.commitQueue;
+      let commitCount = 0;
+      for (let i = 0; i < now.length; i++) {
         const ci = now[i]!;
-        if (native[ci]) {
+        if (native[ci] && components[ci]!.primitive === this.nativeDefs[ci]) {
           const off = inOff[ci]!;
           const cin = compInCount[ci]!;
           const inN = components[ci]!.inputNetIdx;
@@ -432,14 +464,24 @@ export class Simulator {
               let jj = 0;
               const d = inBuf[off + jj++]!;
               const clk = inBuf[off + jj++]!;
+              const en = compFlags[ci]! & 8 ? inBuf[off + jj++]! : 1;
               const clr = compFlags[ci]! & 2 ? inBuf[off + jj++]! : -1;
               const pre = compFlags[ci]! & 4 ? inBuf[off + jj++]! : -1;
-              let q = dq[ci]!;
+              const state = components[ci]!.state as { q: NetState; prevClk: NetState };
+              let q = encNet(state.q);
               if (clr === 0) q = 0;
-              else if (pre === 0) q = 1;
-              else if (dprev[ci] === 0 && clk === 1) q = d;
-              dq[ci] = q;
-              dprev[ci] = clk;
+              else {
+                if (pre === 0) q = 1;
+                else {
+                  if (encNet(state.prevClk) === 0 && clk === 1) {
+                    if (en === 1) q = d;
+                    else if (en !== 0 && d !== q) q = 3;
+                  }
+                  if ((pre === 2 || pre === 3) && q !== 1) q = 3;
+                }
+                if ((clr === 2 || clr === 3) && q !== 0) q = 3;
+              }
+              components[ci]!.state = { q: decodeNet(q), prevClk: decodeNet(clk) };
               propBuf[po] = q;
               propBuf[po + 1] = q === 0 ? 1 : q === 1 ? 0 : 3;
               break;
@@ -450,7 +492,7 @@ export class Simulator {
               const en = compFlags[ci]! & 1
                 ? oe === 0 ? 1 : oe === 1 ? 0 : 3
                 : oe;
-              propBuf[po] = en === 0 ? 2 : en === 1 ? a : 3;
+              propBuf[po] = en === 0 ? 2 : en === 1 ? a : (compFlags[ci]! & 16) && a < 2 ? a + 6 : 3;
               break;
             }
             case K_CONST: {
@@ -466,12 +508,13 @@ export class Simulator {
           const inputIsLogic = comp.inputIsLogic;
           const inputCount = inputBuf.length;
           for (let j = 0; j < inputCount; j++) {
-            const netVal = nets[inputNetIdx[j]!]!.value;
-            inputBuf[j] = inputIsLogic[j] === 1 ? (netVal === 'Z' ? 'X' : netVal) : netVal;
+            const value = netV[inputNetIdx[j]!]!;
+            inputBuf[j] = decodeNet(inputIsLogic[j] === 1 && value === 2 ? 3 : value);
           }
           const ns = comp.primitive.evaluate(inputBuf, comp.proposedBuf, comp.state, comp.params, ctx);
           if (ns !== undefined) comp.state = ns;
         }
+        commitQueue[commitCount++] = ci;
       }
 
       // ---- COMMIT phase -------------------------------------------------
@@ -480,14 +523,15 @@ export class Simulator {
       // re-resolution. Native components compare encoded ints; slow
       // components compare strings and mirror into the flat outBuf so net
       // resolution has one source of truth.
-      changedQueue.length = 0;
+      let changedCount = 0;
       if (this.initialResolution) {
-        for (let n = 0; n < nets.length; n++) { netChanged[n] = 1; changedQueue.push(n); }
+        for (let n = 0; n < nets.length; n++) { netChanged[n] = 1; changedQueue[changedCount++] = n; }
         this.initialResolution = false;
       }
-      for (let i = 0; i < nowLen; i++) {
-        const ci = now[i]!;
-        if (native[ci]) {
+      const generation = this.nextDirtyGeneration();
+      for (let i = 0; i < commitCount; i++) {
+        const ci = commitQueue[i]!;
+        if (native[ci] && components[ci]!.primitive === this.nativeDefs[ci]) {
           const po = outOff[ci]!;
           const cout = compOutCount[ci]!;
           const oni = components[ci]!.outputNetIdx;
@@ -498,50 +542,46 @@ export class Simulator {
               const netIdx = oni[j]!;
               if (!netChanged[netIdx]) {
                 netChanged[netIdx] = 1;
-                changedQueue.push(netIdx);
+                changedQueue[changedCount++] = netIdx;
               }
             }
           }
         } else {
           const comp = components[ci]!;
           const proposedBuf = comp.proposedBuf;
-          const outputBuf = comp.outputBuf;
           const outputNetIdx = comp.outputNetIdx;
           const po = outOff[ci]!;
           for (let j = 0; j < proposedBuf.length; j++) {
-            const newVal = proposedBuf[j]!;
-            if (outputBuf[j] !== newVal) {
-              outputBuf[j] = newVal;
-              outBuf[po + j] = encDriver(newVal);
+            const newVal = encDriver(proposedBuf[j]!);
+            if (outBuf[po + j] !== newVal) {
+              outBuf[po + j] = newVal;
               const netIdx = outputNetIdx[j]!;
               if (!netChanged[netIdx]) {
                 netChanged[netIdx] = 1;
-                changedQueue.push(netIdx);
+                changedQueue[changedCount++] = netIdx;
               }
             }
           }
         }
-        inDirty[ci] = 0;
       }
       now.length = 0;
 
       // Re-resolve every changed net; if the resolved value moved, wake its
       // listeners for the next iteration.
-      for (let q = 0; q < changedQueue.length; q++) {
+      for (let q = 0; q < changedCount; q++) {
         const netIdx = changedQueue[q]!;
         netChanged[netIdx] = 0;
         const newValue = this.computeIntNetValue(netIdx);
         if (newValue === netV[netIdx]) continue;
         netV[netIdx] = newValue;
-        nets[netIdx]!.value = decodeNet(newValue);
         const ls = this.nlOff[netIdx]!;
         const le = this.nlOff[netIdx + 1]!;
         const nl = this.nl;
         for (let k = ls; k < le; k++) {
           const comp = nl[k]!;
-          if (inDirty[comp]) continue;
+          if (inDirty[comp] === generation) continue;
           next.push(comp);
-          inDirty[comp] = 1;
+          inDirty[comp] = generation;
         }
       }
 
@@ -558,10 +598,16 @@ export class Simulator {
 
   // -- helpers --
 
+  private nextDirtyGeneration(): number {
+    this.dirtyGeneration = (this.dirtyGeneration + 1) >>> 0;
+    if (this.dirtyGeneration === 0) { this.inDirty.fill(0); this.dirtyGeneration = 1; }
+    return this.dirtyGeneration;
+  }
+
   private markDirty(compIdx: number): void {
-    if (this.inDirty[compIdx]) return;
+    if (this.inDirty[compIdx] === this.dirtyGeneration) return;
     this.dirtyA.push(compIdx);
-    this.inDirty[compIdx] = 1;
+    this.inDirty[compIdx] = this.dirtyGeneration;
   }
 
   // Resolve a net's encoded value from the flat committed output buffers.
@@ -575,6 +621,8 @@ export class Simulator {
     let weak = -1;
     let weakConflict = false;
     let sawX = false;
+    let maybeLow = false;
+    let maybeHigh = false;
     for (let k = this.ndOff[netIdx]!, e = this.ndOff[netIdx + 1]!; k < e; k++) {
       const v = outBuf[outOff[ndComp[k]!]! + ndOut[k]!]!;
       if (v === 2) continue;
@@ -582,6 +630,8 @@ export class Simulator {
         sawX = true;
         continue;
       }
+      if (v === 6) { maybeLow = true; continue; }
+      if (v === 7) { maybeHigh = true; continue; }
       if (v === 4 || v === 5) {
         const w = v === 5 ? 1 : 0;
         if (weak < 0) weak = w;
@@ -593,7 +643,9 @@ export class Simulator {
     }
     const f = this.forcedV[netIdx]!;
     if (f !== 2) {
-      if (f === 4 || f === 5) {
+      if (f === 6) maybeLow = true;
+      else if (f === 7) maybeHigh = true;
+      else if (f === 4 || f === 5) {
         const w = f === 5 ? 1 : 0;
         if (weak < 0) weak = w;
         else if (weak !== w) weakConflict = true;
@@ -605,8 +657,8 @@ export class Simulator {
       }
     }
     if (strongConflict) {
-      if (!this.contendedThisSettle.has(netIdx)) {
-        this.contendedThisSettle.add(netIdx);
+      if (this.contendedThisSettle[netIdx] !== this.contentionGeneration) {
+        this.contendedThisSettle[netIdx] = this.contentionGeneration;
         this.recordEvent({
           kind: 'contention',
           detail: `net "${this.graph.nets[netIdx]!.id}" driven by conflicting strong values`,
@@ -616,9 +668,10 @@ export class Simulator {
       return 3;
     }
     if (sawX) return 3;
-    if (strong >= 0) return strong;
+    if (strong >= 0) return strong === 0 && maybeHigh || strong === 1 && maybeLow ? 3 : strong;
     if (weakConflict) return 3;
-    if (weak >= 0) return weak;
+    if (weak >= 0) return weak === 0 && maybeHigh || weak === 1 && maybeLow ? 3 : weak;
+    if (maybeLow || maybeHigh) return 3;
     return 2;
   }
 
@@ -629,8 +682,7 @@ export class Simulator {
       detail: `MAX_ITERATIONS=${this.maxIterations} exceeded; ${now.length} components still dirty (sample: ${sample.join(', ')})`,
       step: this.step,
     });
-    for (const c of now) this.inDirty[c] = 0;
-    for (const c of next) this.inDirty[c] = 0;
+    this.nextDirtyGeneration();
     now.length = 0;
     next.length = 0;
   }

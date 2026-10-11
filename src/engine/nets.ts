@@ -1,5 +1,9 @@
 import type { DriverValue, NetState } from './ir';
 
+export const NET_STATES: readonly NetState[] = [0, 1, 'Z', 'X'];
+export const LOGIC_NET_STATES: readonly NetState[] = [0, 1, 'X', 'X'];
+export const netStateByte = (value: NetState): number => value === 'Z' ? 2 : value === 'X' ? 3 : value;
+
 export interface ResolveResult {
   value: NetState;
   // True only when multiple *strong* drivers conflict. X-poison from a single

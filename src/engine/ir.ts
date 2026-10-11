@@ -155,6 +155,8 @@ export interface RuntimeNet {
 export interface RuntimeGraph {
   components: RuntimeComponent[];
   nets: RuntimeNet[];
+  // Shared with the main simulator buffers and worker/waveform readers.
+  netValues: Uint8Array;
   componentById: Map<string, number>;
   netById: Map<string, number>;
 }

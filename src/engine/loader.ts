@@ -9,8 +9,10 @@ import type {
   RuntimeComponent,
   RuntimeGraph,
   RuntimeNet,
+  NetState,
 } from './ir';
 import { getPrimitive } from './primitives/index';
+import { NET_STATES, netStateByte } from './nets';
 import { validateProbes } from './probes';
 
 // Resolve a component type to its leaf evaluator (primitive or behavioral).
@@ -226,7 +228,15 @@ function buildRuntime(flat: CircuitJSON, opts: LoadOptions): RuntimeGraph {
     }
   }
 
-  return { components, nets, componentById, netById };
+  const netValues = new Uint8Array(nets.length).fill(3);
+  for (let i = 0; i < nets.length; i++) {
+    Object.defineProperty(nets[i]!, 'value', {
+      enumerable: true, configurable: true,
+      get: () => NET_STATES[netValues[i]!]!,
+      set: (value: NetState) => { netValues[i] = netStateByte(value); },
+    });
+  }
+  return { components, nets, netValues, componentById, netById };
 }
 
 // Recursively expand composite instances into a flat CircuitJSON whose
